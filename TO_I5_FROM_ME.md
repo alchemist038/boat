@@ -6,10 +6,10 @@ This is the simple root-level note that the human can edit directly.
 
 - machine: i5
 - sender: me
-- status: requested
+- status: done
 - last_updated: 2026-03-14 13:05 JST
 - priority: low
-- branch:
+- branch: i5/20260314_1325_intake_response
 
 ## Active Request
 
