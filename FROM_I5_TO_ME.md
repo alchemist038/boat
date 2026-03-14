@@ -6,36 +6,31 @@
 
 - machine: i5
 - status: running
-- updated_at: 2026-03-14 14:53:10 +09:00
+- updated_at: 2026-03-14 17:31:00 +09:00
 - branch: main
-- commit: db19cba
+- commit: b41dc56
 
 ## 結果
 
 - summary:
-  - `git pull --ff-only origin main` は通り、現在の先頭は `db19cba` です
-  - `boat_a` と `boat_b` を `C:\CODEX_WORK` 配下に clone 済みです
-  - 各 worker に `.venv` を作成し、`pip install -e .[dev]` を完了しました
-  - 収集を本番開始しました
+  - odds backfill は `boat_a` / `boat_b` の 2 worker で継続中です
   - `boat_a` は `2025-04-01..2025-09-30`、`boat_b` は `2025-10-01..2026-03-05` を担当しています
-  - 各 worker は自分の `work\raw` / `work\bronze` / `work\silver` のみを使っています
-  - 初期確認時点で raw ファイルは `boat_a=44`、`boat_b=44` 作成済みです
+  - 2026-03-14 17:30 時点で worker PID `17592` と `17332` は生存しています
+  - ログ上では `racer_stats_term/*.csv` 不在に伴う DuckDB refresh error が見えますが、収集自体はその後も `20250406` / `20251006` まで前進していることを確認しました
+  - `125` の考察メモを `reports/125line_review_20260314.md` に作成しました
+  - `125` の要点は「全場共通より場別・条件別・合算運用で見るべき」「住之江の `低格1号艇 + 展示良` 仮説が比較的有望」「常滑は保留」です
 - touched_files:
   - `FROM_I5_TO_ME.md`
+  - `TO_INS14_FROM_ME.md`
+  - `reports/125line_review_20260314.md`
 - checks:
-  - `git pull --ff-only origin main`
-  - `git clone git@github.com:alchemist038/boat.git C:\CODEX_WORK\boat_a`
-  - `git clone git@github.com:alchemist038/boat.git C:\CODEX_WORK\boat_b`
-  - `python -m venv .venv`
-  - `.\.venv\Scripts\python -m pip install -e .[dev]`
-  - `Start-Process ... python -m boat_race_data collect-range ...`
-  - `Get-Process` で worker PID を確認: `boat_a=17592`, `boat_b=17332`
-  - ログ初期出力を確認:
-  - `boat_a`: `Collecting 20250401 for stadiums: 01, 02, 06, 10, 12, 15, 18, 19, 21, 24`
-  - `boat_b`: `Collecting 20251001 for stadiums: 03, 04, 05, 06, 12, 14, 19, 20, 22, 23, 24`
+  - `Get-Process -Id 17592,17332`
+  - `Get-Content -Tail 20 C:\CODEX_WORK\boat_a\work\logs\collect_stderr.log`
+  - `Get-Content -Tail 20 C:\CODEX_WORK\boat_b\work\logs\collect_stderr.log`
 - blocker:
-  - 現時点の blocker はありません
+  - `racer_stats_term/*.csv` が無いため DuckDB refresh で error が出るが、収集停止には至っていない。完了後に取り扱い確認が必要です
 - next_step:
   - 収集を継続監視します
   - 中断時は同じ worker ディレクトリで同じコマンドを再実行します
   - 各期間の収集完了後、`raw/odds_2t`, `raw/odds_3t`, `bronze/odds_2t`, `bronze/odds_3t` を `ins14` 側へコピー完了まで担当します
+  - `125` の再検討は、まず住之江を主軸に `低格1号艇 + 展示良` の見方で続けます
