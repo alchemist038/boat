@@ -31,6 +31,12 @@ cd C:\CODEX_WORK\boat_clone
 & .\.venv\Scripts\streamlit.exe run live_trigger\app.py
 ```
 
+Or run this launcher:
+
+```powershell
+live_trigger\run_app.cmd
+```
+
 If the app dependency is not installed yet:
 
 ```powershell

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
+import sys
 
 import pandas as pd
 import streamlit as st
 from streamlit.components.v1 import html as st_html
+from streamlit.runtime.scriptrunner import get_script_run_ctx
 
 from boat_race_data.live_trigger import (
     build_watchlist_for_profiles,
@@ -215,4 +217,11 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    if get_script_run_ctx() is None:
+        sys.stderr.write(
+            "Start this app with Streamlit:\n"
+            "  cd C:\\CODEX_WORK\\boat_clone\n"
+            "  .\\.venv\\Scripts\\streamlit.exe run live_trigger\\app.py\n"
+        )
+        raise SystemExit(1)
     main()
