@@ -22,9 +22,19 @@ workspace_codex/archive/**
 workspace_codex/logs/**
 workspace_codex/reports/**
 workspace_codex/scratch/**
+live_trigger/raw/**
+live_trigger/watchlists/*.csv
+live_trigger/ready/*.csv
+live_trigger/plans/**
 
 !data/raw/.gitkeep
 !data/bronze/.gitkeep
 !data/silver/.gitkeep
 !reports/data_quality/.gitkeep
 !workspace_codex/.gitkeep
+!live_trigger/README.md
+!live_trigger/boxes/**
+!live_trigger/raw/.gitkeep
+!live_trigger/watchlists/.gitkeep
+!live_trigger/ready/.gitkeep
+!live_trigger/plans/.gitkeep

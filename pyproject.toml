@@ -18,6 +18,9 @@ dependencies = [
 dev = [
   "pytest>=9.0.0",
 ]
+app = [
+  "streamlit>=1.55.0",
+]
 
 [project.scripts]
 boat-data = "boat_race_data.cli:main"
