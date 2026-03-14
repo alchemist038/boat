@@ -1,50 +1,52 @@
 # Live Trigger
 
-This folder contains the alert-trigger foundation for adopted and candidate logic boxes.
+`125` や `c2` のような BOX を使って、
+- 前日に候補を抽出
+- 当日直前に `beforeinfo` で最終判定
+するための土台です。
 
-## Purpose
-
-- Build next-day watchlists from official race list pages.
-- Re-check `beforeinfo` close to the race and mark `trigger_ready` rows.
-- Keep the logic definition separate by box, such as `125` and `c2`.
-
-## Layout
+## フォルダ構成
 
 - `boxes/`
-  - one folder per logic box
-  - each box stores `profiles/*.json`
+  - logic / project ごとの BOX
+  - 各 BOX の `profiles/*.json` に条件を書く
 - `watchlists/`
-  - CSV output from next-day candidate extraction
+  - 前日候補抽出の CSV
 - `ready/`
-  - CSV output from final trigger resolution
+  - 直前判定後の CSV
 - `plans/`
-  - schedule and logic-board HTML / Markdown outputs
+  - 予定ボードや logic board の出力
 - `app.py`
-  - Streamlit app for schedule, watchlist, and final-resolution checks
+  - Streamlit アプリ本体
+- `run_app.cmd`
+  - 起動用ランチャー
 
-## Run The App
+## 起動方法
 
-From the repo root:
+リポジトリ直下で:
 
 ```powershell
 cd C:\CODEX_WORK\boat_clone
 & .\.venv\Scripts\streamlit.exe run live_trigger\app.py
 ```
 
-Or run this launcher:
+または:
 
 ```powershell
 live_trigger\run_app.cmd
 ```
 
-If the app dependency is not installed yet:
+## 画面でできること
 
-```powershell
-& .\.venv\Scripts\python.exe -m pip install -e .[app]
-```
+- `予定ボード`
+  - 2週間から1か月先の予定と BOX 一覧を見る
+- `翌日候補抽出`
+  - 指定日の候補レースを watchlist に出す
+- `直前判定`
+  - `beforeinfo` を見て `trigger_ready` を確定する
 
-## Current Rule
+## 補足
 
-- `125` and `c2` are managed as separate boxes.
-- Batch watchlist generation uses only `enabled: true` profiles by default.
-- The app can still inspect disabled profiles and run them manually for validation.
+- batch 抽出は通常 `enabled: true` の profile が対象です
+- ただしアプリ上では無効 profile も手動で選んで試せます
+- `python live_trigger\app.py` ではなく、必ず `streamlit run` で起動してください
