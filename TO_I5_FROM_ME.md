@@ -6,8 +6,8 @@
 
 - machine: i5
 - from: me
-- status: requested
-- updated_at: 2026-03-14 14:45 JST
+- status: go
+- updated_at: 2026-03-14 15:05 JST
 - priority: high
 
 ## 今回の依頼
@@ -21,12 +21,16 @@
 1. `boat_a`: `2025-04-01..2025-09-30`
 2. `boat_b`: `2025-10-01..2026-03-05`
 
-使うローカル worker はこれです。
+使う repo はこれです。
 
-- `C:\CODEX_WORK\boat_a`
-- `C:\CODEX_WORK\boat_b`
+- `C:\CODEX_WORK\boat_clone`
 
-それぞれ repo の最新を `git pull` してから、同じ clone 内にある `work\raw` / `work\bronze` / `work\silver` を使ってください。
+この 1 clone の中で、worker root を 2 本に分けてください。
+
+- `work\boat_a`
+- `work\boat_b`
+
+つまり、「1 clone + 2 worker roots」で進めてください。
 
 `boat_a` で実行:
 
@@ -34,9 +38,9 @@
 .\.venv\Scripts\python -m boat_race_data collect-range `
   --start-date 20250401 `
   --end-date 20250930 `
-  --raw-root work\raw `
-  --bronze-root work\bronze `
-  --db-path work\silver\boat_race_i5_a.duckdb `
+  --raw-root work\boat_a\raw `
+  --bronze-root work\boat_a\bronze `
+  --db-path work\boat_a\silver\boat_race.duckdb `
   --sleep-seconds 0.5 `
   --refresh-every-days 1 `
   --resume-existing-days `
@@ -50,9 +54,9 @@
 .\.venv\Scripts\python -m boat_race_data collect-range `
   --start-date 20251001 `
   --end-date 20260305 `
-  --raw-root work\raw `
-  --bronze-root work\bronze `
-  --db-path work\silver\boat_race_i5_b.duckdb `
+  --raw-root work\boat_b\raw `
+  --bronze-root work\boat_b\bronze `
+  --db-path work\boat_b\silver\boat_race.duckdb `
   --sleep-seconds 0.5 `
   --refresh-every-days 1 `
   --resume-existing-days `
@@ -60,7 +64,9 @@
   --skip-quality-report
 ```
 
-中断時は、同じディレクトリで同じコマンドをもう一度実行してください。`work\bronze` が再開用の状態を持ちます。
+これは `GO` 指示です。準備返答ではなく、実行開始してください。
+
+中断時は、同じディレクトリで同じコマンドをもう一度実行してください。各 `work\boat_*\bronze` が再開用の状態を持ちます。
 
 収集完了後は、各 worker の対応期間について、少なくとも次を `ins14` 側の対応フォルダへコピー完了まで担当してください。
 
