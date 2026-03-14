@@ -715,7 +715,7 @@ validation期間:
 - `GPT/output/2025-04-15_2025-08-19_strategy_a_v4_OOS2`
 - `GPT/output/quick_bt_context_a1a2_2t_13`
 - `GPT/output/2025Q1_vs_2025Q2_correlation_study`
-- `reports/three_year_bt_readiness_20260312.md`
+- `reports/data/three_year_bt_readiness_20260312.md`
 
 ### 主なコード
 

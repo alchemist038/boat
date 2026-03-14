@@ -17,12 +17,12 @@
   - `boat_a` は `2025-04-01..2025-09-30`、`boat_b` は `2025-10-01..2026-03-05` を担当しています
   - 2026-03-14 17:30 時点で worker PID `17592` と `17332` は生存しています
   - ログ上では `racer_stats_term/*.csv` 不在に伴う DuckDB refresh error が見えますが、収集自体はその後も `20250406` / `20251006` まで前進していることを確認しました
-  - `125` の考察メモを `reports/125line_review_20260314.md` に作成しました
+  - `125` の考察メモを `reports/strategies/125/review_20260314.md` に作成しました
   - `125` の要点は「全場共通より場別・条件別・合算運用で見るべき」「住之江の `低格1号艇 + 展示良` 仮説が比較的有望」「常滑は保留」です
 - touched_files:
   - `FROM_I5_TO_ME.md`
   - `TO_INS14_FROM_ME.md`
-  - `reports/125line_review_20260314.md`
+  - `reports/strategies/125/review_20260314.md`
 - checks:
   - `Get-Process -Id 17592,17332`
   - `Get-Content -Tail 20 C:\CODEX_WORK\boat_a\work\logs\collect_stderr.log`

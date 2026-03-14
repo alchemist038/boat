@@ -267,10 +267,119 @@ night で特に強い候補場:
 という位置づけが妥当である。
 
 18. 参照先
-- D:\boat\workspace_codex\analysis\weak1_removable_outer_pre2026_20260313
-- D:\boat\workspace_codex\analysis\weak1_removable_outer_cf_pre2026_20260313
-- D:\boat\workspace_codex\analysis\weak1_removable_outer_options_pre2026_20260313
-- D:\boat\workspace_codex\analysis\weak1_removable_outer_stadium_pre2026_20260313
-- D:\boat\workspace_codex\analysis\weak1_rem5_alltime_probe_20260313
-- D:\boat\workspace_codex\analysis\weak1_rem5_stadium_deep_pre2026_20260313
+- D:\boat\workspace_codex\analysis\125\weak1_removable_outer_pre2026_20260313
+- D:\boat\workspace_codex\analysis\125\weak1_removable_outer_cf_pre2026_20260313
+- D:\boat\workspace_codex\analysis\125\weak1_removable_outer_options_pre2026_20260313
+- D:\boat\workspace_codex\analysis\125\weak1_removable_outer_stadium_pre2026_20260313
+- D:\boat\workspace_codex\analysis\125\weak1_rem5_alltime_probe_20260313
+- D:\boat\workspace_codex\analysis\125\weak1_rem5_stadium_deep_pre2026_20260313
 - D:\boat\workspace_codex\analysis\day_night_hypothesis_pre2026_20260313
+
+19. 2026-03-14 統合更新
+2026-03-14 時点では、125ラインは「全場共通の 1-2-5 ロジック」ではなく、
+「住之江を主軸にした lane1=B1 系ロジック」として整理し直した。
+
+今回の追加検証で分かったことは次の通り。
+- `lane1_class_not_a1` を A2 / B1 / B2 に分解すると、本体は `B1` だった
+- `A2` は weak-looking lane1 と言うには強すぎる
+- `B2` は弱すぎて再現性が低い
+- `lane5=B2` は 125 では明確に悪く、`lane6=B2` は消し条件として有効
+- `展示良(exgap<=0.02)` は住之江型ロジックの強化条件として有効
+
+20. 住之江125 の現時点の完成形
+現時点の主力単場ロジックは次の条件である。
+- 場: 住之江(12)
+- 買い目: 固定 1-2-5
+- 条件:
+  - `lane1=B1`
+  - `lane6=B2`
+  - `lane5!=B2`
+  - `lane1 exhibition_time - best_exhibition_time <= 0.02`
+
+成績:
+- `base_rem5`
+  - BT: 368レース, ROI 112.61%, 最大DD 13,670円, 最大連敗 85
+  - FW: 95レース, ROI 250.21%, 最大DD 3,070円, 最大連敗 23
+- `base_rem5 + 展示良`
+  - BT: 143レース, ROI 195.03%, 最大DD 3,630円, 最大連敗 32
+  - FW: 36レース, ROI 560.00%, 最大DD 800円, 最大連敗 8
+- `lane5=B1 + 展示良`
+  - BT: 92レース, ROI 220.22%, 最大DD 4,730円, 最大連敗 35
+  - FW: 17レース, ROI 474.71%, 最大DD 800円, 最大連敗 8
+
+住之江は 1号艇連対率が高い場であり、
+`lane1=B1` でも 1 が残りやすい。
+そこに
+- 1 は B1 なので市場に少し軽く見られる
+- しかし展示で戻る
+- 6 は B2 で消しやすい
+- 5 は B2 でなければ残しやすい
+という構造が重なって、1-2-5 の歪みが出ていると解釈する。
+
+21. 全場スキャン後の整理
+24場横断スキャンの結果、住之江だけでなく次の場が次点候補として残った。
+- 鳴門: `base_rem5`, `base_rem5_exgap_002`
+- 芦屋: `lane5_B1_exgap_002`
+- 江戸川: `base_rem5_exgap_002`
+- 宮島: `lane5_A1`
+- 桐生: `lane5_B1`
+
+ただし、一貫して強かったのは住之江である。
+そのため、
+- 主力単場ロジック: 住之江125
+- 次点候補: 鳴門, 芦屋, 江戸川, 宮島, 桐生
+という整理にした。
+
+22. 4場合算ロジック
+実運用候補として、次の4場を合算した広域版も成立した。
+- 住之江: `lane1=B1`, `lane6=B2`, `lane5!=B2`, `exgap<=0.02`
+- 鳴門: `lane1=B1`, `lane6=B2`, `lane5!=B2`, `exgap<=0.02`
+- 江戸川: `lane1=B1`, `lane6=B2`, `lane5!=B2`, `exgap<=0.02`
+- 芦屋: `lane1=B1`, `lane6=B2`, `lane5=B1`, `exgap<=0.02`
+
+成績:
+- BT: 456レース, 33的中, ROI 175.61%, 最大DD 5,000円, 最大連敗 50
+- FW: 124レース, 9的中, ROI 250.48%, 最大DD 3,570円, 最大連敗 26
+
+この4場合算は、住之江主導に芦屋・江戸川が補強し、鳴門が候補として続く形である。
+一方で、合算しても DD が自動的に軽くなるわけではなく、
+悪化期が時間的に重なる傾向がある。
+
+23. DD / 月次 / 注意点
+4場合算の最大DD期間は次の通り。
+- BT最大DD期: 2025-03-11 -> 2025-06-16
+- FW最大DD期: 2025-09-04 -> 2025-11-12
+
+このことから、季節というより「時期レジーム」の影響が疑われる。
+ただし SG/G1 は主因ではなかった。
+注意点として明示すべきなのは次の3つである。
+- 風
+- 波
+- 場構成の偏り
+
+特に悪化期には
+- 芦屋不足
+- 住之江 / 江戸川寄り
+が見えた。
+
+24. 現時点の結論
+125ラインは「1を消すロジック」ではない。
+`weak-looking lane1 + removable outer one` から始まったが、
+現時点では
+- 1は弱く見えるが残る
+- 6は本当に消える
+- 5は残る側に置く
+- 展示で1の残存率が戻る
+というロジックとして整理できる。
+
+現時点の採用候補は次の2本である。
+- 主力単場ロジック: 住之江125
+- 準主力広域ロジック: 住之江 + 鳴門 + 芦屋 + 江戸川
+
+25. 追加参照ファイル
+- D:\boat\reports\strategies\125\summary_20260314.md
+- D:\boat\workspace_codex\analysis\125\125line_relative_rank_probe_20260314
+- D:\boat\workspace_codex\analysis\125\125line_lane1_class_split_20260314
+- D:\boat\workspace_codex\analysis\125\top5_lane1_b1_stadium_deep_20260314
+- D:\boat\workspace_codex\analysis\125\all_stadium_lane1_b1_theory_scan_20260314
+- D:\boat\workspace_codex\analysis\125\four_stadium_monthly_20260314

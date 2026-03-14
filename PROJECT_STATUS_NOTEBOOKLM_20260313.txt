@@ -1,5 +1,15 @@
 2026-03-13 NotebookLM向け統合状況メモ
 
+2026-03-14 追記: 125ライン統合更新
+- 125ラインは全場共通の 1-2-5 ではなく、`lane1=B1` を主体にした場別ロジックとして整理した
+- 主力単場ロジックは住之江(12)
+- 条件は `lane1=B1`, `lane6=B2`, `lane5!=B2`, `exgap<=0.02`, 買い目は固定 1-2-5
+- 住之江125 は BT 143レースで ROI 195.03%, 最大DD 3,630円、FW 36レースで ROI 560.00%, 最大DD 800円
+- 広域版として 住之江 + 鳴門 + 芦屋 + 江戸川 の4場合算を採用候補にした
+- 4場合算は BT ROI 175.61%, 最大DD 5,000円、FW ROI 250.48%, 最大DD 3,570円
+- SG/G1 は主因ではなく、注意点は 風 / 波 / 場構成の偏り
+- 詳細: `D:\boat\reports\strategies\125\summary_20260314.md`
+
 目的:
 - D:\boat\PROJECT_STATUS.md にある過去の進捗、試した戦略、DB構成の要約
 - D:\boat\GPT\output\20260312_mbrace_course_entry_fix_summary.txt にある mbrace_k parser 修正の要約
