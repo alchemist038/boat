@@ -127,6 +127,12 @@ Example:
 .\.venv\Scripts\python -m boat_race_data collect-range --start-date 20260306 --end-date 20260310 --refresh-every-days 1 --resume-existing-days --sleep-seconds 0.5
 ```
 
+For parallel workers or resumable long runs, point each process at its own working roots:
+
+```powershell
+.\.venv\Scripts\python -m boat_race_data collect-range --start-date 20250401 --end-date 20250930 --raw-root work\boat_a\raw --bronze-root work\boat_a\bronze --db-path work\boat_a\silver\boat_race.duckdb --refresh-every-days 1 --resume-existing-days --sleep-seconds 0.5 --skip-term-stats --skip-quality-report
+```
+
 If 3T odds are not needed, skip them explicitly:
 
 ```powershell

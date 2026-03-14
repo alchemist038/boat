@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 BASE_URL = "https://www.boatrace.jp"
+DEFAULT_BRONZE_ROOT = "data/bronze"
 DEFAULT_DB_PATH = "data/silver/boat_race.duckdb"
+DEFAULT_RAW_ROOT = "data/raw"
 DEFAULT_SLEEP_SECONDS = 0.5
 DEFAULT_TIMEOUT_SECONDS = 30
 TERM_LAYOUT_URL = f"{BASE_URL}/owpc/pc/extra/data/layout.html"

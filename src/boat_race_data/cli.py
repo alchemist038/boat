@@ -9,7 +9,9 @@ import time
 
 from boat_race_data.client import BoatRaceClient, FetchResult
 from boat_race_data.constants import (
+    DEFAULT_BRONZE_ROOT,
     DEFAULT_DB_PATH,
+    DEFAULT_RAW_ROOT,
     DEFAULT_SLEEP_SECONDS,
     STADIUMS,
     TERM_DOWNLOAD_URL,
@@ -334,8 +336,8 @@ def _collect_mbrace_day_tables(
 
 def collect_day(args: argparse.Namespace) -> int:
     race_date = args.date
-    bronze_root = Path("data/bronze")
-    raw_root = Path("data/raw")
+    bronze_root = Path(args.bronze_root)
+    raw_root = Path(args.raw_root)
     db_path = Path(args.db_path)
     report_root = Path("reports/data_quality")
     sleep_seconds = _normalize_sleep_seconds("collect-day", args.sleep_seconds)
@@ -419,8 +421,8 @@ def collect_day(args: argparse.Namespace) -> int:
 
 
 def collect_range(args: argparse.Namespace) -> int:
-    bronze_root = Path("data/bronze")
-    raw_root = Path("data/raw")
+    bronze_root = Path(args.bronze_root)
+    raw_root = Path(args.raw_root)
     db_path = Path(args.db_path)
     report_root = Path("reports/data_quality")
     date_list = _iter_dates(args.start_date, args.end_date)
@@ -524,8 +526,8 @@ def collect_range(args: argparse.Namespace) -> int:
 
 
 def collect_mbrace_range(args: argparse.Namespace) -> int:
-    bronze_root = Path("data/bronze")
-    raw_root = Path("data/raw")
+    bronze_root = Path(args.bronze_root)
+    raw_root = Path(args.raw_root)
     db_path = Path(args.db_path)
     report_root = Path("reports/data_quality")
     date_list = _iter_dates(args.start_date, args.end_date)
@@ -660,6 +662,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional stadium codes. If omitted, active stadiums for the day are discovered automatically.",
     )
     collect_parser.add_argument("--db-path", default=DEFAULT_DB_PATH, help="DuckDB output path.")
+    collect_parser.add_argument("--raw-root", default=DEFAULT_RAW_ROOT, help="Raw layer root directory.")
+    collect_parser.add_argument("--bronze-root", default=DEFAULT_BRONZE_ROOT, help="Bronze layer root directory.")
     collect_parser.add_argument("--max-race-no", type=int, default=12, help="Max race number to fetch per stadium.")
     collect_parser.add_argument(
         "--sleep-seconds",
@@ -698,6 +702,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional stadium codes. If omitted, active stadiums for each day are discovered automatically.",
     )
     collect_range_parser.add_argument("--db-path", default=DEFAULT_DB_PATH, help="DuckDB output path.")
+    collect_range_parser.add_argument("--raw-root", default=DEFAULT_RAW_ROOT, help="Raw layer root directory.")
+    collect_range_parser.add_argument("--bronze-root", default=DEFAULT_BRONZE_ROOT, help="Bronze layer root directory.")
     collect_range_parser.add_argument("--max-race-no", type=int, default=12, help="Max race number to fetch per stadium.")
     collect_range_parser.add_argument(
         "--sleep-seconds",
@@ -741,6 +747,8 @@ def build_parser() -> argparse.ArgumentParser:
     collect_mbrace_parser.add_argument("--start-date", required=True, help="Start date in YYYYMMDD format.")
     collect_mbrace_parser.add_argument("--end-date", required=True, help="End date in YYYYMMDD format.")
     collect_mbrace_parser.add_argument("--db-path", default=DEFAULT_DB_PATH, help="DuckDB output path.")
+    collect_mbrace_parser.add_argument("--raw-root", default=DEFAULT_RAW_ROOT, help="Raw layer root directory.")
+    collect_mbrace_parser.add_argument("--bronze-root", default=DEFAULT_BRONZE_ROOT, help="Bronze layer root directory.")
     collect_mbrace_parser.add_argument(
         "--sleep-seconds",
         type=float,
