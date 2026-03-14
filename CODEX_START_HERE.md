@@ -1,73 +1,35 @@
 # Codex Start Here
 
-This file is the root-level instruction sheet for Codex sessions working on this
-project from `ins14` or `i5`.
+通常運用では、まずこの 4 手だけで十分です。
 
-## Machine Names
+1. 自分が `ins14` か `i5` か確認する
+2. repo ルートで `git pull` する
+3. 自分向けの指示ファイルだけ読む
+4. 結果を自分向けの返答ファイルに書く
 
-- `ins14`: the main machine for this workspace
-- `i5`: the secondary machine that can join the work
+## 読むファイル
 
-## First Steps
+- `ins14` の Codex:
+  - `TO_INS14_FROM_ME.md`
+- `i5` の Codex:
+  - `TO_I5_FROM_ME.md`
 
-1. Identify which machine you are running on.
-2. Run `git pull` in the repo root before starting work.
-3. Read the direct human instruction file for your machine:
-   - `TO_INS14_FROM_ME.md`
-   - `TO_I5_FROM_ME.md`
-4. Read the coordination guide:
-   `workspace_codex/coordination/README.md`
-5. Check your machine inbox:
-   - `workspace_codex/coordination/inbox/ins14/`
-   - `workspace_codex/coordination/inbox/i5/`
+## 書くファイル
 
-## Task Intake Rule
+- `ins14` の Codex:
+  - `FROM_INS14_TO_ME.md`
+- `i5` の Codex:
+  - `FROM_I5_TO_ME.md`
 
-The root-level `TO_*_FROM_ME.md` files are the simplest human-to-Codex entry point.
+## 基本ルール
 
-If a task file exists in your inbox, treat the newest one as the active request.
+- まずは自分向けの `TO_*.md` だけ読めばよい
+- 詳しい引き継ぎや長時間ジョブの仕組みは必要になった時だけ読む
+- 通常の返答は `FROM_*.md` に短く書けばよい
 
-Task file naming rule:
+## 詳細が必要な時だけ読む資料
 
-`YYYYMMDD_HHMM_<topic>__<from>_to_<to>.md`
-
-## Work Rule
-
-- Create a branch as `<machine>/<task_id>`
-- Keep scratch work under `workspace_codex/`
-- Do not write temporary files in the repo root
-- Do not promote outputs to `GPT/output/` unless the task explicitly calls for it
-- Avoid editing the same files on both machines at the same time
-
-## Handoff Rule
-
-When work is complete or blocked:
-
-1. Write a note in `workspace_codex/coordination/handoffs/`
-2. Move the original task file to `workspace_codex/coordination/done/`
-3. Commit and push the branch or result
-
-Use this template:
-
-`workspace_codex/templates/CODEX_HANDOFF_TEMPLATE.md`
-
-## Task Template
-
-When creating a new task for the other machine, use:
-
-`workspace_codex/templates/CODEX_TASK_TEMPLATE.md`
-
-## Suggested Prompt For Codex
-
-For `i5`:
-
-`Read the latest task in workspace_codex/coordination/inbox/i5, execute it on a new branch, write a handoff file in workspace_codex/coordination/handoffs, and move the task file to workspace_codex/coordination/done when finished.`
-
-For `ins14`:
-
-`Read the latest task in workspace_codex/coordination/inbox/ins14, execute it on a new branch, write a handoff file in workspace_codex/coordination/handoffs, and move the task file to workspace_codex/coordination/done when finished.`
-
-## If No Task Exists
-
-Report that the inbox is empty and ask for the next assignment, or create a new
-task file for the other machine if this session is the sender.
+- 協業ルール:
+  - `workspace_codex/coordination/README.md`
+- 長時間ジョブ:
+  - `workspace_codex/coordination/LONGRUN_BACKFILL_RUNBOOK.md`

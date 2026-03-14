@@ -1,35 +1,29 @@
-# To ins14 From Me
+# TO INS14 FROM ME
 
-This is the simple root-level note that the human can edit directly.
+`ins14` の Codex は、まずこのファイルだけ読んでください。
 
-## State
+## 状態
 
 - machine: ins14
-- sender: me
+- from: me
 - status: idle
-- last_updated:
+- updated_at:
 - priority:
-- branch:
 
-## Active Request
+## 今回の依頼
 
-Write the current request here.
+NONE
 
-Use `NONE` when there is no active request.
-
-## Context
+## 参考情報
 
 - files:
 - commands:
 - constraints:
 - output target:
 
-## Codex Action
+## Codex の動き
 
-1. Read `CODEX_START_HERE.md`.
-2. If `Active Request` is `NONE`, report that there is no active request.
-3. If `Active Request` has content, execute it or convert it into a tracked task
-   under `workspace_codex/coordination/inbox/ins14/` when needed.
-4. Write completion or blocked status to `workspace_codex/coordination/handoffs/`.
-5. Update this file when the request is finished or replaced.
-
+1. `git pull` を確認する
+2. `今回の依頼` が `NONE` なら、依頼なしとして返答する
+3. 依頼があれば実行する
+4. 完了または中断時に `FROM_INS14_TO_ME.md` を更新する
