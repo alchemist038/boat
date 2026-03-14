@@ -1,56 +1,67 @@
 # TO INS14 FROM ME
 
-`ins14` の Codex は、まずこのファイルだけ読んでください。
+`ins14` 側で確認してほしい最新共有メモです。
 
-## 状態
+## 状況
 
 - machine: ins14
-- from: me
+- from: i5
 - status: active
-- updated_at: 2026-03-14 22:56:00 +09:00
+- updated_at: 2026-03-15 06:30:00 +09:00
 - priority: high
 
-## 今回の依頼
+## 今回の要点
 
-- `i5` 側の odds backfill 進捗を確認してください
-- `125` の次段として検討中の `logic box / schedule / trigger` 構想を把握してください
-- 必要なら `ins14` 側で受けたい運用イメージを `FROM_INS14_TO_ME.md` に返してください
+- `main` に live trigger 基盤を反映済み
+- `125` と `c2` は BOX として分離済み
+- Streamlit アプリを追加済み
+- `i5` 側の odds backfill は 2 worker で継続中
 
-## 参考情報
+## main に入ったもの
 
-- files:
-  - `FROM_I5_TO_ME.md`
-  - `reports/strategies/125/review_20260314.md`
-  - `reports/strategies/125/summary_20260314.md`
-- commands:
-  - `git pull --ff-only origin main`
-- constraints:
-  - `Z:\boat` は参照のみ
-  - `i5` は `C:\CODEX_WORK\boat_a` と `C:\CODEX_WORK\boat_b` で収集継続中
-- output target:
-  - 必要なら `FROM_INS14_TO_ME.md`
+- `live_trigger/app.py`
+- `live_trigger/run_app.cmd`
+- `live_trigger/README.md`
+- `live_trigger/boxes/125/...`
+- `live_trigger/boxes/c2/...`
+- `src/boat_race_data/live_trigger.py`
+- `src/boat_race_data/logic_board.py`
+- `src/boat_race_data/schedule_planner.py`
 
-## 進捗メモ
+## ins14 側での確認手順
 
-- `i5` では odds backfill を 2 worker で開始済み
-- `boat_a`: `2025-04-01..2025-09-30`
-- `boat_b`: `2025-10-01..2026-03-05`
-- 2026-03-14 22:56 時点でも両 worker の python process は生存
-- ログ上では `racer_stats_term/*.csv` 不在に伴う DuckDB refresh の warning/exception が見えるが、その後も日次収集ログは前進している
-- 現在の進捗目視:
-  - `boat_a` は `2025-04-15` 完了後、`2025-04-16` を収集中
-  - `boat_b` は `2025-10-16` 完了後、`2025-10-17` を収集中
-- `125` の考察は `reports/strategies/125/review_20260314.md` に整理済み
-- 現時点の要旨は「125 は見込みゼロではないが、全場共通より場別・条件別・合算運用で見るべき」「住之江の `低格1号艇 + 展示良` 仮説が比較的筋が良い」「常滑はまだ解釈が不安定」
-- 次段の構想:
-  - 前日夜に翌日候補を仕込む trigger
-  - 当日直前に `beforeinfo` で最終判定する trigger
-  - 2週先から1か月先の開催予定を見て資金計画に使う schedule view
-  - ロジックを `box` として追加できる構成にしたい
+1. `git pull --ff-only origin main`
+2. `C:\CODEX_WORK\boat_clone\live_trigger\run_app.cmd`
+3. アプリで次を確認
+   - `予定ボード`
+   - `翌日候補抽出`
+   - `直前判定`
 
-## Codex の動き
+## backfill 進捗
 
-1. `git pull` を確認する
-2. `FROM_I5_TO_ME.md` と `125` 関連レポートを確認する
-3. 必要なら `FROM_INS14_TO_ME.md` に所見を書く
-4. 完了または中断時に `FROM_INS14_TO_ME.md` を更新する
+- `boat_a`
+  - range: `2025-04-01..2025-09-30`
+  - completed through: `2025-04-29`
+  - now collecting: `2025-04-30`
+- `boat_b`
+  - range: `2025-10-01..2026-03-05`
+  - completed through: `2025-10-31`
+  - now collecting: `2025-11-01`
+
+## backfill 完了予測
+
+- checked_at: `2026-03-15 06:30 +09:00`
+- `boat_a`
+  - rough ETA: `2026-03-19 04:45 +09:00`
+- `boat_b`
+  - rough ETA: `2026-03-18 04:12 +09:00`
+
+## 注意
+
+- `racer_stats_term/*.csv` が無いため DuckDB refresh は毎回失敗
+- ただし raw / bronze の収集自体は継続中
+- 完了予測は 2026-03-15 朝時点の直近ペースからの概算
+
+## 返答先
+
+- `FROM_INS14_TO_ME.md`
