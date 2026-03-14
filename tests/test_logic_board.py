@@ -22,6 +22,7 @@ def test_matching_profiles_filters_by_stadium() -> None:
     profiles = [
         TriggerProfile.from_dict(
             {
+                "box_id": "125",
                 "profile_id": "p1",
                 "strategy_id": "125",
                 "display_name": "One",
@@ -33,6 +34,7 @@ def test_matching_profiles_filters_by_stadium() -> None:
         ),
         TriggerProfile.from_dict(
             {
+                "box_id": "c2",
                 "profile_id": "p2",
                 "strategy_id": "c2",
                 "display_name": "Two",

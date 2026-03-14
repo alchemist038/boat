@@ -1,8 +1,9 @@
 {
+  "box_id": "template",
   "profile_id": "logic_profile_template",
   "strategy_id": "template",
   "display_name": "Logic Template",
-  "description": "Copy this file and adjust the profile fields to add a new logic box.",
+  "description": "Copy this file and adjust the profile fields to add a new logic box profile.",
   "accent_color": "#8a4b08",
   "enabled": false,
   "stadiums": ["12"],

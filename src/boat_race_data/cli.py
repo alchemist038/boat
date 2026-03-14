@@ -736,7 +736,7 @@ def build_schedule_window_command(args: argparse.Namespace) -> int:
 
 
 def build_logic_board_command(args: argparse.Namespace) -> int:
-    profiles = load_trigger_profiles(Path(args.profiles_dir))
+    profiles = load_trigger_profiles(Path(args.profiles_dir), include_disabled=True)
     outputs = build_logic_board(
         start_date=args.start_date,
         days=args.days,
@@ -931,7 +931,7 @@ def build_parser() -> argparse.ArgumentParser:
     build_watchlist_parser.add_argument("--date", required=True, help="Race date in YYYYMMDD format.")
     build_watchlist_parser.add_argument(
         "--profile-path",
-        default="live_trigger/profiles/125_suminoe_non_a1.json",
+        default="live_trigger/boxes/125/profiles/suminoe_main.json",
         help="JSON trigger profile path.",
     )
     build_watchlist_parser.add_argument(
@@ -967,8 +967,8 @@ def build_parser() -> argparse.ArgumentParser:
     build_watchlist_batch_parser.add_argument("--date", required=True, help="Race date in YYYYMMDD format.")
     build_watchlist_batch_parser.add_argument(
         "--profiles-dir",
-        default="live_trigger/profiles",
-        help="Directory containing trigger profile JSON files.",
+        default="live_trigger/boxes",
+        help="Directory containing trigger box folders and profile JSON files.",
     )
     build_watchlist_batch_parser.add_argument(
         "--output-path",
@@ -1046,8 +1046,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     resolve_watchlist_batch_parser.add_argument(
         "--profiles-dir",
-        default="live_trigger/profiles",
-        help="Directory containing trigger profile JSON files.",
+        default="live_trigger/boxes",
+        help="Directory containing trigger box folders and profile JSON files.",
     )
     resolve_watchlist_batch_parser.add_argument(
         "--ready-output-path",
@@ -1125,8 +1125,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     logic_board_parser.add_argument(
         "--profiles-dir",
-        default="live_trigger/profiles",
-        help="Directory containing trigger profile JSON files.",
+        default="live_trigger/boxes",
+        help="Directory containing trigger box folders and profile JSON files.",
     )
     logic_board_parser.add_argument(
         "--output-dir",

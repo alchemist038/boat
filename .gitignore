@@ -33,7 +33,7 @@ live_trigger/plans/**
 !reports/data_quality/.gitkeep
 !workspace_codex/.gitkeep
 !live_trigger/README.md
-!live_trigger/profiles/**
+!live_trigger/boxes/**
 !live_trigger/raw/.gitkeep
 !live_trigger/watchlists/.gitkeep
 !live_trigger/ready/.gitkeep

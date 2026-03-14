@@ -35,9 +35,16 @@ def build_logic_board(
 def matching_profiles(event: ScheduleEvent, profiles: list[TriggerProfile]) -> list[TriggerProfile]:
     matched: list[TriggerProfile] = []
     for profile in profiles:
-        if not profile.stadiums or event.stadium_code in profile.stadiums:
+        if profile.enabled and (not profile.stadiums or event.stadium_code in profile.stadiums):
             matched.append(profile)
     return matched
+
+
+def group_profiles_by_box(profiles: list[TriggerProfile]) -> dict[str, list[TriggerProfile]]:
+    grouped: dict[str, list[TriggerProfile]] = {}
+    for profile in profiles:
+        grouped.setdefault(profile.box_id or "unassigned", []).append(profile)
+    return grouped
 
 
 def write_logic_board_markdown(
@@ -54,13 +61,15 @@ def write_logic_board_markdown(
         "## Logic Boxes",
         "",
     ]
-    for profile in profiles:
-        stadium_text = ",".join(profile.stadiums) if profile.stadiums else "all"
-        lines.append(f"- {profile.display_name} ({profile.profile_id})")
-        lines.append(f"  stadiums: {stadium_text}")
-        if profile.description:
-            lines.append(f"  note: {profile.description}")
-    lines.append("")
+    for box_id, items in group_profiles_by_box(profiles).items():
+        lines.append(f"### BOX {box_id}")
+        for profile in items:
+            stadium_text = ",".join(profile.stadiums) if profile.stadiums else "all"
+            lines.append(f"- {profile.display_name} ({profile.profile_id})")
+            lines.append(f"  stadiums: {stadium_text}")
+            if profile.description:
+                lines.append(f"  note: {profile.description}")
+        lines.append("")
     lines.append("## Calendar")
     lines.append("")
     for row in calendar_rows:
@@ -90,15 +99,22 @@ def write_logic_board_html(
     ensure_dir(path.parent)
     profile_cards = "".join(
         (
-            "<article class='logic-card'>"
-            f"<div class='swatch' style='background:{escape(profile.accent_color)}'></div>"
-            f"<h2>{escape(profile.display_name)}</h2>"
-            f"<p class='meta'>{escape(profile.profile_id)} / {escape(profile.strategy_id)}</p>"
-            f"<p>{escape(profile.description or 'No description')}</p>"
-            f"<p class='meta'>stadiums: {escape(','.join(profile.stadiums) if profile.stadiums else 'all')}</p>"
-            "</article>"
+            "<section class='box-card'>"
+            f"<h2>BOX {escape(box_id)}</h2>"
+            + "".join(
+                "<article class='logic-card'>"
+                f"<div class='swatch' style='background:{escape(profile.accent_color)}'></div>"
+                f"<h3>{escape(profile.display_name)}</h3>"
+                f"<p class='meta'>{escape(profile.profile_id)} / {escape(profile.strategy_id)}</p>"
+                f"<p>{escape(profile.description or 'No description')}</p>"
+                f"<p class='meta'>status: {escape('enabled' if profile.enabled else 'disabled')}</p>"
+                f"<p class='meta'>stadiums: {escape(','.join(profile.stadiums) if profile.stadiums else 'all')}</p>"
+                "</article>"
+                for profile in items
+            )
+            + "</section>"
         )
-        for profile in profiles
+        for box_id, items in group_profiles_by_box(profiles).items()
     )
     day_cards: list[str] = []
     for row in calendar_rows:
@@ -152,16 +168,25 @@ def write_logic_board_html(
     p.meta {{ margin: 0 0 22px; color: var(--muted); }}
     .logic-grid {{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 16px;
       margin-bottom: 28px;
     }}
-    .logic-card, .day-card {{
+    .box-card, .logic-card, .day-card {{
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 18px;
       padding: 16px;
       box-shadow: 0 10px 26px rgba(31, 42, 48, 0.06);
+    }}
+    .box-card > h2 {{
+      margin: 0 0 12px;
+      font-size: 22px;
+    }}
+    .box-card .logic-card {{
+      margin-top: 12px;
+      box-shadow: none;
+      background: rgba(255,255,255,0.6);
     }}
     .swatch {{
       width: 52px;
@@ -169,7 +194,7 @@ def write_logic_board_html(
       border-radius: 999px;
       margin-bottom: 12px;
     }}
-    .logic-card h2, .day-card h3 {{ margin: 0 0 6px; }}
+    .logic-card h3, .day-card h3 {{ margin: 0 0 6px; }}
     .calendar-grid {{
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

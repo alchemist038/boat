@@ -1,0 +1,19 @@
+{
+  "box_id": "c2",
+  "profile_id": "c2_provisional_v1",
+  "strategy_id": "c2",
+  "display_name": "C2 Provisional",
+  "description": "Placeholder for the current semi-regular C2 candidate. Keep disabled until the adopted trigger condition is fixed.",
+  "accent_color": "#8a4b08",
+  "enabled": false,
+  "stadiums": [],
+  "watch_minutes_before_deadline": 25,
+  "pre_filters": {
+    "lane1_class_exclude": [],
+    "lane1_motor_place_rate_min": null,
+    "lane1_motor_top3_rate_min": null
+  },
+  "final_filters": {
+    "lane1_exhibition_best_gap_max": null
+  }
+}

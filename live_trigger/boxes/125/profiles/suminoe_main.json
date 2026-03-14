@@ -1,8 +1,9 @@
 {
-  "profile_id": "125_suminoe_non_a1",
+  "box_id": "125",
+  "profile_id": "125_suminoe_main",
   "strategy_id": "125",
-  "display_name": "125 Suminoe",
-  "description": "Low-grade lane1 at Suminoe with decent motor and good exhibition gap.",
+  "display_name": "125 Suminoe Main",
+  "description": "Primary adopted 125 logic. Suminoe 1-2-5 with low-grade lane1, motor support, and good exhibition gap.",
   "accent_color": "#165d5b",
   "enabled": true,
   "stadiums": ["12"],

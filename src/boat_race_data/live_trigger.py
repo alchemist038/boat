@@ -14,6 +14,7 @@ from boat_race_data.parsers import parse_beforeinfo, parse_racelist
 from boat_race_data.utils import ensure_dir
 
 WATCHLIST_COLUMNS = [
+    "box_id",
     "profile_id",
     "strategy_id",
     "race_id",
@@ -40,6 +41,7 @@ WATCHLIST_COLUMNS = [
 
 @dataclass(slots=True)
 class TriggerProfile:
+    box_id: str
     profile_id: str
     strategy_id: str
     display_name: str
@@ -54,10 +56,11 @@ class TriggerProfile:
     lane1_exhibition_best_gap_max: float | None
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "TriggerProfile":
+    def from_dict(cls, payload: dict[str, Any], *, box_id: str = "") -> "TriggerProfile":
         pre_filters = payload.get("pre_filters", {})
         final_filters = payload.get("final_filters", {})
         return cls(
+            box_id=str(payload.get("box_id", box_id)),
             profile_id=str(payload["profile_id"]),
             strategy_id=str(payload["strategy_id"]),
             display_name=str(payload.get("display_name", payload["profile_id"])),
@@ -74,14 +77,19 @@ class TriggerProfile:
 
 
 def load_trigger_profile(path: Path) -> TriggerProfile:
-    return TriggerProfile.from_dict(json.loads(path.read_text(encoding="utf-8")))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return TriggerProfile.from_dict(payload, box_id=_box_id_from_path(path))
 
 
-def load_trigger_profiles(root: Path) -> list[TriggerProfile]:
+def load_trigger_profiles(root: Path, *, include_disabled: bool = False) -> list[TriggerProfile]:
     profiles: list[TriggerProfile] = []
-    for path in sorted(root.glob("*.json")):
+    for path in sorted(root.rglob("*.json")):
+        if path.name == "box.json":
+            continue
+        if _is_template_profile(path):
+            continue
         profile = load_trigger_profile(path)
-        if profile.enabled:
+        if include_disabled or profile.enabled:
             profiles.append(profile)
     return profiles
 
@@ -255,6 +263,7 @@ def build_watchlist_row(
 
     deadline_time = str(race_row.get("deadline_time", ""))
     return {
+        "box_id": profile.box_id,
         "profile_id": profile.profile_id,
         "strategy_id": profile.strategy_id,
         "race_id": race_row.get("race_id", ""),
@@ -416,3 +425,16 @@ def _maybe_float(value: object) -> float | None:
     if value in ("", None):
         return None
     return float(value)
+
+
+def _box_id_from_path(path: Path) -> str:
+    parts = list(path.parts)
+    if "boxes" in parts:
+        index = parts.index("boxes")
+        if index + 1 < len(parts):
+            return parts[index + 1]
+    return ""
+
+
+def _is_template_profile(path: Path) -> bool:
+    return _box_id_from_path(path) == "template"
