@@ -5,65 +5,37 @@
 ## 状態
 
 - machine: i5
-- status: done
-- updated_at: 2026-03-14 14:41:55 +09:00
+- status: running
+- updated_at: 2026-03-14 14:53:10 +09:00
 - branch: main
-- commit: 7afa129
+- commit: db19cba
 
 ## 結果
 
 - summary:
-  - `git pull --ff-only origin main` 後、repo は正常です。現在の先頭は `7afa129 Add isolated worker roots for range collection` です
-  - 作業に使うローカル clone は `C:\CODEX_WORK\boat_clone`
-  - 2本並列で回す作業ディレクトリは、今回追加された isolated worker roots に合わせて `C:\CODEX_WORK\boat_clone\work\boat_a` と `C:\CODEX_WORK\boat_clone\work\boat_b` を使う案に更新します
-  - `workspace_codex/coordination/LONGRUN_BACKFILL_RUNBOOK.md` は読めます
-  - `2025-04-01..2026-03-05` の 2 分割は、運用の分かりやすさ優先で `2025-09-30 / 2025-10-01` で切る案を推奨します
-  - 実行コマンド草案は下記のとおりです
-  - `i5` が収集完了後の `ins14` へのコピー完了まで担当する運用は可能です
+  - `git pull --ff-only origin main` は通り、現在の先頭は `db19cba` です
+  - `boat_a` と `boat_b` を `C:\CODEX_WORK` 配下に clone 済みです
+  - 各 worker に `.venv` を作成し、`pip install -e .[dev]` を完了しました
+  - 収集を本番開始しました
+  - `boat_a` は `2025-04-01..2025-09-30`、`boat_b` は `2025-10-01..2026-03-05` を担当しています
+  - 各 worker は自分の `work\raw` / `work\bronze` / `work\silver` のみを使っています
+  - 初期確認時点で raw ファイルは `boat_a=44`、`boat_b=44` 作成済みです
 - touched_files:
   - `FROM_I5_TO_ME.md`
 - checks:
   - `git pull --ff-only origin main`
-  - `git status --short --branch`
-  - `rg "root-dir|db-path|skip-quality-report|resume-existing-days|skip-term-stats|collect-range" README.md src tests`
-  - 現在ブランチはクリーンで、runbook、README、CLI オプション追加を確認済みです
+  - `git clone git@github.com:alchemist038/boat.git C:\CODEX_WORK\boat_a`
+  - `git clone git@github.com:alchemist038/boat.git C:\CODEX_WORK\boat_b`
+  - `python -m venv .venv`
+  - `.\.venv\Scripts\python -m pip install -e .[dev]`
+  - `Start-Process ... python -m boat_race_data collect-range ...`
+  - `Get-Process` で worker PID を確認: `boat_a=17592`, `boat_b=17332`
+  - ログ初期出力を確認:
+  - `boat_a`: `Collecting 20250401 for stadiums: 01, 02, 06, 10, 12, 15, 18, 19, 21, 24`
+  - `boat_b`: `Collecting 20251001 for stadiums: 03, 04, 05, 06, 12, 14, 19, 20, 22, 23, 24`
 - blocker:
-  - まだ本番収集開始の指示はないため未実行です
-  - `work\boat_a` / `work\boat_b` は未作成です
+  - 現時点の blocker はありません
 - next_step:
-  - GO が出たら `C:\CODEX_WORK\boat_clone\work\boat_a` と `C:\CODEX_WORK\boat_clone\work\boat_b` を使い、各 worker root で非重複期間の backfill を開始します
-  - 開始時は `jobs/active/` にジョブファイルを作成し、停止時は same tree で resume します
-
-## 実行コマンド草案
-
-`boat_a` 用:
-
-```powershell
-.\.venv\Scripts\python -m boat_race_data collect-range `
-  --start-date 20250401 `
-  --end-date 20250930 `
-  --raw-root work\boat_a\raw `
-  --bronze-root work\boat_a\bronze `
-  --db-path work\boat_a\silver\boat_race.duckdb `
-  --sleep-seconds 0.5 `
-  --refresh-every-days 1 `
-  --resume-existing-days `
-  --skip-term-stats `
-  --skip-quality-report
-```
-
-`boat_b` 用:
-
-```powershell
-.\.venv\Scripts\python -m boat_race_data collect-range `
-  --start-date 20251001 `
-  --end-date 20260305 `
-  --raw-root work\boat_b\raw `
-  --bronze-root work\boat_b\bronze `
-  --db-path work\boat_b\silver\boat_race.duckdb `
-  --sleep-seconds 0.5 `
-  --refresh-every-days 1 `
-  --resume-existing-days `
-  --skip-term-stats `
-  --skip-quality-report
-```
+  - 収集を継続監視します
+  - 中断時は同じ worker ディレクトリで同じコマンドを再実行します
+  - 各期間の収集完了後、`raw/odds_2t`, `raw/odds_3t`, `bronze/odds_2t`, `bronze/odds_3t` を `ins14` 側へコピー完了まで担当します
