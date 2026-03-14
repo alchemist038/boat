@@ -1,0 +1,18 @@
+{
+  "profile_id": "125_suminoe_non_a1",
+  "strategy_id": "125",
+  "display_name": "125 Suminoe",
+  "description": "Low-grade lane1 at Suminoe with decent motor and good exhibition gap.",
+  "accent_color": "#165d5b",
+  "enabled": true,
+  "stadiums": ["12"],
+  "watch_minutes_before_deadline": 25,
+  "pre_filters": {
+    "lane1_class_exclude": ["A1"],
+    "lane1_motor_place_rate_min": 35.0,
+    "lane1_motor_top3_rate_min": 45.0
+  },
+  "final_filters": {
+    "lane1_exhibition_best_gap_max": 0.02
+  }
+}

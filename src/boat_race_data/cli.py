@@ -19,6 +19,15 @@ from boat_race_data.constants import (
 from boat_race_data.backtest import run_backtest
 from boat_race_data.correlation_study import export_correlation_study
 from boat_race_data.gpt_export import export_gpt_package
+from boat_race_data.live_trigger import (
+    build_watchlist,
+    build_watchlist_for_profiles,
+    load_trigger_profile,
+    load_trigger_profiles,
+    resolve_watchlist,
+    resolve_watchlist_for_profiles,
+)
+from boat_race_data.logic_board import build_logic_board
 from boat_race_data.mbrace import (
     build_mbrace_lzh_url,
     ensure_mbrace_text,
@@ -35,6 +44,7 @@ from boat_race_data.parsers import (
     parse_result,
     parse_term_stats_records,
 )
+from boat_race_data.schedule_planner import build_schedule_window
 from boat_race_data.quality import generate_quality_report
 from boat_race_data.storage import BRONZE_COLUMNS, refresh_duckdb, write_table_csv
 
@@ -649,6 +659,97 @@ def backtest_strategies(args: argparse.Namespace) -> int:
     return 0
 
 
+def build_next_day_watchlist(args: argparse.Namespace) -> int:
+    profile = load_trigger_profile(Path(args.profile_path))
+    count, output_path = build_watchlist(
+        race_date=args.date,
+        profile=profile,
+        output_path=Path(args.output_path),
+        raw_root=Path(args.raw_root),
+        max_race_no=args.max_race_no,
+        sleep_seconds=args.sleep_seconds,
+        timeout_seconds=args.timeout_seconds,
+    )
+    LOGGER.info("Built watchlist rows=%s output=%s", count, output_path)
+    return 0
+
+
+def resolve_next_day_watchlist(args: argparse.Namespace) -> int:
+    profile = load_trigger_profile(Path(args.profile_path))
+    changed_rows, ready_rows = resolve_watchlist(
+        watchlist_path=Path(args.watchlist_path),
+        profile=profile,
+        raw_root=Path(args.raw_root),
+        ready_output_path=Path(args.ready_output_path) if args.ready_output_path else None,
+        sleep_seconds=args.sleep_seconds,
+        timeout_seconds=args.timeout_seconds,
+    )
+    LOGGER.info("Resolved watchlist changed_rows=%s ready_rows=%s", changed_rows, ready_rows)
+    return 0
+
+
+def build_batch_watchlist(args: argparse.Namespace) -> int:
+    profiles = load_trigger_profiles(Path(args.profiles_dir))
+    count, output_path = build_watchlist_for_profiles(
+        race_date=args.date,
+        profiles=profiles,
+        output_path=Path(args.output_path),
+        raw_root=Path(args.raw_root),
+        max_race_no=args.max_race_no,
+        sleep_seconds=args.sleep_seconds,
+        timeout_seconds=args.timeout_seconds,
+    )
+    LOGGER.info("Built batch watchlist rows=%s output=%s profiles=%s", count, output_path, len(profiles))
+    return 0
+
+
+def resolve_batch_watchlist(args: argparse.Namespace) -> int:
+    profiles = load_trigger_profiles(Path(args.profiles_dir))
+    changed_rows, ready_rows = resolve_watchlist_for_profiles(
+        watchlist_path=Path(args.watchlist_path),
+        profiles=profiles,
+        raw_root=Path(args.raw_root),
+        ready_output_path=Path(args.ready_output_path) if args.ready_output_path else None,
+        sleep_seconds=args.sleep_seconds,
+        timeout_seconds=args.timeout_seconds,
+    )
+    LOGGER.info(
+        "Resolved batch watchlist changed_rows=%s ready_rows=%s profiles=%s",
+        changed_rows,
+        ready_rows,
+        len(profiles),
+    )
+    return 0
+
+
+def build_schedule_window_command(args: argparse.Namespace) -> int:
+    outputs = build_schedule_window(
+        start_date=args.start_date,
+        days=args.days,
+        output_dir=Path(args.output_dir),
+        raw_root=Path(args.raw_root),
+        timeout_seconds=args.timeout_seconds,
+    )
+    for label, path in outputs.items():
+        LOGGER.info("%s=%s", label, path)
+    return 0
+
+
+def build_logic_board_command(args: argparse.Namespace) -> int:
+    profiles = load_trigger_profiles(Path(args.profiles_dir))
+    outputs = build_logic_board(
+        start_date=args.start_date,
+        days=args.days,
+        profiles=profiles,
+        output_dir=Path(args.output_dir),
+        raw_root=Path(args.raw_root),
+        timeout_seconds=args.timeout_seconds,
+    )
+    for label, path in outputs.items():
+        LOGGER.info("%s=%s", label, path)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Collect official BOAT RACE data into raw/bronze/silver layers.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -822,6 +923,229 @@ def build_parser() -> argparse.ArgumentParser:
     )
     backtest_parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
     backtest_parser.set_defaults(func=backtest_strategies)
+
+    build_watchlist_parser = subparsers.add_parser(
+        "build-watchlist",
+        help="Build a next-day watchlist from racelist pages and a trigger profile.",
+    )
+    build_watchlist_parser.add_argument("--date", required=True, help="Race date in YYYYMMDD format.")
+    build_watchlist_parser.add_argument(
+        "--profile-path",
+        default="live_trigger/profiles/125_suminoe_non_a1.json",
+        help="JSON trigger profile path.",
+    )
+    build_watchlist_parser.add_argument(
+        "--output-path",
+        default="live_trigger/watchlists/latest.csv",
+        help="CSV output path for the watchlist.",
+    )
+    build_watchlist_parser.add_argument(
+        "--raw-root",
+        default="live_trigger/raw",
+        help="Raw cache root for trigger-side fetches.",
+    )
+    build_watchlist_parser.add_argument("--max-race-no", type=int, default=12, help="Max race number to fetch.")
+    build_watchlist_parser.add_argument(
+        "--sleep-seconds",
+        type=float,
+        default=DEFAULT_SLEEP_SECONDS,
+        help="Delay between requests.",
+    )
+    build_watchlist_parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=30,
+        help="HTTP timeout seconds.",
+    )
+    build_watchlist_parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
+    build_watchlist_parser.set_defaults(func=build_next_day_watchlist)
+
+    build_watchlist_batch_parser = subparsers.add_parser(
+        "build-watchlist-batch",
+        help="Build one combined watchlist from all enabled trigger profiles in a directory.",
+    )
+    build_watchlist_batch_parser.add_argument("--date", required=True, help="Race date in YYYYMMDD format.")
+    build_watchlist_batch_parser.add_argument(
+        "--profiles-dir",
+        default="live_trigger/profiles",
+        help="Directory containing trigger profile JSON files.",
+    )
+    build_watchlist_batch_parser.add_argument(
+        "--output-path",
+        default="live_trigger/watchlists/latest_batch.csv",
+        help="CSV output path for the combined watchlist.",
+    )
+    build_watchlist_batch_parser.add_argument(
+        "--raw-root",
+        default="live_trigger/raw",
+        help="Raw cache root for trigger-side fetches.",
+    )
+    build_watchlist_batch_parser.add_argument("--max-race-no", type=int, default=12, help="Max race number to fetch.")
+    build_watchlist_batch_parser.add_argument(
+        "--sleep-seconds",
+        type=float,
+        default=DEFAULT_SLEEP_SECONDS,
+        help="Delay between requests.",
+    )
+    build_watchlist_batch_parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=30,
+        help="HTTP timeout seconds.",
+    )
+    build_watchlist_batch_parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
+    build_watchlist_batch_parser.set_defaults(func=build_batch_watchlist)
+
+    resolve_watchlist_parser = subparsers.add_parser(
+        "resolve-watchlist",
+        help="Refresh beforeinfo for a watchlist and mark rows that are trigger-ready.",
+    )
+    resolve_watchlist_parser.add_argument(
+        "--watchlist-path",
+        required=True,
+        help="Input watchlist CSV path.",
+    )
+    resolve_watchlist_parser.add_argument(
+        "--profile-path",
+        default="live_trigger/profiles/125_suminoe_non_a1.json",
+        help="JSON trigger profile path.",
+    )
+    resolve_watchlist_parser.add_argument(
+        "--ready-output-path",
+        default="live_trigger/ready/latest.csv",
+        help="Optional CSV output path for trigger-ready rows.",
+    )
+    resolve_watchlist_parser.add_argument(
+        "--raw-root",
+        default="live_trigger/raw",
+        help="Raw cache root for trigger-side fetches.",
+    )
+    resolve_watchlist_parser.add_argument(
+        "--sleep-seconds",
+        type=float,
+        default=DEFAULT_SLEEP_SECONDS,
+        help="Delay between requests.",
+    )
+    resolve_watchlist_parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=30,
+        help="HTTP timeout seconds.",
+    )
+    resolve_watchlist_parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
+    resolve_watchlist_parser.set_defaults(func=resolve_next_day_watchlist)
+
+    resolve_watchlist_batch_parser = subparsers.add_parser(
+        "resolve-watchlist-batch",
+        help="Resolve one combined watchlist using all enabled trigger profiles in a directory.",
+    )
+    resolve_watchlist_batch_parser.add_argument(
+        "--watchlist-path",
+        required=True,
+        help="Input watchlist CSV path.",
+    )
+    resolve_watchlist_batch_parser.add_argument(
+        "--profiles-dir",
+        default="live_trigger/profiles",
+        help="Directory containing trigger profile JSON files.",
+    )
+    resolve_watchlist_batch_parser.add_argument(
+        "--ready-output-path",
+        default="live_trigger/ready/latest_batch.csv",
+        help="Optional CSV output path for trigger-ready rows.",
+    )
+    resolve_watchlist_batch_parser.add_argument(
+        "--raw-root",
+        default="live_trigger/raw",
+        help="Raw cache root for trigger-side fetches.",
+    )
+    resolve_watchlist_batch_parser.add_argument(
+        "--sleep-seconds",
+        type=float,
+        default=DEFAULT_SLEEP_SECONDS,
+        help="Delay between requests.",
+    )
+    resolve_watchlist_batch_parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=30,
+        help="HTTP timeout seconds.",
+    )
+    resolve_watchlist_batch_parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
+    resolve_watchlist_batch_parser.set_defaults(func=resolve_batch_watchlist)
+
+    schedule_window_parser = subparsers.add_parser(
+        "build-schedule-window",
+        help="Build a 2-week to 1-month planning window from official monthly schedules.",
+    )
+    schedule_window_parser.add_argument(
+        "--start-date",
+        required=True,
+        help="Window start date in YYYY-MM-DD format.",
+    )
+    schedule_window_parser.add_argument(
+        "--days",
+        type=int,
+        default=14,
+        help="Number of days to include in the planning window.",
+    )
+    schedule_window_parser.add_argument(
+        "--output-dir",
+        default="live_trigger/plans",
+        help="Directory for CSV/Markdown/HTML planning outputs.",
+    )
+    schedule_window_parser.add_argument(
+        "--raw-root",
+        default="live_trigger/raw",
+        help="Raw cache root for schedule HTML.",
+    )
+    schedule_window_parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=30,
+        help="HTTP timeout seconds.",
+    )
+    schedule_window_parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
+    schedule_window_parser.set_defaults(func=build_schedule_window_command)
+
+    logic_board_parser = subparsers.add_parser(
+        "build-logic-board",
+        help="Build a planning board that auto-discovers logic boxes from trigger profiles.",
+    )
+    logic_board_parser.add_argument(
+        "--start-date",
+        required=True,
+        help="Window start date in YYYY-MM-DD format.",
+    )
+    logic_board_parser.add_argument(
+        "--days",
+        type=int,
+        default=14,
+        help="Number of days to include in the board.",
+    )
+    logic_board_parser.add_argument(
+        "--profiles-dir",
+        default="live_trigger/profiles",
+        help="Directory containing trigger profile JSON files.",
+    )
+    logic_board_parser.add_argument(
+        "--output-dir",
+        default="live_trigger/plans",
+        help="Directory for board outputs.",
+    )
+    logic_board_parser.add_argument(
+        "--raw-root",
+        default="live_trigger/raw",
+        help="Raw cache root for schedule HTML.",
+    )
+    logic_board_parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=30,
+        help="HTTP timeout seconds.",
+    )
+    logic_board_parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
+    logic_board_parser.set_defaults(func=build_logic_board_command)
     return parser
 
 

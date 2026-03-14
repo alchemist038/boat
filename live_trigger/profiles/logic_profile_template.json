@@ -1,0 +1,18 @@
+{
+  "profile_id": "logic_profile_template",
+  "strategy_id": "template",
+  "display_name": "Logic Template",
+  "description": "Copy this file and adjust the profile fields to add a new logic box.",
+  "accent_color": "#8a4b08",
+  "enabled": false,
+  "stadiums": ["12"],
+  "watch_minutes_before_deadline": 25,
+  "pre_filters": {
+    "lane1_class_exclude": ["A1"],
+    "lane1_motor_place_rate_min": 35.0,
+    "lane1_motor_top3_rate_min": 45.0
+  },
+  "final_filters": {
+    "lane1_exhibition_best_gap_max": 0.02
+  }
+}
