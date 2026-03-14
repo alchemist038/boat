@@ -1,93 +1,91 @@
 # TO I5 FROM ME
 
-`i5` の Codex は、まずこのファイルだけ読んでください。
+`i5` の Codex は、このファイルを現時点の連絡メモとして読んでください。
 
-## 状態
-
+## Context
 - machine: i5
 - from: me
-- status: go
-- updated_at: 2026-03-14 15:05 JST
-- priority: high
+- status: info
+- updated_at: 2026-03-14 22:25 JST
+- priority: medium
 
-## 今回の依頼
+## Current Note
 
-過去分の odds backfill を本番開始してください。
+いま `i5` はアラートシステム作業を優先してよいです。
+このメモは「125 の整理が完了したこと」を共有するための情報更新です。
+現在の作業を中断する必要はありません。
 
-`ins14` は現在値と最終統合を担当します。`i5` は過去分だけ担当してください。
+## Folder Intent
 
-対象期間はこの 2 本です。
+今回から、戦略ごとに見る場所をそろえました。
 
-1. `boat_a`: `2025-04-01..2025-09-30`
-2. `boat_b`: `2025-10-01..2026-03-05`
+- project notes:
+  - `projects/125/`
+  - `projects/c2/`
+- human-readable strategy reports:
+  - `reports/strategies/125/`
+  - `reports/strategies/c2/`
+- raw analysis outputs:
+  - `workspace_codex/analysis/125/`
+  - `workspace_codex/analysis/c2/`
+  - `workspace_codex/analysis/combined/`
 
-使う repo はこれです。
+つまり、
+- `projects/...` = 案件ノート
+- `reports/strategies/...` = 人が読む要約
+- `workspace_codex/analysis/...` = 生の分析出力
+です。
 
-- `C:\CODEX_WORK\boat_clone`
+## 125 Status
 
-この 1 clone の中で、worker root を 2 本に分けてください。
+`125` は、いったん完成候補として整理済みです。
 
-- `work\boat_a`
-- `work\boat_b`
+Current main interpretation:
+- core is `lane1=B1`
+- `lane6=B2` is a valid remove condition
+- `lane5=B2` is clearly bad for `1-2-5`
+- `exgap<=0.02` strengthens the Suminoe-style setup
 
-つまり、「1 clone + 2 worker roots」で進めてください。
+Current adopted candidates:
+- main single-stadium logic:
+  - Suminoe `1-2-5`
+- broad candidate:
+  - Suminoe + Naruto + Ashiya + Edogawa
 
-`boat_a` で実行:
+Canonical files:
+- `projects/125/status_notebooklm_20260313.txt`
+- `reports/strategies/125/summary_20260314.md`
+- `reports/strategies/125/review_20260314.md`
+- `projects/125/README.md`
 
-```powershell
-.\.venv\Scripts\python -m boat_race_data collect-range `
-  --start-date 20250401 `
-  --end-date 20250930 `
-  --raw-root work\boat_a\raw `
-  --bronze-root work\boat_a\bronze `
-  --db-path work\boat_a\silver\boat_race.duckdb `
-  --sleep-seconds 0.5 `
-  --refresh-every-days 1 `
-  --resume-existing-days `
-  --skip-term-stats `
-  --skip-quality-report
-```
+## How To Confirm The Logic
 
-`boat_b` で実行:
+If you want to verify the current `125` logic, use this order:
 
-```powershell
-.\.venv\Scripts\python -m boat_race_data collect-range `
-  --start-date 20251001 `
-  --end-date 20260305 `
-  --raw-root work\boat_b\raw `
-  --bronze-root work\boat_b\bronze `
-  --db-path work\boat_b\silver\boat_race.duckdb `
-  --sleep-seconds 0.5 `
-  --refresh-every-days 1 `
-  --resume-existing-days `
-  --skip-term-stats `
-  --skip-quality-report
-```
+1. Read `projects/125/README.md`
+2. Read `reports/strategies/125/summary_20260314.md`
+3. Confirm the adopted conditions and BT/FW numbers there
+4. If you need source evidence, open these folders under `workspace_codex/analysis/125/`
 
-これは `GO` 指示です。準備返答ではなく、実行開始してください。
+Main evidence folders:
+- `125line_relative_rank_probe_20260314`
+- `125line_lane1_class_split_20260314`
+- `top5_lane1_b1_stadium_deep_20260314`
+- `all_stadium_lane1_b1_theory_scan_20260314`
+- `four_stadium_monthly_20260314`
 
-中断時は、同じディレクトリで同じコマンドをもう一度実行してください。各 `work\boat_*\bronze` が再開用の状態を持ちます。
+## Requested Response
 
-収集完了後は、各 worker の対応期間について、少なくとも次を `ins14` 側の対応フォルダへコピー完了まで担当してください。
+作業の切れ目でよいので、次の3点だけ `FROM_I5_TO_ME.md` に短く書いてください。
 
-- `work\raw\odds_2t\...`
-- `work\raw\odds_3t\...`
-- `work\bronze\odds_2t\...`
-- `work\bronze\odds_3t\...`
+- 新しいフォルダ構成を読めたか
+- `125` の完成状態を理解できたか
+- `125` の確認手順を理解できたか
 
-現在日付側の再収集や、`term_stats` の更新はしないでください。
+## Codex Action
 
-## 参考情報
-
-- files: `CODEX_START_HERE.md`, `TO_I5_FROM_ME.md`, `FROM_I5_TO_ME.md`
-- commands: `git pull`, `git branch --show-current`, `git log -1 --oneline`
-- constraints: 現在値は触らない。各 worker は自分の `work\...` 配下だけを使う
-- output target: `FROM_I5_TO_ME.md`
-
-## Codex の動き
-
-1. `git pull` を確認する
-2. `今回の依頼` が `NONE` なら、依頼なしとして返答する
-3. 依頼があれば実行を開始する
-4. 開始時、停止時、中断時、コピー完了時に `FROM_I5_TO_ME.md` を更新する
-5. 返答の更新を commit / push する
+1. `git pull`
+2. このファイルを読む
+3. 必要なら `projects/125/README.md` と `reports/strategies/125/summary_20260314.md` を読む
+4. 現在のアラートシステム作業は優先して継続
+5. 区切りのよいタイミングで `FROM_I5_TO_ME.md` に短く返答
