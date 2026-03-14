@@ -22,6 +22,8 @@
   - Codex専用ログ
 - `templates/`
   - 再利用する雛形
+- `coordination/`
+  - `ins14` / `i5` 間の task inbox と handoff
 
 ## 運用ルール
 
@@ -35,3 +37,14 @@
 - `workspace_codex`: 試作・検算・途中作業
 - `GPT/output`: 採用済みの成果物
 - `docs`: 長期保存したい説明資料
+
+## Multi-Machine Rule
+
+- `workspace_codex/coordination/inbox/ins14/`: tasks for `ins14`
+- `workspace_codex/coordination/inbox/i5/`: tasks for `i5`
+- `workspace_codex/coordination/handoffs/`: completion or blocked notes
+- `workspace_codex/coordination/done/`: completed task files
+
+Use one task per markdown file. Keep cross-machine instructions out of chat history
+alone and commit them into the repo so the other Codex session can read them after
+`git pull`.
