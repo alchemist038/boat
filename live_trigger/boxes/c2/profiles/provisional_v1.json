@@ -2,18 +2,23 @@
   "box_id": "c2",
   "profile_id": "c2_provisional_v1",
   "strategy_id": "c2",
-  "display_name": "C2 Provisional",
-  "description": "Placeholder for the current semi-regular C2 candidate. Keep disabled until the adopted trigger condition is fixed.",
+  "display_name": "C2 Provisional V1",
+  "description": "Semi-regular C2 proxy: women-race title proxy, lane1 slow start-exhibition ST, and lane1 exhibition within 0.02 of lanes 2 and 3.",
   "accent_color": "#8a4b08",
   "enabled": false,
   "stadiums": [],
   "watch_minutes_before_deadline": 25,
   "pre_filters": {
+    "meeting_title_keywords_any": ["女子", "ヴィーナス", "レディース", "オールレディース", "Lady", "Venus"],
+    "race_title_keywords_any": [],
     "lane1_class_exclude": [],
     "lane1_motor_place_rate_min": null,
     "lane1_motor_top3_rate_min": null
   },
   "final_filters": {
-    "lane1_exhibition_best_gap_max": null
+    "lane1_exhibition_best_gap_max": null,
+    "lane1_start_gap_over_rest_min": 0.12,
+    "lane1_exhibition_vs_lane2_max_gap": 0.02,
+    "lane1_exhibition_vs_lane3_max_gap": 0.02
   }
 }

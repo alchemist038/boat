@@ -9,11 +9,16 @@
   "stadiums": ["12"],
   "watch_minutes_before_deadline": 25,
   "pre_filters": {
+    "meeting_title_keywords_any": [],
+    "race_title_keywords_any": [],
     "lane1_class_exclude": ["A1"],
     "lane1_motor_place_rate_min": 35.0,
     "lane1_motor_top3_rate_min": 45.0
   },
   "final_filters": {
-    "lane1_exhibition_best_gap_max": 0.02
+    "lane1_exhibition_best_gap_max": 0.02,
+    "lane1_start_gap_over_rest_min": null,
+    "lane1_exhibition_vs_lane2_max_gap": null,
+    "lane1_exhibition_vs_lane3_max_gap": null
   }
 }

@@ -4,6 +4,8 @@ from boat_race_data.live_trigger import (
     TriggerProfile,
     build_watchlist_row,
     compute_best_gap,
+    compute_lane_gap,
+    compute_start_gap_over_rest,
     compute_watch_start_time,
     load_trigger_profiles,
 )
@@ -35,7 +37,9 @@ def test_build_watchlist_row_applies_pre_filters() -> None:
         "race_id": "202603151201",
         "race_date": "2026-03-15",
         "stadium_code": "12",
-        "stadium_name": "住之江",
+        "stadium_name": "Suminoe",
+        "meeting_title": "General",
+        "race_title": "Preliminary",
         "race_no": 1,
         "deadline_time": "14:25",
     }
@@ -59,6 +63,48 @@ def test_build_watchlist_row_applies_pre_filters() -> None:
     assert row["watch_start_time"] == "2026-03-15 14:00"
 
 
+def test_build_watchlist_row_applies_title_proxy_filters() -> None:
+    profile = TriggerProfile.from_dict(
+        {
+            "box_id": "c2",
+            "profile_id": "c2",
+            "strategy_id": "c2",
+            "pre_filters": {
+                "meeting_title_keywords_any": ["女子", "レディース"],
+            },
+            "final_filters": {
+                "lane1_start_gap_over_rest_min": 0.12,
+            },
+        }
+    )
+    race_row = {
+        "race_id": "202603150201",
+        "race_date": "2026-03-15",
+        "stadium_code": "02",
+        "stadium_name": "Toda",
+        "meeting_title": "オールレディース",
+        "race_title": "予選",
+        "race_no": 1,
+        "deadline_time": "10:55",
+    }
+    entry_rows = [
+        {
+            "lane": 1,
+            "racer_id": 1001,
+            "racer_name": "A",
+            "racer_class": "B1",
+            "motor_no": 12,
+            "motor_place_rate": 0.0,
+            "motor_top3_rate": 0.0,
+        }
+    ]
+
+    row = build_watchlist_row(race_row, entry_rows, profile)
+
+    assert row is not None
+    assert row["pre_reason"].startswith("title_proxy")
+
+
 def test_compute_best_gap_uses_fastest_exhibition_time() -> None:
     rows = [
         {"lane": 1, "exhibition_time": 6.79},
@@ -67,6 +113,19 @@ def test_compute_best_gap_uses_fastest_exhibition_time() -> None:
     ]
 
     assert round(compute_best_gap(rows, lane=1) or 0.0, 3) == 0.02
+
+
+def test_c2_gap_helpers_compute_expected_values() -> None:
+    rows = [
+        {"lane": 1, "exhibition_time": 6.79, "start_exhibition_st": 0.21},
+        {"lane": 2, "exhibition_time": 6.80, "start_exhibition_st": 0.05},
+        {"lane": 3, "exhibition_time": 6.81, "start_exhibition_st": 0.07},
+        {"lane": 4, "exhibition_time": 6.84, "start_exhibition_st": 0.09},
+    ]
+
+    assert round(compute_lane_gap(rows, 1, 2) or 0.0, 3) == -0.01
+    assert round(compute_lane_gap(rows, 1, 3) or 0.0, 3) == -0.02
+    assert round(compute_start_gap_over_rest(rows, 1) or 0.0, 3) == 0.16
 
 
 def test_load_trigger_profiles_reads_enabled_json_files(tmp_path: Path) -> None:
@@ -93,7 +152,7 @@ def test_load_trigger_profiles_reads_enabled_json_files(tmp_path: Path) -> None:
         {
           "box_id": "c2",
           "profile_id": "p2",
-          "strategy_id": "125",
+          "strategy_id": "c2",
           "display_name": "Two",
           "enabled": false,
           "stadiums": ["13"],

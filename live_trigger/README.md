@@ -1,35 +1,45 @@
 # Live Trigger
 
-前日候補抽出と当日直前判定を、既存の収集基盤とは分離して扱うための作業フォルダです。
+前日候補抽出と当日直前判定を行うための trigger 基盤です。
 
-## 目的
+目的:
 
 - 前日に翌日の候補レースを抽出する
-- 候補レースだけを当日 `beforeinfo` で再確認する
-- 通知そのものは後回しにして、まず `trigger_ready` まで作る
+- 当日に `beforeinfo` を取り直して直前判定する
+- 通知そのものは後で足せるように、まず `trigger_ready` までを作る
 
 ## 構成
 
 - `boxes/`
-  - `125/`, `c2/` のように project ごとに分離する
-  - 各 box の `profiles/*.json` を自動読込する
-  - profile を追加すると logic box の対象として board / batch watchlist に乗る
+  - `125/`, `c2/` のように logic/project ごとに分離する
+  - 各 box の `profiles/*.json` に trigger 条件を書く
+  - box を追加すると logic board と batch watchlist に載る
 - `watchlists/`
-  - 前日抽出結果の出力先
+  - 前日抽出の CSV 出力
 - `ready/`
-  - 直前条件通過結果の出力先
+  - 直前判定で `trigger_ready` になった CSV 出力
 - `plans/`
-  - 2週先から1か月先の予定確認用 CSV / Markdown / HTML 出力先
+  - 2週間から1か月先の予定表示
+  - logic board の Markdown / HTML 出力
 
-## 直近の対象
+## ルール
 
-まずは `125` を正規 box とし、`c2` は分離 box として載せる。
+- `125` と `c2` は別 BOX として管理する
+- batch watchlist は `enabled: true` の profile だけ使う
+- logic board は無効 profile も一覧表示して、待機中ロジックを見える化する
+- `template` は雛形であり、実際の読み込み対象からは外す
 
-## 追加された CLI
+## 主な CLI
 
+- `build-watchlist`
+  - 単一 profile で前日候補抽出
 - `build-watchlist-batch`
-  - `boxes/` 配下の enabled profile をまとめて watchlist 化
+  - `boxes/` 配下の有効 profile をまとめて前日候補抽出
+- `resolve-watchlist`
+  - 単一 profile で `beforeinfo` を見て直前判定
 - `resolve-watchlist-batch`
-  - batch watchlist を profile ごとに最終判定
+  - batch watchlist を profile ごとに直前判定
+- `build-schedule-window`
+  - 2週間から1か月先の開催予定を出力
 - `build-logic-board`
-  - box 配下 profile を読み込み、予定カレンダーに重ねて表示
+  - BOX 一覧とカレンダーをまとめて出力
