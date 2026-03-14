@@ -1,45 +1,44 @@
 # Live Trigger
 
-前日候補抽出と当日直前判定を行うための trigger 基盤です。
+This folder contains the alert-trigger foundation for adopted and candidate logic boxes.
 
-目的:
+## Purpose
 
-- 前日に翌日の候補レースを抽出する
-- 当日に `beforeinfo` を取り直して直前判定する
-- 通知そのものは後で足せるように、まず `trigger_ready` までを作る
+- Build next-day watchlists from official race list pages.
+- Re-check `beforeinfo` close to the race and mark `trigger_ready` rows.
+- Keep the logic definition separate by box, such as `125` and `c2`.
 
-## 構成
+## Layout
 
 - `boxes/`
-  - `125/`, `c2/` のように logic/project ごとに分離する
-  - 各 box の `profiles/*.json` に trigger 条件を書く
-  - box を追加すると logic board と batch watchlist に載る
+  - one folder per logic box
+  - each box stores `profiles/*.json`
 - `watchlists/`
-  - 前日抽出の CSV 出力
+  - CSV output from next-day candidate extraction
 - `ready/`
-  - 直前判定で `trigger_ready` になった CSV 出力
+  - CSV output from final trigger resolution
 - `plans/`
-  - 2週間から1か月先の予定表示
-  - logic board の Markdown / HTML 出力
+  - schedule and logic-board HTML / Markdown outputs
+- `app.py`
+  - Streamlit app for schedule, watchlist, and final-resolution checks
 
-## ルール
+## Run The App
 
-- `125` と `c2` は別 BOX として管理する
-- batch watchlist は `enabled: true` の profile だけ使う
-- logic board は無効 profile も一覧表示して、待機中ロジックを見える化する
-- `template` は雛形であり、実際の読み込み対象からは外す
+From the repo root:
 
-## 主な CLI
+```powershell
+cd C:\CODEX_WORK\boat_clone
+& .\.venv\Scripts\streamlit.exe run live_trigger\app.py
+```
 
-- `build-watchlist`
-  - 単一 profile で前日候補抽出
-- `build-watchlist-batch`
-  - `boxes/` 配下の有効 profile をまとめて前日候補抽出
-- `resolve-watchlist`
-  - 単一 profile で `beforeinfo` を見て直前判定
-- `resolve-watchlist-batch`
-  - batch watchlist を profile ごとに直前判定
-- `build-schedule-window`
-  - 2週間から1か月先の開催予定を出力
-- `build-logic-board`
-  - BOX 一覧とカレンダーをまとめて出力
+If the app dependency is not installed yet:
+
+```powershell
+& .\.venv\Scripts\python.exe -m pip install -e .[app]
+```
+
+## Current Rule
+
+- `125` and `c2` are managed as separate boxes.
+- Batch watchlist generation uses only `enabled: true` profiles by default.
+- The app can still inspect disabled profiles and run them manually for validation.
