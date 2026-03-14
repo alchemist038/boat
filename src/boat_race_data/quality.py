@@ -50,6 +50,64 @@ def generate_quality_report(db_path: Path, report_date: str, output_dir: Path) -
             ORDER BY r.race_id
             """
         ).fetchall()
+        races_without_results = con.execute(
+            """
+            SELECT r.race_id, r.race_date, r.stadium_name, r.race_no
+            FROM races r
+            LEFT JOIN (SELECT DISTINCT race_id FROM results) res USING (race_id)
+            WHERE res.race_id IS NULL
+            ORDER BY r.race_date DESC, r.stadium_code, r.race_no
+            """
+        ).fetchall()
+        races_without_odds_2t = con.execute(
+            """
+            SELECT r.race_id, r.race_date, r.stadium_name, r.race_no
+            FROM races r
+            LEFT JOIN (SELECT DISTINCT race_id FROM odds_2t) o USING (race_id)
+            WHERE o.race_id IS NULL
+            ORDER BY r.race_date DESC, r.stadium_code, r.race_no
+            """
+        ).fetchall()
+        races_without_odds_3t = con.execute(
+            """
+            SELECT r.race_id, r.race_date, r.stadium_name, r.race_no
+            FROM races r
+            LEFT JOIN (SELECT DISTINCT race_id FROM odds_3t) o USING (race_id)
+            WHERE o.race_id IS NULL
+            ORDER BY r.race_date DESC, r.stadium_code, r.race_no
+            """
+        ).fetchall()
+        possible_canceled_or_aborted = con.execute(
+            """
+            WITH result_ids AS (
+              SELECT DISTINCT race_id FROM results
+            ),
+            odds_2t_ids AS (
+              SELECT DISTINCT race_id FROM odds_2t
+            ),
+            odds_3t_ids AS (
+              SELECT DISTINCT race_id FROM odds_3t
+            ),
+            beforeinfo_ids AS (
+              SELECT DISTINCT race_id FROM beforeinfo_entries
+            )
+            SELECT
+              r.race_id,
+              r.race_date,
+              r.stadium_name,
+              r.race_no,
+              CASE WHEN b.race_id IS NULL THEN 'no' ELSE 'yes' END AS has_beforeinfo
+            FROM races r
+            LEFT JOIN result_ids res USING (race_id)
+            LEFT JOIN odds_2t_ids o2 USING (race_id)
+            LEFT JOIN odds_3t_ids o3 USING (race_id)
+            LEFT JOIN beforeinfo_ids b USING (race_id)
+            WHERE res.race_id IS NULL
+              AND o2.race_id IS NULL
+              AND o3.race_id IS NULL
+            ORDER BY r.race_date DESC, r.stadium_code, r.race_no
+            """
+        ).fetchall()
         odds_2t_missing = con.execute(
             """
             SELECT race_id, bet_type, COUNT(*) AS available_rows
@@ -110,6 +168,21 @@ def generate_quality_report(db_path: Path, report_date: str, output_dir: Path) -
             "",
             "## Results without entries",
             _rows_to_markdown(["race_id"], results_without_entries),
+            "",
+            "## Races without results",
+            _rows_to_markdown(["race_id", "race_date", "stadium_name", "race_no"], races_without_results),
+            "",
+            "## Races without odds_2t",
+            _rows_to_markdown(["race_id", "race_date", "stadium_name", "race_no"], races_without_odds_2t),
+            "",
+            "## Races without odds_3t",
+            _rows_to_markdown(["race_id", "race_date", "stadium_name", "race_no"], races_without_odds_3t),
+            "",
+            "## Possible canceled or aborted races",
+            _rows_to_markdown(
+                ["race_id", "race_date", "stadium_name", "race_no", "has_beforeinfo"],
+                possible_canceled_or_aborted,
+            ),
             "",
             "## odds_2t missing counts",
             _rows_to_markdown(["race_id", "bet_type", "available_rows"], odds_2t_missing),
