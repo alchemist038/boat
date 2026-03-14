@@ -12,6 +12,10 @@ Use this folder when `ins14` and `i5` hand work to each other through Git.
   - completion notes, blocked notes, and next steps
 - `done/`
   - completed task files moved out of the inbox
+- `jobs/active/`
+  - long-run jobs that may need resume
+- `jobs/done/`
+  - completed long-run jobs
 
 ## Core Rule
 
@@ -69,6 +73,14 @@ Every handoff should include:
 - tests or checks run
 - what is still blocked
 - exact next step for the other machine
+
+For multi-hour collection jobs, also create a job file from:
+
+`workspace_codex/templates/CODEX_LONGRUN_JOB_TEMPLATE.md`
+
+and keep it under:
+
+`workspace_codex/coordination/jobs/active/`
 
 ## Scope Guidance
 
