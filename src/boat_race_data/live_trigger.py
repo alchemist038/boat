@@ -10,7 +10,7 @@ from typing import Any
 
 from boat_race_data.client import BoatRaceClient, FetchResult
 from boat_race_data.constants import STADIUMS
-from boat_race_data.parsers import parse_beforeinfo, parse_racelist
+from boat_race_data.parsers import parse_beforeinfo, parse_racelist, parse_result
 from boat_race_data.utils import ensure_dir
 
 WATCHLIST_COLUMNS = [
@@ -60,6 +60,9 @@ class TriggerProfile:
     meeting_title_keywords_any: list[str]
     race_title_keywords_any: list[str]
     lane1_class_exclude: set[str]
+    lane1_class_include: set[str]
+    lane5_class_exclude: set[str]
+    lane6_class_include: set[str]
     lane1_motor_place_rate_min: float | None
     lane1_motor_top3_rate_min: float | None
     lane1_exhibition_best_gap_max: float | None
@@ -84,6 +87,9 @@ class TriggerProfile:
             meeting_title_keywords_any=[str(value) for value in pre_filters.get("meeting_title_keywords_any", [])],
             race_title_keywords_any=[str(value) for value in pre_filters.get("race_title_keywords_any", [])],
             lane1_class_exclude={str(value) for value in pre_filters.get("lane1_class_exclude", [])},
+            lane1_class_include={str(value) for value in pre_filters.get("lane1_class_include", [])},
+            lane5_class_exclude={str(value) for value in pre_filters.get("lane5_class_exclude", [])},
+            lane6_class_include={str(value) for value in pre_filters.get("lane6_class_include", [])},
             lane1_motor_place_rate_min=_maybe_float(pre_filters.get("lane1_motor_place_rate_min")),
             lane1_motor_top3_rate_min=_maybe_float(pre_filters.get("lane1_motor_top3_rate_min")),
             lane1_exhibition_best_gap_max=_maybe_float(final_filters.get("lane1_exhibition_best_gap_max")),
@@ -275,6 +281,17 @@ def build_watchlist_row(
         return None
     if lane1.get("racer_class", "") in profile.lane1_class_exclude:
         return None
+    if profile.lane1_class_include and lane1.get("racer_class", "") not in profile.lane1_class_include:
+        return None
+
+    # lane5, lane6 check
+    lane5 = _entry_by_lane(entry_rows, 5)
+    lane6 = _entry_by_lane(entry_rows, 6)
+    if lane5 and (lane5.get("racer_class", "") in profile.lane5_class_exclude):
+        return None
+    if lane6 and profile.lane6_class_include and (lane6.get("racer_class", "") not in profile.lane6_class_include):
+        return None
+
     if not _passes_min_filter(lane1.get("motor_place_rate"), profile.lane1_motor_place_rate_min):
         return None
     if not _passes_min_filter(lane1.get("motor_top3_rate"), profile.lane1_motor_top3_rate_min):
@@ -498,6 +515,87 @@ def write_watchlist(path: Path, rows: list[dict[str, object]]) -> None:
             writer.writerow({column: row.get(column, "") for column in WATCHLIST_COLUMNS})
 
 
+def record_air_bets(ready_path: Path, log_path: Path, rows_with_results: list[dict[str, object]] = None) -> int:
+    """ready.csv または引数から trigger_ready 行を抽出し、ログに追記する。"""
+    target_rows = []
+    if rows_with_results is not None:
+        target_rows = [r for r in rows_with_results if r.get("status") == "trigger_ready"]
+    elif ready_path.exists():
+        ready_rows = read_watchlist(ready_path)
+        target_rows = [r for r in ready_rows if r.get("status") == "trigger_ready"]
+    
+    if not target_rows:
+        return 0
+
+    log_fields = ["race_id", "race_date", "stadium_code", "race_no", "profile_id", "strategy_id", "result", "payout", "timestamp"]
+    existing_keys = set()
+    if log_path.exists():
+        with log_path.open("r", encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                existing_keys.add((row["race_id"], row["profile_id"]))
+
+    new_count = 0
+    now_str = datetime.now().isoformat()
+    ensure_dir(log_path.parent)
+    is_new_file = not log_path.exists()
+    
+    with log_path.open("a", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=log_fields, extrasaction="ignore")
+        if is_new_file:
+            writer.writeheader()
+        for r in target_rows:
+            key = (str(r["race_id"]), str(r["profile_id"]))
+            if key not in existing_keys:
+                r["timestamp"] = now_str
+                # Ensure result and payout exist
+                r.setdefault("result", "")
+                r.setdefault("payout", 0)
+                writer.writerow(r)
+                existing_keys.add(key)
+                new_count += 1
+    return new_count
+
+
+def judge_air_bet(row: dict[str, object], client: BoatRaceClient, raw_root: Path) -> tuple[str, int]:
+    """実際のレース結果を取得し、プロファイルに応じた勝敗 (win/lose) と払戻を返す。"""
+    race_date = str(row.get("race_date", "")).replace("-", "")
+    stadium_code = str(row.get("stadium_code", ""))
+    race_no = int(row.get("race_no", 0))
+    if not (race_date and stadium_code and race_no):
+        return "lose", 0
+
+    prefix = f"{stadium_code}_{race_no:02d}"
+    fetch = _fetch_text_cached(
+        client,
+        client.build_race_url("result", race_date, stadium_code, race_no),
+        raw_root / "result" / race_date / f"{prefix}.html",
+    )
+    result = parse_result(fetch.text or "", race_date, stadium_code, race_no, fetch.url, fetch.fetched_at)
+    if result is None:
+        return "lose", 0
+
+    profile_id = str(row.get("profile_id", "")).lower()
+    is_win = False
+    payout = 0
+
+    if "125" in profile_id:
+        # 1-2-5 判定
+        if (result.get("first_place_lane") == 1 and 
+            result.get("second_place_lane") == 2 and 
+            result.get("third_place_lane") == 5):
+            is_win = True
+            payout = int(result.get("trifecta_payout") or 0)
+    elif "c2" in profile_id:
+        # 1着が 2 または 3 判定
+        if result.get("first_place_lane") in (2, 3):
+            is_win = True
+            # C2 の払戻詳細は未定義だが、一旦 3連単全体払戻を使用
+            payout = int(result.get("trifecta_payout") or 0)
+
+    return ("win" if is_win else "lose"), payout
+
+
 def _fetch_text_cached(client: BoatRaceClient, url: str, raw_path: Path) -> FetchResult:
     if raw_path.exists():
         content = raw_path.read_bytes()
@@ -596,3 +694,130 @@ def _box_id_from_path(path: Path) -> str:
 
 def _is_template_profile(path: Path) -> bool:
     return _box_id_from_path(path) == "template"
+
+
+def get_air_bet_stats(log_path: Path) -> dict[str, dict[str, object]]:
+    """Air Bet ログを集計し、全体および profile_id ごとの統計を返す。"""
+    if not log_path.exists():
+        return {}
+
+    stats = {}
+    
+    def init_stat():
+        return {
+            "race_count": 0,
+            "win_count": 0,
+            "investment": 0,
+            "payout": 0,
+            "balance": 0,
+            "win_rate": 0.0,
+            "recovery_rate": 0.0
+        }
+
+    stats["TOTAL"] = init_stat()
+
+    with log_path.open("r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            res = row.get("result")
+            if res not in ("win", "lose"):
+                continue
+            
+            pid = row.get("profile_id", "unknown")
+            if pid not in stats:
+                stats[pid] = init_stat()
+            
+            payout_val = int(row.get("payout", 0) or 0)
+            is_win = row.get("result") == "win"
+            
+            for key in ["TOTAL", pid]:
+                stats[key]["race_count"] += 1
+                stats[key]["investment"] += 100  # 固定100円
+                stats[key]["payout"] += payout_val
+                if is_win:
+                    stats[key]["win_count"] += 1
+
+    for key in stats:
+        s = stats[key]
+        if s["race_count"] > 0:
+            s["win_rate"] = round(s["win_count"] / s["race_count"] * 100, 1)
+            s["recovery_rate"] = round(s["payout"] / s["investment"] * 100, 1)
+            s["balance"] = s["payout"] - s["investment"]
+
+    return stats
+
+
+def print_air_bet_stats(stats: dict[str, dict[str, object]]) -> None:
+    """集計された成績をコンソールに表示する。"""
+    if not stats:
+        print("集計データがありません。")
+        return
+
+    # TOTAL を最初に表示
+    if "TOTAL" in stats:
+        s = stats["TOTAL"]
+        print("■ TOTAL")
+        print(f"・レース数: {s['race_count']}")
+        print(f"・勝率: {s['win_rate']}%")
+        print(f"・回収率: {s['recovery_rate']}%")
+        print(f"・収支: {s['balance']}円")
+        print()
+
+    # 各プロファイルを順に表示
+    for pid, s in stats.items():
+        if pid == "TOTAL":
+            continue
+        print(f"■ {pid}")
+        print(f"・レース数: {s['race_count']}")
+        print(f"・勝率: {s['win_rate']}%")
+        print(f"・回収率: {s['recovery_rate']}%")
+        print(f"・収支: {s['balance']}円")
+        print()
+
+
+def process_air_bets_full_flow(
+    ready_path: Path, 
+    log_path: Path, 
+    client: BoatRaceClient, 
+    raw_root: Path
+) -> None:
+    """判定から表示までの一連の Air Bet 処理を一括実行する。"""
+    if not ready_path.exists():
+        return
+
+    # 1. データの読み込み
+    rows = read_watchlist(ready_path)
+    ready_rows = [r for r in rows if r.get("status") == "trigger_ready"]
+    if not ready_rows:
+        return
+
+    # 2. 的中判定の実行
+    for r in ready_rows:
+        try:
+            res, payout = judge_air_bet(r, client, raw_root)
+            r["result"] = res
+            r["payout"] = payout
+        except Exception as e:
+            r["result"] = "skip"
+            r["payout"] = 0
+            print(f"Error judging {r.get('race_id')}: {e}")
+
+    # 3. ログへの記録
+    record_air_bets(ready_path, log_path, rows_with_results=ready_rows)
+
+    # 4. 集計の実行
+    stats = get_air_bet_stats(log_path)
+
+    # 5. 結果の表示
+    print_air_bet_stats(stats)
+
+
+def run_air_bet_flow_cli(
+    ready_path: Path, 
+    log_path: Path, 
+    raw_root: Path
+) -> None:
+    """BoatRaceClient を内部で生成し、Air Bet フローを一括実行する。"""
+    from boat_race_data.constants import DEFAULT_TIMEOUT_SECONDS
+    with BoatRaceClient(timeout_seconds=DEFAULT_TIMEOUT_SECONDS) as client:
+        process_air_bets_full_flow(ready_path, log_path, client, raw_root)
