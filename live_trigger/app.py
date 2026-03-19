@@ -6,6 +6,11 @@ import json
 import sys
 import traceback
 
+APP_ROOT = Path(__file__).resolve().parent
+RUNTIME_ROOT = APP_ROOT / "runtime"
+if str(RUNTIME_ROOT) not in sys.path:
+    sys.path.insert(0, str(RUNTIME_ROOT))
+
 import pandas as pd
 import streamlit as st
 from streamlit.components.v1 import html as st_html
@@ -24,7 +29,6 @@ from boat_race_data.live_trigger import (
 from boat_race_data.logic_board import build_logic_board
 import random
 
-APP_ROOT = Path(__file__).resolve().parent
 PROFILE_ROOT = APP_ROOT / "boxes"
 PLANS_ROOT = APP_ROOT / "plans"
 RAW_ROOT = APP_ROOT / "raw"
@@ -118,6 +122,48 @@ def _default_watchlist_name(target_date: date) -> str:
     return f"{target_date:%Y%m%d}_app_batch.csv"
 
 
+def _logic_display_name(profile) -> str:
+    if profile is None:
+        return "unknown"
+    return str(profile.display_name or profile.profile_id)
+
+
+def _logic_targets_for_watchlist(profiles: list, watchlist_path: Path | None) -> list[dict[str, object]]:
+    profile_map = {profile.profile_id: profile for profile in profiles}
+    targets: list[dict[str, object]] = []
+    seen: set[str] = set()
+
+    if watchlist_path is not None and watchlist_path.exists():
+        for row in read_watchlist(watchlist_path):
+            logic_id = str(row.get("profile_id", "")).strip()
+            if not logic_id or logic_id in seen:
+                continue
+            profile = profile_map.get(logic_id)
+            targets.append(
+                {
+                    "logic_id": logic_id,
+                    "label": _logic_display_name(profile) if profile is not None else logic_id,
+                    "default_enabled": bool(profile.enabled) if profile is not None else True,
+                }
+            )
+            seen.add(logic_id)
+
+    if targets:
+        return targets
+
+    for profile in profiles:
+        if not profile.enabled:
+            continue
+        targets.append(
+            {
+                "logic_id": str(profile.profile_id),
+                "label": _logic_display_name(profile),
+                "default_enabled": True,
+            }
+        )
+    return targets
+
+
 def _rename_columns(frame: pd.DataFrame, mapping: dict[str, str]) -> pd.DataFrame:
     columns = [column for column in mapping if column in frame.columns]
     if not columns:
@@ -183,6 +229,7 @@ def main() -> None:
 
     label_to_profile = {_profile_label(profile): profile for profile in profiles}
     enabled_labels = [label for label, profile in label_to_profile.items() if profile.enabled]
+    profile_name_map = {profile.profile_id: _logic_display_name(profile) for profile in profiles}
 
     with st.sidebar:
         st.header("BOX 一覧")
@@ -333,50 +380,47 @@ def main() -> None:
                 index=default_index,
                 format_func=lambda path: path.name,
             )
+            logic_targets = _logic_targets_for_watchlist(profiles, selected_watchlist)
+            logic_controls: dict[str, dict[str, object]] = {}
             resolve_name = st.text_input("出力ファイル名", value=f"{selected_watchlist.stem}_ready.csv")
             
             st.write("Air Bet 記録対象設定:")
-            col_a1, col_a2, col_a3 = st.columns([2, 2, 3])
-            use_a = col_a1.checkbox("trigger_A (奇数)", value=st.session_state.get("use_logic_a", True), key="use_logic_a")
-            amt_a = col_a2.number_input("金額(A)", min_value=0, value=st.session_state.get("amt_logic_a", 100), step=100, key="amt_logic_a")
-            limit_a = col_a3.number_input("損失上限(A)", max_value=0, value=st.session_state.get("limit_logic_a", -1000), step=100, key="limit_logic_a")
-            
-            col_b1, col_b2, col_b3 = st.columns([2, 2, 3])
-            use_b = col_b1.checkbox("trigger_B (偶数)", value=st.session_state.get("use_logic_b", True), key="use_logic_b")
-            amt_b = col_b2.number_input("金額(B)", min_value=0, value=st.session_state.get("amt_logic_a", 100), step=100, key="amt_logic_b")
-            limit_b = col_b3.number_input("損失上限(B)", max_value=0, value=st.session_state.get("limit_logic_b", -1000), step=100, key="limit_logic_b")
-            
-            auto_allocation = st.checkbox("自動配分（勝ち馬に乗る）を有効にする", value=st.session_state.get("use_auto_allocation", False), key="use_auto_allocation")
-            if auto_allocation:
-                st.caption("※収支が良い方のロジックのベット額を 1.5倍 (最大 1000円) に引き上げます。")
+            for target in logic_targets:
+                logic_id = str(target["logic_id"])
+                label = str(target["label"])
+                default_enabled = bool(target["default_enabled"])
+                state_suffix = logic_id.replace("-", "_")
+                use_key = f"use_logic_{state_suffix}"
+                amount_key = f"amt_logic_{state_suffix}"
+
+                col1, col2 = st.columns([3, 2])
+                use_logic = col1.checkbox(
+                    label,
+                    value=st.session_state.get(use_key, default_enabled),
+                    key=use_key,
+                )
+                amount = col2.number_input(
+                    f"金額 / {label}",
+                    min_value=0,
+                    value=int(st.session_state.get(amount_key, 100)),
+                    step=100,
+                    key=amount_key,
+                )
+                logic_controls[logic_id] = {
+                    "label": label,
+                    "use": use_logic,
+                    "amount": int(amount),
+                }
 
             resolve_submitted = st.form_submit_button("beforeinfo を見て判定")
 
         if resolve_submitted:
             ready_path = READY_ROOT / resolve_name
             try:
-                # 累計収支の計算（停止判定および自動配分用）
-                history = st.session_state.get("air_bet_history", [])
-                def calc_balance(logic_name):
-                    return sum((int(r.get("payout", 0)) - int(r.get("amount", 0))) 
-                               for r in history if r.get("logic") == logic_name)
-                
-                bal_a = calc_balance("trigger_A")
-                bal_b = calc_balance("trigger_B")
-                stopped_a = bal_a <= limit_a
-                stopped_b = bal_b <= limit_b
-                
-                # 自動配分計算（記録値の決定）
-                final_amt_a = amt_a
-                final_amt_b = amt_b
-                if auto_allocation:
-                    if bal_a > bal_b:
-                        final_amt_a = min(1000, int(amt_a * 1.5))
-                    elif bal_b > bal_a:
-                        final_amt_b = min(1000, int(amt_b * 1.5))
-
-                if stopped_a: st.error(f"trigger_A は損失上限 ({limit_a}円) に達しているため自動停止中です（現在収支: {bal_a}円）")
-                if stopped_b: st.error(f"trigger_B は損失上限 ({limit_b}円) に達しているため自動停止中です（現在収支: {bal_b}円）")
+                amount_by_logic = {
+                    logic_id: int(control["amount"])
+                    for logic_id, control in logic_controls.items()
+                }
 
                 with st.spinner("直前判定中..."):
                     changed_rows, ready_count = resolve_watchlist_for_profiles(
@@ -387,6 +431,7 @@ def main() -> None:
                         sleep_seconds=DEFAULT_SLEEP_SECONDS,
                         timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
                     )
+                st.session_state["ready_path"] = str(ready_path)
                 st.session_state["resolve_ready_count"] = ready_count
                 st.session_state["resolve_changed_rows"] = changed_rows
 
@@ -399,21 +444,16 @@ def main() -> None:
                         valid_new_records = []
                         with BoatRaceClient(timeout_seconds=DEFAULT_TIMEOUT_SECONDS) as client:
                             for r in new_records:
-                                # 1. profile_id をロジック名として使用 (A/B概念を排除)
-                                logic_name = r.get("profile_id", "unknown")
-                                pid_lower = logic_name.lower()
-                                
-                                # 2. 自動停止・無効ベットチェック (内部グループ判定のみ残す)
-                                if "125" in pid_lower:
-                                    if stopped_a: continue
-                                    rec_amount = final_amt_a
-                                    if not use_a: continue
-                                elif "c2" in pid_lower:
-                                    if stopped_b: continue
-                                    rec_amount = final_amt_b
-                                    if not use_b: continue
+                                logic_name = str(r.get("profile_id", "unknown"))
+                                control = logic_controls.get(logic_name)
+                                if control is None:
+                                    rec_amount = 100
+                                    logic_label = profile_name_map.get(logic_name, logic_name)
                                 else:
-                                    rec_amount = 100 # デフォルト
+                                    if not bool(control["use"]):
+                                        continue
+                                    rec_amount = int(amount_by_logic.get(logic_name, control["amount"]))
+                                    logic_label = str(control["label"])
                                 
                                 if rec_amount <= 0:
                                     continue
@@ -430,14 +470,8 @@ def main() -> None:
 
                                 r["amount"] = rec_amount
                                 r["logic"] = logic_name
-                                
-                                # 4. ON/OFF フィルタリング (unknown は常に許可)
-                                if logic_name == "unknown":
-                                    valid_new_records.append(r)
-                                elif logic_name == "trigger_A" and use_a:
-                                    valid_new_records.append(r)
-                                elif logic_name == "trigger_B" and use_b:
-                                    valid_new_records.append(r)
+                                r["logic_display"] = logic_label
+                                valid_new_records.append(r)
 
                         if valid_new_records:
                             # 5. Persistent Air Bet Log (with results)
@@ -492,15 +526,22 @@ def main() -> None:
         history_records = st.session_state.get("air_bet_history", [])
         if history_records:
             history_df = pd.DataFrame(history_records)
+            if "logic_display" not in history_df.columns:
+                if "logic" in history_df.columns:
+                    history_df["logic_display"] = history_df["logic"].map(profile_name_map).fillna(history_df["logic"])
+                elif "profile_id" in history_df.columns:
+                    history_df["logic_display"] = history_df["profile_id"].map(profile_name_map).fillna(history_df["profile_id"])
+                else:
+                    history_df["logic_display"] = "unknown"
             # 表示項目: 時刻 / 場 / レース / ロジック / 金額 / 結果 / 払戻 / 状態（GO）
-            display_cols = ["deadline_time", "stadium_name", "race_no", "strategy_id", "amount", "result", "payout", "status"]
+            display_cols = ["deadline_time", "stadium_name", "race_no", "logic_display", "amount", "result", "payout", "status"]
             available_cols = [c for c in display_cols if c in history_df.columns]
             df_to_show = history_df[available_cols].copy()
             df_to_show = df_to_show.rename(columns={
                 "deadline_time": "時刻",
                 "stadium_name": "場",
                 "race_no": "レース",
-                "strategy_id": "ロジック",
+                "logic_display": "ロジック",
                 "amount": "金額",
                 "result": "結果",
                 "payout": "払戻",
@@ -548,6 +589,8 @@ def main() -> None:
                 df["logic"] = "unknown"
             else:
                 df["logic"] = df["logic"].fillna("unknown")
+            if "logic_display" not in df.columns:
+                df["logic_display"] = df["logic"].map(profile_name_map).fillna(df["logic"])
             
             # 必要なカラムの存在確認と初期化
             for col in ["amount", "payout", "result"]:
@@ -555,11 +598,11 @@ def main() -> None:
                     df[col] = 0 if col != "result" else "lose"
 
             # ロジックごとにグループ化して集計
-            stats_df = df.groupby("logic").apply(lambda x: pd.Series({
+            stats_df = df.groupby("logic_display").apply(lambda x: pd.Series({
                 "レース数": len(x),
                 "的中数": (x["result"] == "win").sum(),
                 "収支": (x["payout"] - x["amount"]).sum()
-            }), include_groups=False).reset_index()
+            }), include_groups=False).reset_index().rename(columns={"logic_display": "ロジック"})
             
             st.dataframe(stats_df, use_container_width=True, hide_index=True)
         else:
@@ -575,9 +618,9 @@ def main() -> None:
 if __name__ == "__main__":
     if get_script_run_ctx() is None:
         # CLI 実行モード
-        ready_path = Path("data/ready.csv")
-        log_path = Path("data/air_bet_log.csv")
-        raw_root = Path("data/raw")
+        ready_path = READY_ROOT / "latest.csv"
+        log_path = AIR_BET_LOG_FILE
+        raw_root = RAW_ROOT
         run_air_bet_flow_cli(ready_path, log_path, raw_root)
     else:
         main()

@@ -50,3 +50,31 @@ live_trigger\run_app.cmd
 - batch 抽出は通常 `enabled: true` の profile が対象です
 - ただしアプリ上では無効 profile も手動で選んで試せます
 - `python live_trigger\app.py` ではなく、必ず `streamlit run` で起動してください
+
+## Portable Bundle
+
+This folder is the portable holder for trigger operations. The code now resolves paths from this root, so the same tree can be copied to another machine and used as-is.
+
+- `boxes/`: trigger logic profiles
+- `raw/`: cached HTML for trigger-side fetches
+- `watchlists/`: pre-day outputs
+- `ready/`: trigger-ready and Air Bet inputs
+- `plans/`: monthly and pre-day planning outputs
+- `air_bet_log.csv`: outcome history for Air Bet
+
+The flow is:
+
+1. Monthly planning with `build-schedule-window`
+2. Pre-day planning with `build-logic-board`
+3. Day-before watchlist creation with `build-watchlist`
+4. Day-of trigger resolution with `resolve-watchlist`
+5. Air Bet execution and settlement with the `Air Bet` tab or `run_air_bet_flow_cli`
+6. Result aggregation in `ready/` and `air_bet_log.csv`
+
+If you need to relocate the bundle, set `BOAT_LIVE_TRIGGER_ROOT` to the new folder. Otherwise the default is this repository's `live_trigger/` directory.
+
+The one-folder bundle now also includes:
+
+- `runtime/boat_race_data/` for the vendored trigger engine
+- `auto_system/` for unattended operation and betting history
+- `PORTABLE_BUNDLE.md` for the current portable workflow

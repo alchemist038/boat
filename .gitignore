@@ -26,6 +26,9 @@ live_trigger/raw/**
 live_trigger/watchlists/*.csv
 live_trigger/ready/*.csv
 live_trigger/plans/**
+live_trigger/air_bet_log.csv
+live_trigger/auto_system/data/auto_run.log
+live_trigger/auto_system/data/system.db
 
 !data/raw/.gitkeep
 !data/bronze/.gitkeep

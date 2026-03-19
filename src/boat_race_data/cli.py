@@ -9,12 +9,14 @@ import time
 
 from boat_race_data.client import BoatRaceClient, FetchResult
 from boat_race_data.constants import (
-    DEFAULT_BRONZE_ROOT,
-    DEFAULT_DB_PATH,
-    DEFAULT_RAW_ROOT,
     DEFAULT_SLEEP_SECONDS,
+    PACKAGE_ROOT,
     STADIUMS,
     TERM_DOWNLOAD_URL,
+    get_default_bronze_root,
+    get_default_db_path,
+    get_default_live_trigger_root,
+    get_default_raw_root,
 )
 from boat_race_data.backtest import run_backtest
 from boat_race_data.correlation_study import export_correlation_study
@@ -70,6 +72,18 @@ def _normalize_sleep_seconds(command_name: str, sleep_seconds: float, minimum: f
             normalized,
         )
     return normalized
+
+
+def _log_data_paths(*, raw_root: Path | None = None, bronze_root: Path | None = None, db_path: Path | None = None) -> None:
+    parts: list[str] = []
+    if raw_root is not None:
+        parts.append(f"raw_root={raw_root}")
+    if bronze_root is not None:
+        parts.append(f"bronze_root={bronze_root}")
+    if db_path is not None:
+        parts.append(f"db_path={db_path}")
+    if parts:
+        LOGGER.info("data paths: %s", " ".join(parts))
 
 
 def _collect_term_stats(client: BoatRaceClient, raw_root: Path) -> tuple[str | None, list[dict[str, object]]]:
@@ -351,6 +365,7 @@ def collect_day(args: argparse.Namespace) -> int:
     db_path = Path(args.db_path)
     report_root = Path("reports/data_quality")
     sleep_seconds = _normalize_sleep_seconds("collect-day", args.sleep_seconds)
+    _log_data_paths(raw_root=raw_root, bronze_root=bronze_root, db_path=db_path)
 
     with BoatRaceClient() as client:
         stadium_codes = args.stadiums or client.discover_active_stadiums(race_date)
@@ -437,6 +452,7 @@ def collect_range(args: argparse.Namespace) -> int:
     report_root = Path("reports/data_quality")
     date_list = _iter_dates(args.start_date, args.end_date)
     sleep_seconds = _normalize_sleep_seconds("collect-range", args.sleep_seconds, MIN_RANGE_SLEEP_SECONDS)
+    _log_data_paths(raw_root=raw_root, bronze_root=bronze_root, db_path=db_path)
     total_counts = {
         "races": 0,
         "entries": 0,
@@ -542,6 +558,7 @@ def collect_mbrace_range(args: argparse.Namespace) -> int:
     report_root = Path("reports/data_quality")
     date_list = _iter_dates(args.start_date, args.end_date)
     sleep_seconds = _normalize_sleep_seconds("collect-mbrace-range", args.sleep_seconds, MIN_RANGE_SLEEP_SECONDS)
+    _log_data_paths(raw_root=raw_root, bronze_root=bronze_root, db_path=db_path)
     total_counts = {
         "races": 0,
         "entries": 0,
@@ -613,6 +630,15 @@ def collect_mbrace_range(args: argparse.Namespace) -> int:
     LOGGER.info("Saved DuckDB to %s", db_path)
     if report_path is not None:
         LOGGER.info("Saved quality report to %s", report_path)
+    return 0
+
+
+def refresh_silver(args: argparse.Namespace) -> int:
+    bronze_root = Path(args.bronze_root)
+    db_path = Path(args.db_path)
+    _log_data_paths(bronze_root=bronze_root, db_path=db_path)
+    refresh_duckdb(db_path, bronze_root)
+    LOGGER.info("Saved DuckDB to %s", db_path)
     return 0
 
 
@@ -753,6 +779,12 @@ def build_logic_board_command(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Collect official BOAT RACE data into raw/bronze/silver layers.")
     subparsers = parser.add_subparsers(dest="command", required=True)
+    default_raw_root = get_default_raw_root()
+    default_bronze_root = get_default_bronze_root()
+    default_db_path = get_default_db_path()
+    default_live_trigger_root = Path(get_default_live_trigger_root())
+    default_gpt_latest_dir = PACKAGE_ROOT / "GPT" / "output" / "latest"
+    default_gpt_correlation_dir = PACKAGE_ROOT / "GPT" / "output" / "correlation_study_latest"
 
     collect_parser = subparsers.add_parser("collect-day", help="Collect one day's data and refresh DuckDB.")
     collect_parser.add_argument("--date", required=True, help="Race date in YYYYMMDD format, for example 20260306.")
@@ -762,9 +794,9 @@ def build_parser() -> argparse.ArgumentParser:
         choices=sorted(STADIUMS.keys()),
         help="Optional stadium codes. If omitted, active stadiums for the day are discovered automatically.",
     )
-    collect_parser.add_argument("--db-path", default=DEFAULT_DB_PATH, help="DuckDB output path.")
-    collect_parser.add_argument("--raw-root", default=DEFAULT_RAW_ROOT, help="Raw layer root directory.")
-    collect_parser.add_argument("--bronze-root", default=DEFAULT_BRONZE_ROOT, help="Bronze layer root directory.")
+    collect_parser.add_argument("--db-path", default=default_db_path, help="DuckDB output path.")
+    collect_parser.add_argument("--raw-root", default=default_raw_root, help="Raw layer root directory.")
+    collect_parser.add_argument("--bronze-root", default=default_bronze_root, help="Bronze layer root directory.")
     collect_parser.add_argument("--max-race-no", type=int, default=12, help="Max race number to fetch per stadium.")
     collect_parser.add_argument(
         "--sleep-seconds",
@@ -802,9 +834,9 @@ def build_parser() -> argparse.ArgumentParser:
         choices=sorted(STADIUMS.keys()),
         help="Optional stadium codes. If omitted, active stadiums for each day are discovered automatically.",
     )
-    collect_range_parser.add_argument("--db-path", default=DEFAULT_DB_PATH, help="DuckDB output path.")
-    collect_range_parser.add_argument("--raw-root", default=DEFAULT_RAW_ROOT, help="Raw layer root directory.")
-    collect_range_parser.add_argument("--bronze-root", default=DEFAULT_BRONZE_ROOT, help="Bronze layer root directory.")
+    collect_range_parser.add_argument("--db-path", default=default_db_path, help="DuckDB output path.")
+    collect_range_parser.add_argument("--raw-root", default=default_raw_root, help="Raw layer root directory.")
+    collect_range_parser.add_argument("--bronze-root", default=default_bronze_root, help="Bronze layer root directory.")
     collect_range_parser.add_argument("--max-race-no", type=int, default=12, help="Max race number to fetch per stadium.")
     collect_range_parser.add_argument(
         "--sleep-seconds",
@@ -847,9 +879,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     collect_mbrace_parser.add_argument("--start-date", required=True, help="Start date in YYYYMMDD format.")
     collect_mbrace_parser.add_argument("--end-date", required=True, help="End date in YYYYMMDD format.")
-    collect_mbrace_parser.add_argument("--db-path", default=DEFAULT_DB_PATH, help="DuckDB output path.")
-    collect_mbrace_parser.add_argument("--raw-root", default=DEFAULT_RAW_ROOT, help="Raw layer root directory.")
-    collect_mbrace_parser.add_argument("--bronze-root", default=DEFAULT_BRONZE_ROOT, help="Bronze layer root directory.")
+    collect_mbrace_parser.add_argument("--db-path", default=default_db_path, help="DuckDB output path.")
+    collect_mbrace_parser.add_argument("--raw-root", default=default_raw_root, help="Raw layer root directory.")
+    collect_mbrace_parser.add_argument("--bronze-root", default=default_bronze_root, help="Bronze layer root directory.")
     collect_mbrace_parser.add_argument(
         "--sleep-seconds",
         type=float,
@@ -880,13 +912,22 @@ def build_parser() -> argparse.ArgumentParser:
     collect_mbrace_parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
     collect_mbrace_parser.set_defaults(func=collect_mbrace_range)
 
+    refresh_parser = subparsers.add_parser(
+        "refresh-silver",
+        help="Rebuild DuckDB from an existing bronze root without collecting new raw data.",
+    )
+    refresh_parser.add_argument("--db-path", default=default_db_path, help="DuckDB output path.")
+    refresh_parser.add_argument("--bronze-root", default=default_bronze_root, help="Bronze layer root directory.")
+    refresh_parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
+    refresh_parser.set_defaults(func=refresh_silver)
+
     export_parser = subparsers.add_parser("export-gpt", help="Export GPT-ready CSV and brief files from DuckDB.")
     export_parser.add_argument("--start-date", required=True, help="Start date in YYYY-MM-DD format.")
     export_parser.add_argument("--end-date", required=True, help="End date in YYYY-MM-DD format.")
-    export_parser.add_argument("--db-path", default=DEFAULT_DB_PATH, help="DuckDB input path.")
+    export_parser.add_argument("--db-path", default=default_db_path, help="DuckDB input path.")
     export_parser.add_argument(
         "--output-dir",
-        default="GPT/output/latest",
+        default=str(default_gpt_latest_dir),
         help="Directory where GPT-ready files will be written.",
     )
     export_parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
@@ -900,10 +941,10 @@ def build_parser() -> argparse.ArgumentParser:
     correlation_parser.add_argument("--discovery-end", required=True, help="Discovery end date in YYYY-MM-DD format.")
     correlation_parser.add_argument("--validation-start", required=True, help="Validation start date in YYYY-MM-DD format.")
     correlation_parser.add_argument("--validation-end", required=True, help="Validation end date in YYYY-MM-DD format.")
-    correlation_parser.add_argument("--db-path", default=DEFAULT_DB_PATH, help="DuckDB input path.")
+    correlation_parser.add_argument("--db-path", default=default_db_path, help="DuckDB input path.")
     correlation_parser.add_argument(
         "--output-dir",
-        default="GPT/output/correlation_study_latest",
+        default=str(default_gpt_correlation_dir),
         help="Directory where discovery/validation packages will be written.",
     )
     correlation_parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
@@ -915,10 +956,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     backtest_parser.add_argument("--start-date", required=True, help="Start date in YYYY-MM-DD format.")
     backtest_parser.add_argument("--end-date", required=True, help="End date in YYYY-MM-DD format.")
-    backtest_parser.add_argument("--db-path", default=DEFAULT_DB_PATH, help="DuckDB input path.")
+    backtest_parser.add_argument("--db-path", default=default_db_path, help="DuckDB input path.")
     backtest_parser.add_argument(
         "--output-dir",
-        default="GPT/output/latest",
+        default=str(default_gpt_latest_dir),
         help="Directory where backtest files will be written.",
     )
     backtest_parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
@@ -931,17 +972,17 @@ def build_parser() -> argparse.ArgumentParser:
     build_watchlist_parser.add_argument("--date", required=True, help="Race date in YYYYMMDD format.")
     build_watchlist_parser.add_argument(
         "--profile-path",
-        default="live_trigger/boxes/125/profiles/suminoe_main.json",
+        default=str(default_live_trigger_root / "boxes" / "125" / "profiles" / "suminoe_main.json"),
         help="JSON trigger profile path.",
     )
     build_watchlist_parser.add_argument(
         "--output-path",
-        default="live_trigger/watchlists/latest.csv",
+        default=str(default_live_trigger_root / "watchlists" / "latest.csv"),
         help="CSV output path for the watchlist.",
     )
     build_watchlist_parser.add_argument(
         "--raw-root",
-        default="live_trigger/raw",
+        default=str(default_live_trigger_root / "raw"),
         help="Raw cache root for trigger-side fetches.",
     )
     build_watchlist_parser.add_argument("--max-race-no", type=int, default=12, help="Max race number to fetch.")
@@ -967,17 +1008,17 @@ def build_parser() -> argparse.ArgumentParser:
     build_watchlist_batch_parser.add_argument("--date", required=True, help="Race date in YYYYMMDD format.")
     build_watchlist_batch_parser.add_argument(
         "--profiles-dir",
-        default="live_trigger/boxes",
+        default=str(default_live_trigger_root / "boxes"),
         help="Directory containing trigger box folders and profile JSON files.",
     )
     build_watchlist_batch_parser.add_argument(
         "--output-path",
-        default="live_trigger/watchlists/latest_batch.csv",
+        default=str(default_live_trigger_root / "watchlists" / "latest_batch.csv"),
         help="CSV output path for the combined watchlist.",
     )
     build_watchlist_batch_parser.add_argument(
         "--raw-root",
-        default="live_trigger/raw",
+        default=str(default_live_trigger_root / "raw"),
         help="Raw cache root for trigger-side fetches.",
     )
     build_watchlist_batch_parser.add_argument("--max-race-no", type=int, default=12, help="Max race number to fetch.")
@@ -1007,17 +1048,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     resolve_watchlist_parser.add_argument(
         "--profile-path",
-        default="live_trigger/profiles/125_suminoe_non_a1.json",
+        default=str(default_live_trigger_root / "boxes" / "125" / "profiles" / "suminoe_main.json"),
         help="JSON trigger profile path.",
     )
     resolve_watchlist_parser.add_argument(
         "--ready-output-path",
-        default="live_trigger/ready/latest.csv",
+        default=str(default_live_trigger_root / "ready" / "latest.csv"),
         help="Optional CSV output path for trigger-ready rows.",
     )
     resolve_watchlist_parser.add_argument(
         "--raw-root",
-        default="live_trigger/raw",
+        default=str(default_live_trigger_root / "raw"),
         help="Raw cache root for trigger-side fetches.",
     )
     resolve_watchlist_parser.add_argument(
@@ -1046,17 +1087,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     resolve_watchlist_batch_parser.add_argument(
         "--profiles-dir",
-        default="live_trigger/boxes",
+        default=str(default_live_trigger_root / "boxes"),
         help="Directory containing trigger box folders and profile JSON files.",
     )
     resolve_watchlist_batch_parser.add_argument(
         "--ready-output-path",
-        default="live_trigger/ready/latest_batch.csv",
+        default=str(default_live_trigger_root / "ready" / "latest_batch.csv"),
         help="Optional CSV output path for trigger-ready rows.",
     )
     resolve_watchlist_batch_parser.add_argument(
         "--raw-root",
-        default="live_trigger/raw",
+        default=str(default_live_trigger_root / "raw"),
         help="Raw cache root for trigger-side fetches.",
     )
     resolve_watchlist_batch_parser.add_argument(
@@ -1091,12 +1132,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     schedule_window_parser.add_argument(
         "--output-dir",
-        default="live_trigger/plans",
+        default=str(default_live_trigger_root / "plans"),
         help="Directory for CSV/Markdown/HTML planning outputs.",
     )
     schedule_window_parser.add_argument(
         "--raw-root",
-        default="live_trigger/raw",
+        default=str(default_live_trigger_root / "raw"),
         help="Raw cache root for schedule HTML.",
     )
     schedule_window_parser.add_argument(
@@ -1125,17 +1166,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     logic_board_parser.add_argument(
         "--profiles-dir",
-        default="live_trigger/boxes",
+        default=str(default_live_trigger_root / "boxes"),
         help="Directory containing trigger box folders and profile JSON files.",
     )
     logic_board_parser.add_argument(
         "--output-dir",
-        default="live_trigger/plans",
+        default=str(default_live_trigger_root / "plans"),
         help="Directory for board outputs.",
     )
     logic_board_parser.add_argument(
         "--raw-root",
-        default="live_trigger/raw",
+        default=str(default_live_trigger_root / "raw"),
         help="Raw cache root for schedule HTML.",
     )
     logic_board_parser.add_argument(

@@ -1,3 +1,9 @@
 @echo off
-cd /d C:\CODEX_WORK\boat_clone
-call .\.venv\Scripts\streamlit.exe run live_trigger\app.py
+pushd "%~dp0"
+chcp 65001 > nul
+if exist ".\.venv\Scripts\streamlit.exe" (
+  call .\.venv\Scripts\streamlit.exe run app.py
+) else (
+  streamlit run app.py
+)
+popd
