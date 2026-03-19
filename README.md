@@ -121,6 +121,9 @@ Use `collect-range` for longer runs. By default it collects:
 
 For safety, `collect-range` enforces a minimum effective sleep of `0.5` seconds even if a smaller value is passed.
 
+For recent odds collection, assume roughly `40 minutes per day` as a working estimate when collecting both `odds_2t` and `odds_3t`.
+After the command starts cleanly, continuous monitoring is not required. Let it run and verify the produced day files or DuckDB date range after completion or when you are ready to resume.
+
 Example:
 
 ```powershell
@@ -149,6 +152,8 @@ This command uses official mbrace daily `B` and `K` downloads and fills:
 - `race_meta`
 - `results`
 - `beforeinfo_entries`
+
+As with other long runs, continuous monitoring is not required once the command has started normally. For long windows, just budget time, keep resume-safe flags, and check completion afterward.
 
 Example:
 
