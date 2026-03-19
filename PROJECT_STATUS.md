@@ -14,14 +14,126 @@
 - Shared DuckDB was rebuilt on `2026-03-19` from shared bronze.
 - Canonical DB path: `\\038INS\boat\data\silver\boat_race.duckdb`
 - Current counts / ranges:
-  - `races`: `168,528` rows, `2023-03-11..2026-03-13`
-  - `entries`: `1,011,168` rows
+  - `races`: `169,224` rows, `2023-03-11..2026-03-18`
+  - `entries`: `1,015,344` rows
   - `odds_2t`: `1,123,875` rows, `2025-04-01..2026-03-13`, `161` distinct race days
   - `odds_3t`: `1,467,840` rows, `2025-04-01..2026-03-13`, `81` distinct race days
-  - `results`: `166,268` rows, through `2026-03-13`
-  - `beforeinfo_entries`: `985,009` rows, through `2026-03-13`
-  - `race_meta`: `168,528` rows
+  - `results`: `166,964` rows, through `2026-03-18`
+  - `beforeinfo_entries`: `989,185` rows, through `2026-03-18`
+  - `race_meta`: `169,224` rows
   - `racer_stats_term`: `1,625` rows
+
+### Recent Data Extension
+
+- Missing dates `2026-03-14..2026-03-18` were confirmed absent from local silver and absent from local `raw/bronze`.
+- Those dates were then collected via `collect-mbrace-range`.
+- During collection, the canonical local DuckDB was temporarily locked by Google Drive, so bronze ingestion succeeded first and DuckDB refresh had to be retried after sync stop.
+- Final local silver rebuild completed successfully through `2026-03-18`.
+- Added daily counts:
+  - `2026-03-14`: `156 races`, `936 entries`, `156 results`, `936 beforeinfo_entries`
+  - `2026-03-15`: `156 races`, `936 entries`, `156 results`, `936 beforeinfo_entries`
+  - `2026-03-16`: `132 races`, `792 entries`, `132 results`, `792 beforeinfo_entries`
+  - `2026-03-17`: `120 races`, `720 entries`, `120 results`, `720 beforeinfo_entries`
+  - `2026-03-18`: `132 races`, `792 entries`, `132 results`, `792 beforeinfo_entries`
+- Note:
+  - This extension updated `races / entries / results / beforeinfo_entries / race_meta`.
+  - `odds_2t / odds_3t` were not extended in this step and still end at `2026-03-13`.
+
+### LLM Workflow Notes
+
+- A new explicit workflow was trialed for LLM-assisted zero-base hypothesis generation.
+- Key rule:
+  - Do not seed Gemini with existing adopted logic such as `125` or `c2`.
+  - Use Gemini only as a fresh hypothesis generator from a bounded discovery slice.
+- First discovery slice used for Gemini:
+  - `2024-01-01..2024-04-30`
+- Operational pattern:
+  - ask Gemini first what file structure it wants
+  - generate a small package that fits upload constraints
+  - ask Gemini for zero-base hypotheses
+  - normalize the returned logic on the human side
+  - backtest in local tooling
+- Important practical note:
+  - Gemini upload budget should be treated as `10 files max` per batch
+  - therefore prefer a few dense CSV files plus one or two Markdown guides
+
+### Gemini Data Package Design
+
+- Prompt / package work was organized under `GPT/`.
+- Main prompt files:
+  - [gemini_request_2024-01-01_2024-04-30_discovery.md](/d:/boat/GPT/prompts/gemini_request_2024-01-01_2024-04-30_discovery.md)
+  - [gemini_hypothesis_request_from_sample_2024-01-01_2024-04-30.md](/d:/boat/GPT/prompts/gemini_hypothesis_request_from_sample_2024-01-01_2024-04-30.md)
+- Gemini conversation log:
+  - [gemini.md](/d:/boat/GPT/gemini.md)
+- First discovery package:
+  - [README.md](/d:/boat/GPT/output/2024-01-01_2024-04-30_gemini_discovery/README.md)
+  - [data_dictionary.md](/d:/boat/GPT/output/2024-01-01_2024-04-30_gemini_discovery/data_dictionary.md)
+  - [races_sample.csv](/d:/boat/GPT/output/2024-01-01_2024-04-30_gemini_discovery/races_sample.csv)
+  - [entries_sample.csv](/d:/boat/GPT/output/2024-01-01_2024-04-30_gemini_discovery/entries_sample.csv)
+- Package design choices that worked well:
+  - `race_id` based 2-layer structure: race-level + entry-level
+  - English column names, with Markdown dictionary
+  - precomputed relative features such as exhibition rank and ST gap
+  - start from `1000 races / 6000 entry rows` before sending full-range data
+
+### Gemini Zero-Base Hypotheses
+
+- Gemini returned 5 zero-base candidate hypotheses from the sample package:
+  - `H-001`
+  - `H-002`
+  - `H-003`
+  - `H-004`
+  - `H-005`
+- Human-side normalization was required before backtesting.
+- Important correction:
+  - `H-004` used a broken sample-side `is_hometown` flag
+  - local backtest corrected this by mapping stadium to branch prefecture
+
+### Current Gemini Registry
+
+- Human-side normalized registry:
+  - [README.md](/d:/boat/reports/strategies/gemini_registry/README.md)
+- Current promoted branches:
+  - [2press](/d:/boat/reports/strategies/gemini_registry/2press/README.md)
+    - source `H-001`
+    - meaning: lane-2 pressure against weak lane 1
+  - [4wind](/d:/boat/reports/strategies/gemini_registry/4wind/README.md)
+    - source `H-002`
+    - meaning: lane-4 attack under windy conditions
+- Preserved but not promoted:
+  - [non_selected_hypotheses.md](/d:/boat/reports/strategies/gemini_registry/non_selected_hypotheses.md)
+
+### Gemini Backtest Status
+
+- First exploratory run on `2024-01-01..2024-12-31`:
+  - [backtest_report.md](/d:/boat/reports/strategies/gemini_zero_base_2024/backtest_report.md)
+  - `H-001 / 2press`: `ROI 153.36%`
+  - `H-002 / 4wind`: `ROI 201.58%`
+  - `H-003`: `ROI 76.67%`
+  - `H-004`: `ROI 92.78%`
+  - `H-005`: `ROI 36.94%`
+- Follow-up run on `2025-01-01..2025-12-31`:
+  - [backtest_report.md](/d:/boat/reports/strategies/gemini_zero_base_2025/backtest_report.md)
+  - `H-001 / 2press`: `ROI 105.18%`
+  - `H-002 / 4wind`: `ROI 146.50%`
+  - `H-003`: `ROI 64.21%`
+  - `H-004`: `ROI 61.24%`
+  - `H-005`: `ROI 25.20%`
+- Current read:
+  - `4wind` is the strongest Gemini-derived branch so far
+  - `2press` is still alive but weakened meaningfully in `2025`
+  - `H-003..H-005` are not current promotion targets
+
+### Current Gemini Analysis Direction
+
+- Treat Gemini conversation as a clean logic-generation thread and do not overwrite it with human-side backtest notes.
+- Continue slicing `2press` and `4wind` to understand where the edge is concentrated.
+- Early read from `2024` slices:
+  - `2press` looks more like a broad-but-thin lane-2 pressure idea and may need context filtering
+  - `4wind` looks more likely to have real stadium / wind-context structure
+- Good next cuts:
+  - `4wind`: stadium x wind bucket, monthly stability by stadium, wave interaction
+  - `2press`: stadium x meeting-day bucket, stadium x wind bucket
 
 ### Quality Notes
 
