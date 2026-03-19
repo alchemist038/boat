@@ -1,63 +1,67 @@
-# Portable Live Trigger Bundle
+﻿# Portable Live Trigger Bundle
 
-`live_trigger/` is now the single portable folder for trigger planning and auto operation.
-Move this folder as a unit and keep the internal relative layout unchanged.
+`live_trigger/` は、前日準備と当日自動運用を 1 つにまとめた portable bundle です。  
+このフォルダを単位として持ち運び、相対配置を崩さず使う前提です。
 
 ## Folder map
 
 - `app.py`
-  - Main Streamlit UI for planning, watchlist creation, resolve, Air Bet, and stats
+  - 前日準備と手動側の Streamlit UI
 - `runtime/boat_race_data/`
-  - Vendored trigger engine used by both the UI and the auto line
+  - vendored trigger engine
 - `auto_system/`
-  - Unattended automation UI and loop runner
+  - 当日自動運用 UI とループ
 - `boxes/`
-  - Logic profiles
+  - logic profiles
 - `plans/`
-  - Monthly and pre-day planning outputs
+  - monthly / pre-day planning outputs
 - `watchlists/`
-  - Day-before target lists
+  - day-before target lists
 - `ready/`
-  - Day-of trigger resolution results
+  - manual resolve results
 - `raw/`
-  - Trigger-side cached HTML
+  - trigger-side cached HTML
 - `air_bet_log.csv`
-  - Air Bet execution history
+  - 手動側 Air Bet 履歴
 - `auto_system/data/system.db`
-  - Auto line state and execution history
+  - 自動運用の state / execution history
+- `.env.example`
+  - Teleboat 環境変数ひな形
 
 ## Unified flow
 
-1. Monthly management
-   - Run `app.py`
-   - Build the logic board from the `board` tab
-   - Outputs go to `plans/`
-2. Previous-day management
-   - Use the `watchlist` tab
-   - Outputs go to `watchlists/`
-3. Same-day management
-   - Use the `resolve` tab
-   - `beforeinfo` is checked and `trigger_ready` rows are written to `ready/`
-4. Betting management
-   - Manual Air Bet: `app.py`
-   - Auto line UI: `auto_system/web_app.py`
-   - Auto loop runner: `auto_system/auto_run.py`
-5. Performance management
-   - Manual side: `air_bet_log.csv`
-   - Auto side: `auto_system/data/system.db`
+1. 前日準備
+   - `app.py` を起動する
+   - `翌日候補抽出` で `watchlists/` を作る
+2. 当日運用
+   - `auto_system/web_app.py` を起動する
+   - `air / assist_real / armed_real` を選ぶ
+   - `watchlist` を DB に取り込み、締切 10〜5 分前だけ判定する
+3. 実行
+   - `air`: Air Bet 実行時刻を記録
+   - `assist_real`: 確認画面まで自動で進行
+   - `armed_real`: Teleboat へ自動送信
+4. 記録
+   - Auto side は `auto_system/data/system.db`
+   - Manual side は `air_bet_log.csv`
 
 ## Launchers
 
-- `run_app.cmd`
-  - Starts the main Streamlit UI from this folder
+- `run_app_ui.cmd`
+  - 前日準備 UI
 - `run_auto_ui.cmd`
-  - Starts the automation Streamlit UI
+  - 当日自動運用 UI
 - `run_auto_cycle.cmd`
-  - Starts the unattended 3-step loop
+  - 当日ループ起動
 
 ## Setup notes
 
-- Python dependencies are listed in `requirements.txt`
-- For real betting, create `auto_system/.env` from `auto_system/.env.example`
-- If the shared data root changes, set `BOAT_DATA_ROOT`
-- If this folder is moved, the vendored trigger engine keeps working with relative paths
+- Python dependencies は `requirements.txt`
+- 実ベットを使う場合は `live_trigger/.env` を作る
+- Playwright の persistent profile は既定で `auto_system/data/playwright_user_data`
+- このフォルダを移動しても、相対パス前提の構成はそのまま使える
+
+## Documents
+
+- [AUTO_BET_SYSTEM_RUNBOOK.md](/c:/CODEX_WORK/boat_clone/live_trigger/AUTO_BET_SYSTEM_RUNBOOK.md)
+- [AIR_BET_AUDIT_RUNBOOK.md](/c:/CODEX_WORK/boat_clone/live_trigger/AIR_BET_AUDIT_RUNBOOK.md)

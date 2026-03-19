@@ -20,7 +20,7 @@
 ## main に入ったもの
 
 - `live_trigger/app.py`
-- `live_trigger/run_app.cmd`
+- `live_trigger/run_app_ui.cmd`
 - `live_trigger/README.md`
 - `live_trigger/boxes/125/...`
 - `live_trigger/boxes/c2/...`
@@ -31,7 +31,7 @@
 ## ins14 側での確認手順
 
 1. `git pull --ff-only origin main`
-2. `C:\CODEX_WORK\boat_clone\live_trigger\run_app.cmd`
+2. `C:\CODEX_WORK\boat_clone\live_trigger\run_app_ui.cmd`
 3. アプリで次を確認
    - `予定ボード`
    - `翌日候補抽出`

@@ -63,14 +63,14 @@
 
 ## 2. 現在の auto_system の評価
 
-### 2-1. 良い点
+### 2-1. 現在の構成
 
-- `01_pre_scheduler.py`
-  - 全場スキャンして target 候補を作る流れはある
-- `02_just_in_time.py`
-  - 当日直前判定して GO / SKIP を残す流れはある
-- `03_executor.py`
-  - Playwright で実ベット実行層を置く方向性はある
+- `01_sync_watchlists.py`
+  - 当日分の `watchlist` を DB に取り込む
+- `02_evaluate_targets.py`
+  - 締切 10 分前から 5 分前で状態確認し、`BetIntent` を作る
+- `03_execute_air_bets.py`
+  - `execution_mode` に応じて `air / assist_real / armed_real` を処理する
 
 ### 2-2. 未完成な点
 
@@ -281,23 +281,21 @@ PC版ログイン画面は次を要求する。
 
 ## 6. 実装順
 
-### Phase 1
+### 実装済み
 
 - DB 再設計
-- `02_just_in_time.py` を `BetIntent` 出力に変更
-- `03_executor.py` を intent 消化型に変更
-
-### Phase 2
-
+- `watchlist` 同期
+- `BetIntent` 生成
 - Playwright persistent context 化
-- Teleboat のレース遷移、勝式入力、金額入力の実装
-- 確認画面停止まで実装
+- Teleboat ログイン入口対応
+- `assist_real` / `armed_real` の実行器追加
+- 契約番号、スクリーンショット、session event 記録の土台追加
 
-### Phase 3
+### 残作業
 
-- 契約番号保存
-- スクリーンショット保存
+- Teleboat ログイン後画面の実機確認
 - 投票照会との突合
+- 実運用時の例外分岐調整
 
 ### Phase 4
 
