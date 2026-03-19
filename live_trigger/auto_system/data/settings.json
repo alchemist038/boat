@@ -1,0 +1,22 @@
+{
+  "system_running": false,
+  "execution_mode": "air",
+  "poll_seconds": 30,
+  "check_window_start_minutes": 10,
+  "check_window_end_minutes": 5,
+  "default_bet_amount": 100,
+  "profile_amounts": {
+    "125_broad_four_stadium": 100,
+    "125_suminoe_main": 100,
+    "c2_provisional_v1": 100
+  },
+  "active_profiles": {
+    "125_broad_four_stadium": true,
+    "125_suminoe_main": false,
+    "c2_provisional_v1": true
+  },
+  "real_headless": false,
+  "teleboat_user_data_dir": "C:\\CODEX_WORK\\boat_clone\\live_trigger\\auto_system\\data\\playwright_user_data",
+  "manual_action_timeout_seconds": 180,
+  "login_timeout_seconds": 120
+}

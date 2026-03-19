@@ -5,11 +5,18 @@
   "display_name": "C2 Provisional V1",
   "description": "Semi-regular C2 proxy: women-race title proxy, lane1 slow start-exhibition ST, and lane1 exhibition within 0.02 of lanes 2 and 3.",
   "accent_color": "#8a4b08",
-  "enabled": false,
+  "enabled": true,
   "stadiums": [],
   "watch_minutes_before_deadline": 25,
   "pre_filters": {
-    "meeting_title_keywords_any": ["女子", "ヴィーナス", "レディース", "オールレディース", "Lady", "Venus"],
+    "meeting_title_keywords_any": [
+      "女子",
+      "ヴィーナス",
+      "レディース",
+      "オールレディース",
+      "Lady",
+      "Venus"
+    ],
     "race_title_keywords_any": [],
     "lane1_class_exclude": [],
     "lane1_motor_place_rate_min": null,

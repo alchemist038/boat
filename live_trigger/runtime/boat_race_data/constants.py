@@ -45,7 +45,12 @@ def get_default_db_path() -> str:
 
 
 def get_default_live_trigger_root() -> str:
-    return os.environ.get(LIVE_TRIGGER_ROOT_ENV_VAR) or str(PACKAGE_ROOT / "live_trigger")
+    env_value = os.environ.get(LIVE_TRIGGER_ROOT_ENV_VAR)
+    if env_value:
+        return env_value
+    if PACKAGE_ROOT.name == "live_trigger":
+        return str(PACKAGE_ROOT)
+    return str(PACKAGE_ROOT / "live_trigger")
 
 STADIUMS = {
     "01": "桐生",

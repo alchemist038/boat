@@ -160,3 +160,15 @@ Example:
 ```powershell
 .\.venv\Scripts\python -m boat_race_data collect-mbrace-range --start-date 20251201 --end-date 20260310 --refresh-every-days 20 --sleep-seconds 0.5 --skip-term-stats
 ```
+
+## Canonical Shared Data Root
+
+To treat a shared location as the canonical `raw -> bronze -> silver` root, set `BOAT_DATA_ROOT` before running the CLI. This keeps the repo portable while letting one machine write directly to a network share such as `\\038INS\boat\data`.
+
+```powershell
+$env:BOAT_DATA_ROOT="\\038INS\boat\data"
+.\.venv\Scripts\python -m boat_race_data refresh-silver
+.\.venv\Scripts\python -m boat_race_data collect-range --start-date 20260314 --end-date 20260319 --refresh-every-days 1 --resume-existing-days --sleep-seconds 0.5
+```
+
+You can still override individual paths with `BOAT_RAW_ROOT`, `BOAT_BRONZE_ROOT`, and `BOAT_DB_PATH`.
