@@ -16,6 +16,7 @@ import streamlit as st
 from streamlit.components.v1 import html as st_html
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 
+from auto_system.app.core.bets import bet_point_count, bet_total_amount, build_bet_rows
 from boat_race_data.client import BoatRaceClient
 from boat_race_data.live_trigger import (
     build_watchlist_for_profiles,
@@ -39,6 +40,45 @@ DEFAULT_TIMEOUT_SECONDS = 30
 DEFAULT_MAX_RACE_NO = 12
 DEFAULT_SLEEP_SECONDS = 0.5
 MAX_BET_PER_DAY = 10
+
+
+def _normalize_air_bet_record(record: dict[str, object]) -> dict[str, object]:
+    normalized = dict(record)
+    if (
+        "unit_amount" in normalized
+        and "ticket_count" in normalized
+        and "amount" in normalized
+    ):
+        return normalized
+
+    logic_name = str(normalized.get("logic") or normalized.get("profile_id") or "")
+    strategy_id = str(normalized.get("strategy_id") or logic_name)
+    unit_amount = int(normalized.get("unit_amount", normalized.get("amount", 0)) or 0)
+    bet_rows = build_bet_rows(
+        strategy_id=strategy_id,
+        profile_id=logic_name,
+        amount=unit_amount,
+    )
+    if not bet_rows:
+        normalized["unit_amount"] = unit_amount
+        normalized["ticket_count"] = 1 if unit_amount > 0 else 0
+        normalized["amount"] = unit_amount
+        return normalized
+
+    normalized["unit_amount"] = unit_amount
+    normalized["ticket_count"] = sum(
+        bet_point_count(bet_type=str(row["bet_type"]), combo=str(row["combo"]))
+        for row in bet_rows
+    )
+    normalized["amount"] = sum(
+        bet_total_amount(
+            bet_type=str(row["bet_type"]),
+            combo=str(row["combo"]),
+            unit_amount=int(row["amount"]),
+        )
+        for row in bet_rows
+    )
+    return normalized
 
 PROFILE_COLUMNS_JA = {
     "box_id": "BOX",
@@ -118,8 +158,62 @@ def _available_watchlists() -> list[Path]:
     return sorted(WATCHLIST_ROOT.glob("*.csv"), reverse=True)
 
 
+def _available_ready_files() -> list[Path]:
+    if not READY_ROOT.exists():
+        return []
+    return sorted(READY_ROOT.glob("*.csv"), reverse=True)
+
+
 def _default_watchlist_name(target_date: date) -> str:
     return f"{target_date:%Y%m%d}_app_batch.csv"
+
+
+def _matching_date_files(root: Path, target_date: date, *, suffix: str = ".csv") -> list[Path]:
+    if not root.exists():
+        return []
+    prefix = f"{target_date:%Y%m%d}_"
+    candidates = [
+        path
+        for path in root.glob("*.csv")
+        if path.name.startswith(prefix) and path.name.endswith(suffix)
+    ]
+    return sorted(candidates, key=lambda path: (path.stat().st_mtime, path.name), reverse=True)
+
+
+def _session_path(key: str) -> Path | None:
+    raw = st.session_state.get(key)
+    if not raw:
+        return None
+    path = Path(str(raw))
+    if not path.exists():
+        return None
+    return path
+
+
+def _set_watchlist_session(path: Path) -> None:
+    rows = read_watchlist(path)
+    st.session_state["watchlist_path"] = str(path)
+    st.session_state["watchlist_count"] = len(rows)
+
+
+def _set_ready_session(path: Path) -> None:
+    rows = read_watchlist(path)
+    ready_count = sum(1 for row in rows if str(row.get("status", "")).strip() == "trigger_ready")
+    st.session_state["ready_path"] = str(path)
+    st.session_state["resolve_ready_count"] = ready_count
+    st.session_state["resolve_changed_rows"] = 0
+
+
+def _restore_existing_outputs(target_date: date) -> None:
+    if _session_path("watchlist_path") is None:
+        watchlists = _matching_date_files(WATCHLIST_ROOT, target_date)
+        if watchlists:
+            _set_watchlist_session(watchlists[0])
+
+    if _session_path("ready_path") is None:
+        ready_files = _matching_date_files(READY_ROOT, target_date, suffix="_ready.csv")
+        if ready_files:
+            _set_ready_session(ready_files[0])
 
 
 def _logic_display_name(profile) -> str:
@@ -230,6 +324,7 @@ def main() -> None:
     label_to_profile = {_profile_label(profile): profile for profile in profiles}
     enabled_labels = [label for label, profile in label_to_profile.items() if profile.enabled]
     profile_name_map = {profile.profile_id: _logic_display_name(profile) for profile in profiles}
+    _restore_existing_outputs(date.today())
 
     with st.sidebar:
         st.header("BOX 一覧")
@@ -298,14 +393,14 @@ def main() -> None:
             except Exception as exc:
                 _render_exception("予定ボードの作成に失敗しました。", exc)
 
-        board_html_path = Path(st.session_state.get("board_html_path", ""))
-        board_md_path = Path(st.session_state.get("board_md_path", ""))
-        if board_html_path.exists():
+        board_html_path = _session_path("board_html_path")
+        board_md_path = _session_path("board_md_path")
+        if board_html_path is not None:
             st.success(f"出力先: {board_html_path}")
             st_html(board_html_path.read_text(encoding="utf-8"), height=1200, scrolling=True)
         else:
             st.info("まず上のボタンで予定ボードを作成してください。")
-        if board_md_path.exists():
+        if board_md_path is not None:
             with st.expander("Markdown 表示"):
                 st.code(board_md_path.read_text(encoding="utf-8"), language="markdown")
 
@@ -319,7 +414,23 @@ def main() -> None:
                 default=enabled_labels,
             )
             watchlist_name = st.text_input("出力ファイル名", value=_default_watchlist_name(watchlist_date))
-            watchlist_submitted = st.form_submit_button("候補を抽出")
+            watchlist_submitted = st.form_submit_button("候補を取得 / 再取得")
+
+        existing_watchlists = _matching_date_files(WATCHLIST_ROOT, watchlist_date)
+        if existing_watchlists:
+            selected_existing_watchlist = st.selectbox(
+                "既存 watchlist",
+                options=existing_watchlists,
+                index=0,
+                format_func=lambda path: path.name,
+                key=f"existing_watchlist_{watchlist_date:%Y%m%d}",
+            )
+            load_col, note_col = st.columns([1, 2])
+            if load_col.button("既存データを読み込む", key=f"load_watchlist_{watchlist_date:%Y%m%d}"):
+                _set_watchlist_session(selected_existing_watchlist)
+                st.success(f"既存 watchlist を読み込みました: {selected_existing_watchlist.name}")
+                st.rerun()
+            note_col.caption("既存データで先に進めます。上のボタンは同じ日付のデータを取り直したいときだけ使います。")
 
         if watchlist_submitted:
             selected_profiles = [label_to_profile[label] for label in selected_labels]
@@ -338,13 +449,12 @@ def main() -> None:
                             sleep_seconds=DEFAULT_SLEEP_SECONDS,
                             timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
                         )
-                    st.session_state["watchlist_path"] = str(path)
-                    st.session_state["watchlist_count"] = row_count
+                    _set_watchlist_session(path)
                 except Exception as exc:
                     _render_exception("翌日候補抽出に失敗しました。", exc)
 
-        watchlist_path = Path(st.session_state.get("watchlist_path", ""))
-        if watchlist_path.exists():
+        watchlist_path = _session_path("watchlist_path")
+        if watchlist_path is not None:
             row_count = st.session_state.get("watchlist_count", 0)
             st.success(f"出力先: {watchlist_path} / {row_count}件")
             frame = _watchlist_frame(watchlist_path)
@@ -363,15 +473,13 @@ def main() -> None:
         st.subheader("直前判定")
         watchlist_files = _available_watchlists()
         if not watchlist_files:
-            st.info("まだ watchlist CSV がありません。先に『翌日候補抽出』を実行してください。")
+            st.info("まだ watchlist CSV がありません。先に『候補を取得 / 再取得』を実行してください。")
             return
 
         default_index = 0
-        current_watchlist = st.session_state.get("watchlist_path")
-        if current_watchlist:
-            current_path = Path(current_watchlist)
-            if current_path in watchlist_files:
-                default_index = watchlist_files.index(current_path)
+        current_path = _session_path("watchlist_path")
+        if current_path is not None and current_path in watchlist_files:
+            default_index = watchlist_files.index(current_path)
 
         with st.form("resolve_form"):
             selected_watchlist = st.selectbox(
@@ -412,7 +520,16 @@ def main() -> None:
                     "amount": int(amount),
                 }
 
-            resolve_submitted = st.form_submit_button("beforeinfo を見て判定")
+            resolve_submitted = st.form_submit_button("beforeinfo を見て判定 / 再取得")
+
+        existing_ready_path = READY_ROOT / resolve_name
+        if existing_ready_path.exists():
+            load_col, note_col = st.columns([1, 2])
+            if load_col.button("既存 ready を読み込む", key=f"load_ready_{selected_watchlist.stem}"):
+                _set_ready_session(existing_ready_path)
+                st.success(f"既存 ready を読み込みました: {existing_ready_path.name}")
+                st.rerun()
+            note_col.caption("同じ watchlist をそのまま使うなら、既存 ready を読み込めます。再判定したいときだけ上のボタンを使います。")
 
         if resolve_submitted:
             ready_path = READY_ROOT / resolve_name
@@ -431,7 +548,7 @@ def main() -> None:
                         sleep_seconds=DEFAULT_SLEEP_SECONDS,
                         timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
                     )
-                st.session_state["ready_path"] = str(ready_path)
+                _set_ready_session(ready_path)
                 st.session_state["resolve_ready_count"] = ready_count
                 st.session_state["resolve_changed_rows"] = changed_rows
 
@@ -468,7 +585,24 @@ def main() -> None:
                                     r["payout"] = 0
                                     st.warning(f"結果取得失敗 (Race {r.get('race_id')}): {exc}")
 
-                                r["amount"] = rec_amount
+                                bet_rows = build_bet_rows(
+                                    strategy_id=str(r.get("strategy_id") or logic_name),
+                                    profile_id=logic_name,
+                                    amount=rec_amount,
+                                )
+                                r["unit_amount"] = rec_amount
+                                r["ticket_count"] = sum(
+                                    bet_point_count(bet_type=str(row["bet_type"]), combo=str(row["combo"]))
+                                    for row in bet_rows
+                                )
+                                r["amount"] = sum(
+                                    bet_total_amount(
+                                        bet_type=str(row["bet_type"]),
+                                        combo=str(row["combo"]),
+                                        unit_amount=int(row["amount"]),
+                                    )
+                                    for row in bet_rows
+                                )
                                 r["logic"] = logic_name
                                 r["logic_display"] = logic_label
                                 valid_new_records.append(r)
@@ -495,8 +629,8 @@ def main() -> None:
             except Exception as exc:
                 _render_exception("直前判定に失敗しました。", exc)
 
-        ready_path = Path(st.session_state.get("ready_path", ""))
-        if ready_path.exists():
+        ready_path = _session_path("ready_path")
+        if ready_path is not None:
             changed_rows = st.session_state.get("resolve_changed_rows", 0)
             ready_count = st.session_state.get("resolve_ready_count", 0)
             st.success(f"出力先: {ready_path} / trigger_ready {ready_count}件 / 更新 {changed_rows}件")
@@ -525,7 +659,7 @@ def main() -> None:
         # セッションから連携データを取得して表示
         history_records = st.session_state.get("air_bet_history", [])
         if history_records:
-            history_df = pd.DataFrame(history_records)
+            history_df = pd.DataFrame([_normalize_air_bet_record(record) for record in history_records])
             if "logic_display" not in history_df.columns:
                 if "logic" in history_df.columns:
                     history_df["logic_display"] = history_df["logic"].map(profile_name_map).fillna(history_df["logic"])
@@ -533,8 +667,19 @@ def main() -> None:
                     history_df["logic_display"] = history_df["profile_id"].map(profile_name_map).fillna(history_df["profile_id"])
                 else:
                     history_df["logic_display"] = "unknown"
-            # 表示項目: 時刻 / 場 / レース / ロジック / 金額 / 結果 / 払戻 / 状態（GO）
-            display_cols = ["deadline_time", "stadium_name", "race_no", "logic_display", "amount", "result", "payout", "status"]
+            # 表示項目: 時刻 / 場 / レース / ロジック / 単価 / 点数 / 合計金額 / 結果 / 払戻 / 状態（GO）
+            display_cols = [
+                "deadline_time",
+                "stadium_name",
+                "race_no",
+                "logic_display",
+                "unit_amount",
+                "ticket_count",
+                "amount",
+                "result",
+                "payout",
+                "status",
+            ]
             available_cols = [c for c in display_cols if c in history_df.columns]
             df_to_show = history_df[available_cols].copy()
             df_to_show = df_to_show.rename(columns={
@@ -542,7 +687,9 @@ def main() -> None:
                 "stadium_name": "場",
                 "race_no": "レース",
                 "logic_display": "ロジック",
-                "amount": "金額",
+                "unit_amount": "単価",
+                "ticket_count": "点数",
+                "amount": "合計金額",
                 "result": "結果",
                 "payout": "払戻",
                 "status": "状態"
@@ -553,14 +700,14 @@ def main() -> None:
         else:
             # データがない場合は空のテーブルを表示
             dummy_history = pd.DataFrame(
-                columns=["時刻", "場", "レース", "ロジック", "金額", "結果", "払戻", "状態"]
+                columns=["時刻", "場", "レース", "ロジック", "単価", "点数", "合計金額", "結果", "払戻", "状態"]
             )
             st.dataframe(dummy_history, use_container_width=True, hide_index=True)
 
     with stats_tab:
         st.subheader("成績管理")
         # セッションから履歴を取得して件数と収支を算出
-        history_data = st.session_state.get("air_bet_history", [])
+        history_data = [_normalize_air_bet_record(record) for record in st.session_state.get("air_bet_history", [])]
         bet_count = len(history_data)
 
         if isinstance(history_data, pd.DataFrame):

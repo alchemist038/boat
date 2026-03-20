@@ -349,6 +349,7 @@ def enrich_watchlist_row_with_beforeinfo(
         client,
         client.build_race_url("beforeinfo", race_date, stadium_code, race_no),
         raw_root / "beforeinfo" / race_date / f"{prefix}.html",
+        refresh_after_seconds=20,
     )
     beforeinfo_rows = parse_beforeinfo(
         fetch.text or "",
@@ -566,12 +567,18 @@ def judge_air_bet(row: dict[str, object], client: BoatRaceClient, raw_root: Path
         return "lose", 0
 
     prefix = f"{stadium_code}_{race_no:02d}"
+    raw_path = raw_root / "result" / race_date / f"{prefix}.html"
+    result_url = client.build_race_url("result", race_date, stadium_code, race_no)
     fetch = _fetch_text_cached(
         client,
-        client.build_race_url("result", race_date, stadium_code, race_no),
-        raw_root / "result" / race_date / f"{prefix}.html",
+        result_url,
+        raw_path,
     )
     result = parse_result(fetch.text or "", race_date, stadium_code, race_no, fetch.url, fetch.fetched_at)
+    if result is None:
+        # 結果ページの取得失敗やトップページ混入時は、キャッシュを信用せず一度だけ再取得する。
+        fetch = client.fetch_text(result_url, raw_path)
+        result = parse_result(fetch.text or "", race_date, stadium_code, race_no, fetch.url, fetch.fetched_at)
     if result is None:
         return "lose", 0
 
@@ -596,8 +603,18 @@ def judge_air_bet(row: dict[str, object], client: BoatRaceClient, raw_root: Path
     return ("win" if is_win else "lose"), payout
 
 
-def _fetch_text_cached(client: BoatRaceClient, url: str, raw_path: Path) -> FetchResult:
+def _fetch_text_cached(
+    client: BoatRaceClient,
+    url: str,
+    raw_path: Path,
+    *,
+    refresh_after_seconds: int | None = None,
+) -> FetchResult:
     if raw_path.exists():
+        if refresh_after_seconds is not None:
+            age_seconds = time.time() - raw_path.stat().st_mtime
+            if age_seconds > max(0, int(refresh_after_seconds)):
+                return client.fetch_text(url, raw_path)
         content = raw_path.read_bytes()
         return FetchResult(
             url=url,

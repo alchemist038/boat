@@ -27,8 +27,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "default_bet_amount": 100,
     "profile_amounts": {},
     "active_profiles": {},
+    "ui_auto_refresh": True,
+    "ui_refresh_seconds": 10,
     "real_headless": False,
+    "stop_on_insufficient_funds": True,
     "teleboat_user_data_dir": str(DATA_DIR / "playwright_user_data"),
+    "teleboat_resident_browser": True,
+    "teleboat_resident_debug_port": 9333,
     "manual_action_timeout_seconds": 180,
     "login_timeout_seconds": 120,
 }
@@ -82,9 +87,29 @@ def _normalize_settings(payload: dict[str, Any] | None) -> dict[str, Any]:
         0,
         int(merged.get("default_bet_amount", DEFAULT_SETTINGS["default_bet_amount"])),
     )
+    merged["ui_auto_refresh"] = _normalize_bool(
+        merged.get("ui_auto_refresh"),
+        default=bool(DEFAULT_SETTINGS["ui_auto_refresh"]),
+    )
+    merged["ui_refresh_seconds"] = max(
+        5,
+        int(merged.get("ui_refresh_seconds", DEFAULT_SETTINGS["ui_refresh_seconds"])),
+    )
     merged["real_headless"] = _normalize_bool(
         merged.get("real_headless"),
         default=bool(DEFAULT_SETTINGS["real_headless"]),
+    )
+    merged["stop_on_insufficient_funds"] = _normalize_bool(
+        merged.get("stop_on_insufficient_funds"),
+        default=bool(DEFAULT_SETTINGS["stop_on_insufficient_funds"]),
+    )
+    merged["teleboat_resident_browser"] = _normalize_bool(
+        merged.get("teleboat_resident_browser"),
+        default=bool(DEFAULT_SETTINGS["teleboat_resident_browser"]),
+    )
+    merged["teleboat_resident_debug_port"] = max(
+        1024,
+        int(merged.get("teleboat_resident_debug_port", DEFAULT_SETTINGS["teleboat_resident_debug_port"])),
     )
     merged["manual_action_timeout_seconds"] = max(
         30,
@@ -111,7 +136,8 @@ def _normalize_settings(payload: dict[str, Any] | None) -> dict[str, Any]:
 def load_settings() -> dict[str, Any]:
     if not SETTINGS_FILE.exists():
         return _normalize_settings(None)
-    return _normalize_settings(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
+    raw = SETTINGS_FILE.read_text(encoding="utf-8-sig")
+    return _normalize_settings(json.loads(raw))
 
 
 def save_settings(settings: dict[str, Any]) -> dict[str, Any]:

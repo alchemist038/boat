@@ -13,6 +13,12 @@
 
 ## 実行モード
 
+重要:
+
+- `run_auto_ui.cmd` と `run_auto_cycle.cmd` で起動した直後は、安全のため `execution_mode` を必ず `air` に戻します
+- `assist_real` / `armed_real` を使う場合は、UI でモードを選んだあと **`設定を保存`** を押したときだけ切り替わります
+- つまり、再起動直後に前回の実ベットモードがそのまま復活しないようにしています
+
 ### `air`
 
 - 実ベットしません
@@ -126,6 +132,8 @@ C:\CODEX_WORK\boat_clone\live_trigger\run_auto_ui.cmd
 `assist_real` / `armed_real` のときは追加で次を確認します。
 
 - `Playwright を headless で起動する`
+- `常駐ブラウザを使う`
+- `常駐ブラウザのデバッグポート`
 - `Teleboat user data dir`
 - `手動確認待ち秒数`
 - `ログイン待ち秒数`
@@ -173,6 +181,27 @@ C:\CODEX_WORK\boat_clone\live_trigger\auto_system\run_system.bat
 - bet list と確認画面へ進みます
 - 投票用パスワードを入れて自動送信します
 - 成功時は `bet_executions` に `submitted` が残ります
+
+## Teleboat 常駐セッション運用
+
+### 現在の仕様
+
+- Teleboat は `storage_state` の再利用より、常駐ブラウザ方式を優先します
+- `Teleboat セッション準備` を押すと、`Google Chrome for Testing` を Teleboat 用の常駐ブラウザとして起動または再接続します
+- `assist_real` / `armed_real` は、この常駐ブラウザの同じセッションを使って動作します
+
+### 運用ルール
+
+- Teleboat 用の常駐ブラウザは **1ウィンドウ / 1タブ** を基本にします
+- ログイン後にログイン画面タブが残っていたら閉じて、**トップ画面だけ残す** ようにします
+- 自動操作前に `Teleboat ログイン確認` を行い、`verified` を確認します
+- Teleboat 用の常駐ブラウザは、他の用途に使わない前提です
+
+### 補足
+
+- 現時点では、ログイン後に古いログイン画面タブが残ることがあります
+- このため、運用上は「トップ画面だけ残す」を仕様とします
+- 将来的には、ログイン後の不要タブ整理をさらに自動化する余地があります
 
 ## 当日に見る画面
 
@@ -253,6 +282,7 @@ Teleboat セッションに関する記録を見ます。
 - `armed_real` は実送信します
 - `assist_real` は headless を使わない方が確認しやすいです
 - 最初の実機確認は `assist_real` を推奨します
+- Teleboat 常駐ブラウザは、ログイン後トップ画面だけ残すのが安全です
 - ログイン後画面の変更があった場合は `teleboat_screenshots` と `teleboat_html` を確認してください
 
 ## 毎日の最小運用

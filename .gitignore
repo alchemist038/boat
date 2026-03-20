@@ -30,6 +30,14 @@ live_trigger/air_bet_log.csv
 live_trigger/auto_system/data/auto_run.log
 live_trigger/auto_system/data/system.db
 live_trigger/auto_system/data/*.db
+live_trigger/.env
+live_trigger/auto_system/data/playwright_user_data/
+live_trigger/auto_system/data/playwright_user_data_debug/
+live_trigger/auto_system/data/teleboat_html/
+live_trigger/auto_system/data/teleboat_screenshots/
+live_trigger/auto_system/data/teleboat_session_state.json
+live_trigger/auto_system/data/teleboat_storage_state.json
+live_trigger/auto_system/data/teleboat_resident_browser.json
 
 !data/raw/.gitkeep
 !data/bronze/.gitkeep

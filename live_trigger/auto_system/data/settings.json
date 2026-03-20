@@ -15,8 +15,13 @@
     "125_suminoe_main": false,
     "c2_provisional_v1": true
   },
+  "ui_auto_refresh": true,
+  "ui_refresh_seconds": 10,
   "real_headless": false,
+  "stop_on_insufficient_funds": true,
   "teleboat_user_data_dir": "C:\\CODEX_WORK\\boat_clone\\live_trigger\\auto_system\\data\\playwright_user_data",
+  "teleboat_resident_browser": true,
+  "teleboat_resident_debug_port": 9333,
   "manual_action_timeout_seconds": 180,
   "login_timeout_seconds": 120
 }

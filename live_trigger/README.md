@@ -83,3 +83,5 @@ live_trigger\run_auto_ui.cmd
 - 手順書は次を参照してください
   - [AUTO_BET_SYSTEM_RUNBOOK.md](/c:/CODEX_WORK/boat_clone/live_trigger/AUTO_BET_SYSTEM_RUNBOOK.md)
   - [AIR_BET_AUDIT_RUNBOOK.md](/c:/CODEX_WORK/boat_clone/live_trigger/AIR_BET_AUDIT_RUNBOOK.md)
+  - [SELF_HEALING_AUTO_BET_VISION.md](/c:/CODEX_WORK/boat_clone/live_trigger/SELF_HEALING_AUTO_BET_VISION.md)
+  - [IMPROVEMENT_NOTES.md](/c:/CODEX_WORK/boat_clone/live_trigger/IMPROVEMENT_NOTES.md)

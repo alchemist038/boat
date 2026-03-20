@@ -17,8 +17,13 @@ from app.core.database import (
     log_event,
     log_session_event,
 )
-from app.core.settings import DATA_DIR, load_settings
-from app.core.teleboat import TeleboatClient, TeleboatConfigurationError, TeleboatError
+from app.core.settings import DATA_DIR, load_settings, save_settings
+from app.core.teleboat import (
+    TeleboatClient,
+    TeleboatConfigurationError,
+    TeleboatError,
+    TeleboatInsufficientFundsError,
+)
 
 
 def _expire_intents(session, *, intents: list[BetIntent], seconds_before_deadline: int, min_seconds: int, max_seconds: int) -> None:
@@ -155,6 +160,67 @@ def _record_real_execution(session, *, intents: list[BetIntent], result, seconds
         )
 
 
+def _record_real_error(
+    session,
+    *,
+    intents: list[BetIntent],
+    mode: str,
+    seconds_before_deadline: int,
+    execution_status: str,
+    message: str,
+    event_type: str,
+    target_status: str,
+    intent_status: str,
+    screenshot_path: str | None = None,
+    html_path: str | None = None,
+    extra_details: dict | None = None,
+) -> None:
+    target = intents[0].target
+    target.status = target_status
+    target.last_reason = message
+
+    details = {"html_path": html_path, **(extra_details or {})}
+    for intent in intents:
+        intent.status = intent_status
+        session.add(
+            BetExecution(
+                intent=intent,
+                target=target,
+                execution_mode=mode,
+                execution_status=execution_status,
+                executed_at=datetime.now(),
+                seconds_before_deadline=seconds_before_deadline,
+                screenshot_path=screenshot_path,
+                error_message=message,
+                details_json=json_dumps(details),
+            )
+        )
+        log_event(
+            session,
+            target=target,
+            intent=intent,
+            event_type=event_type,
+            message=message,
+            details={
+                "screenshot_path": screenshot_path,
+                "html_path": html_path,
+                "execution_status": execution_status,
+                **(extra_details or {}),
+            },
+        )
+
+
+def _auto_stop_system(settings: dict[str, object], *, reason: str) -> bool:
+    if not bool(settings.get("stop_on_insufficient_funds", True)):
+        return False
+    if not bool(settings.get("system_running", False)):
+        return False
+
+    settings["system_running"] = False
+    save_settings(settings)
+    return True
+
+
 def main() -> None:
     initialize_database()
     settings = load_settings()
@@ -165,6 +231,7 @@ def main() -> None:
     processed = 0
     skipped = 0
     errors = 0
+    halted = False
 
     session = SessionLocal()
     try:
@@ -254,17 +321,17 @@ def main() -> None:
                     )
                     processed += len(intents)
                 except TeleboatConfigurationError as exc:
-                    target.status = "error"
-                    target.last_reason = str(exc)
-                    for intent in intents:
-                        intent.status = "error"
-                        log_event(
-                            session,
-                            target=target,
-                            intent=intent,
-                            event_type="credentials_missing",
-                            message=str(exc),
-                        )
+                    _record_real_error(
+                        session,
+                        intents=intents,
+                        mode=mode,
+                        seconds_before_deadline=seconds_before_deadline,
+                        execution_status="error",
+                        message=str(exc),
+                        event_type="credentials_missing",
+                        target_status="error",
+                        intent_status="error",
+                    )
                     log_session_event(
                         session,
                         event_type="credentials_missing",
@@ -272,29 +339,60 @@ def main() -> None:
                         details={"race_id": target.race_id, "mode": mode},
                     )
                     errors += len(intents)
-                except TeleboatError as exc:
-                    target.status = "error"
-                    target.last_reason = str(exc)
-                    for intent in intents:
-                        intent.status = "error"
-                        session.add(
-                            BetExecution(
-                                intent=intent,
-                                target=target,
-                                execution_mode=mode,
-                                execution_status="error",
-                                executed_at=datetime.now(),
-                                seconds_before_deadline=seconds_before_deadline,
-                                error_message=str(exc),
-                            )
-                        )
-                        log_event(
+                except TeleboatInsufficientFundsError as exc:
+                    auto_stopped = _auto_stop_system(settings, reason=str(exc))
+                    _record_real_error(
+                        session,
+                        intents=intents,
+                        mode=mode,
+                        seconds_before_deadline=seconds_before_deadline,
+                        execution_status="insufficient_funds",
+                        message=str(exc),
+                        event_type="insufficient_funds",
+                        target_status="insufficient_funds",
+                        intent_status="insufficient_funds",
+                        screenshot_path=getattr(exc, "screenshot_path", None),
+                        html_path=getattr(exc, "html_path", None),
+                        extra_details={
+                            "auto_stopped": auto_stopped,
+                            **getattr(exc, "details", {}),
+                        },
+                    )
+                    log_session_event(
+                        session,
+                        event_type="insufficient_funds",
+                        message=str(exc),
+                        details={
+                            "race_id": target.race_id,
+                            "mode": mode,
+                            "auto_stopped": auto_stopped,
+                            **getattr(exc, "details", {}),
+                        },
+                    )
+                    if auto_stopped:
+                        log_session_event(
                             session,
-                            target=target,
-                            intent=intent,
-                            event_type="real_bet_error",
-                            message=str(exc),
+                            event_type="system_auto_stopped",
+                            message="資金不足のため自動ループを停止しました",
+                            details={"race_id": target.race_id, "mode": mode},
                         )
+                        halted = True
+                    errors += len(intents)
+                except TeleboatError as exc:
+                    _record_real_error(
+                        session,
+                        intents=intents,
+                        mode=mode,
+                        seconds_before_deadline=seconds_before_deadline,
+                        execution_status="error",
+                        message=str(exc),
+                        event_type="real_bet_error",
+                        target_status="error",
+                        intent_status="error",
+                        screenshot_path=getattr(exc, "screenshot_path", None),
+                        html_path=getattr(exc, "html_path", None),
+                        extra_details=getattr(exc, "details", {}),
+                    )
                     log_session_event(
                         session,
                         event_type="teleboat_error",
@@ -304,6 +402,11 @@ def main() -> None:
                     errors += len(intents)
 
                 session.commit()
+                if halted:
+                    break
+
+            if halted:
+                print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] execute_bets halted: insufficient funds")
 
         session.commit()
         print(

@@ -3,6 +3,7 @@
 Primary project note:
 
 - `status_notebooklm_20260313.txt`
+- `logic_considerations.md`
 
 Related report folder:
 
@@ -16,6 +17,7 @@ Folder intent:
 
 - `projects/125/`
   - project-level notes and current status
+  - logic consideration memo
 - `reports/strategies/125/`
   - canonical summaries for humans
 - `workspace_codex/analysis/125/`
