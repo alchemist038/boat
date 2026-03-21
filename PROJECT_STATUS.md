@@ -1,5 +1,65 @@
 # PROJECT STATUS
 
+## 2026-03-19 Update
+
+### Current Operating Model
+
+- Shared data root is now `\\038INS\boat\data`.
+- Treat `\\038INS\boat\data\silver\boat_race.duckdb` as the canonical DB.
+- Use Git primarily for code and notes. Operational data handoff is centered on the shared `raw/`, `bronze/`, and `silver/` folders.
+- `i5` reported this policy in [FROM_I5_TO_ME.md](/d:/boat/FROM_I5_TO_ME.md).
+
+### Shared DB Status
+
+- Shared DuckDB was rebuilt on `2026-03-19` from shared bronze.
+- Canonical DB path: `\\038INS\boat\data\silver\boat_race.duckdb`
+- Current counts / ranges:
+  - `races`: `168,528` rows, `2023-03-11..2026-03-13`
+  - `entries`: `1,011,168` rows
+  - `odds_2t`: `1,123,875` rows, `2025-04-01..2026-03-13`, `161` distinct race days
+  - `odds_3t`: `1,467,840` rows, `2025-04-01..2026-03-13`, `81` distinct race days
+  - `results`: `166,268` rows, through `2026-03-13`
+  - `beforeinfo_entries`: `985,009` rows, through `2026-03-13`
+  - `race_meta`: `168,528` rows
+  - `racer_stats_term`: `1,625` rows
+
+### Quality Notes
+
+- Shared DB quality report generated: [20260319.md](/d:/boat/reports/data_quality/20260319.md)
+- No duplicate `race_id`
+- No non-6 `entries`
+- No `results without entries`
+- Remaining recent missing `results` / `odds` are understood as canceled races rather than scrape failures:
+  - `2026-03-07` Kiryu `7R-12R`
+  - `2026-03-08` Kiryu `6R-12R`
+  - `2026-03-10` Tokoname `7R-12R`
+- Quality reporting was improved in commit `e98e083` so canceled / aborted races are surfaced explicitly.
+
+### Code / Git Status
+
+- Local `main` HEAD: `e98e083 Improve quality report for canceled races`
+- `origin/main` was last seen at `0c5f25e`; pull / push status should be checked before further code work.
+- Latest notable incoming work from `i5`:
+  - live trigger foundation
+  - logic board / schedule planner
+  - Streamlit app under `live_trigger/`
+
+### i5 Status
+
+- `i5` has been using temporary worker trees such as `boat_a` / `boat_b` for historical odds backfill.
+- Current direction is to move operational truth into the shared data root and retire temporary worker trees after archive / cleanup.
+- Example worker ranges noted by `i5`:
+  - `boat_a/work/silver/boat_race_i5_a.duckdb`: `2025-04-01..2025-06-14`
+  - `boat_b/work/silver/boat_race_i5_b.duckdb`: `2025-10-01..2025-12-24`
+
+### Immediate Next Step
+
+- Collect and integrate dates after `2026-03-13` into the shared data root.
+- If continuing in a new thread, start from:
+  - shared canonical root is `\\038INS\boat\data`
+  - shared DuckDB rebuilt and verified on `2026-03-19`
+  - current canonical status note is this file plus [FROM_I5_TO_ME.md](/d:/boat/FROM_I5_TO_ME.md)
+
 ## 1. このファイルの目的
 
 このファイルは、このプロジェクトの「現状確認」と「履歴台帳」を兼ねる。

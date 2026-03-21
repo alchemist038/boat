@@ -19,6 +19,9 @@ The collection commands already support day-based resume:
 This means a stopped run can be resumed without restarting from day one, as long
 as the same local `data/bronze` tree is preserved.
 
+For operational pacing, treat recent full odds collection as roughly `40 minutes per day`.
+Once a job has started normally, active monitoring is not required. Prefer checking outputs after a reasonable interval instead of watching the process continuously.
+
 ## Safe Rules
 
 1. Never let two running jobs write into the same `data/bronze` tree.
