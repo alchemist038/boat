@@ -87,6 +87,16 @@ At minimum, verify:
 
 If manual copy is used, record the exact folders copied.
 
+## Local Copy Staging
+
+Use the repo-root [`copy/`](../../copy/) folder as a temporary staging area when
+preparing files for `ins14`.
+
+- `copy/collect/`
+  - place copied source files here first
+- `copy/move/`
+  - place the final handoff bundle here after verification
+
 ## Ins14 Finalization
 
 After `i5` copy completion:

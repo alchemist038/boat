@@ -28,8 +28,10 @@ live_trigger/ready/*.csv
 live_trigger/plans/**
 live_trigger/air_bet_log.csv
 live_trigger/auto_system/data/auto_run.log
+live_trigger/auto_system/data/settings.json
 live_trigger/auto_system/data/system.db
 live_trigger/auto_system/data/*.db
+live_trigger/auto_system/data/reports/
 live_trigger/.env
 live_trigger/auto_system/data/playwright_user_data/
 live_trigger/auto_system/data/playwright_user_data_debug/

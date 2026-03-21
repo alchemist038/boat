@@ -43,3 +43,13 @@ If `i5` performs collection and file copy, keep ownership with `i5` until:
 3. handoff to `ins14` is written
 
 After that, `ins14` owns merge/import/final DB refresh.
+
+## Staging Area
+
+When preparing files for `ins14`, use the repo-root [`copy/`](../../../copy/)
+folder as the local staging area:
+
+- `copy/collect/`
+  - initial copied files
+- `copy/move/`
+  - verified handoff bundle

@@ -1,0 +1,22 @@
+{
+  "system_running": false,
+  "execution_mode": "air",
+  "poll_seconds": 30,
+  "check_window_start_minutes": 10,
+  "check_window_end_minutes": 5,
+  "default_bet_amount": 100,
+  "profile_amounts": {},
+  "active_profiles": {},
+  "ui_auto_refresh": true,
+  "ui_refresh_seconds": 10,
+  "real_headless": false,
+  "stop_on_insufficient_funds": true,
+  "manual_action_timeout_seconds": 180,
+  "login_timeout_seconds": 120,
+  "real_session_strategy": "fresh_per_execution",
+  "reuse_when_next_real_within_seconds": 180,
+  "post_login_settle_seconds": 10,
+  "top_stable_confirm_seconds": 3,
+  "logout_after_execution": true,
+  "close_browser_after_execution": true
+}
