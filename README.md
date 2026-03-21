@@ -7,6 +7,7 @@
 - High-level project status: [PROJECT_STATUS.md](./PROJECT_STATUS.md)
 - Bet / trigger status: [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
 - Shared DB status: [DB_STATUS.md](./DB_STATUS.md)
+- Risk-scaling concept: [R_CONCEPT.md](./R_CONCEPT.md)
 
 BOAT RACE公式サイトを主軸にした、`raw -> bronze -> silver` の収集基盤です。目的は予想ロジックではなく、後から統計分析・バックテスト・期待値計算に回せる再取得可能なデータを作ることです。
 

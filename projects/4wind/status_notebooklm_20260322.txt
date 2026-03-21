@@ -1,0 +1,51 @@
+Project: 4wind
+Date: 2026-03-22
+
+Summary
+- 4wind has been promoted into projects/ as an official project-level logic.
+- The current formal definition is not the original raw Gemini shape.
+- The promoted shape reflects the later refinement path:
+  - wind 5-6m
+  - lane4 structural edge
+  - ticket narrowed to 4-1 / 4-5
+  - 3L = A
+  - quoted min_odds 10-50
+
+Formal definition
+- wind_speed_m >= 5
+- wind_speed_m <= 6
+- lane4_st_diff_from_inside <= -0.05
+- lane4_exhibition_time_rank <= 3
+- lane3_class in ('A1', 'A2')
+- bet 4-1 / 4-5
+- quoted min_odds >= 10
+- quoted min_odds < 50
+
+Why promoted
+- The logic survived the odds-based rerun with materially larger odds coverage.
+- The lane3 cut showed a clean class-order effect and remained useful even after removing the odds filter.
+- The odds filter itself also came from an actual loss/price slice, not from arbitrary optimization.
+
+Important interpretation
+- 3L = A should be read as a main explanatory component of refined 4wind.
+- It is not just a helper flag.
+- The current 4wind story is:
+  - moderate strong wind disturbs the normal inside shape
+  - lane 4 has enough ST / exhibition edge to attack
+  - strong lane 3 inner pressure helps make that attack shape viable
+  - the usable price zone sits in min_odds 10-50
+
+Relevant source files
+- d:\boat\reports\strategies\gemini_registry\4wind\README.md
+- d:\boat\reports\strategies\gemini_registry\4wind\lane3_path_20260322.md
+- d:\boat\reports\strategies\gemini_registry\4wind\odds_backtest_20260322\README.md
+- d:\boat\reports\strategies\gemini_registry\4wind\base_loss_slice_20260322\README.md
+
+Combined portfolio note
+- 4wind has also been checked together with C2 and 125 in:
+  - d:\boat\reports\strategies\combined\c2_125_4wind_2025-04-01_to_2026-03-09_20260322
+
+Next check ideas
+- rerun OOS with the formal 3L = A shape fixed from the start
+- compare min_odds 10-50 against tighter middle-zone filters
+- evaluate whether the promoted shape should stay standalone or mainly serve in a combined portfolio

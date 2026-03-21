@@ -1,0 +1,7 @@
+﻿strategy_name,description,played_races,bet_count,stake_yen,return_yen,profit_yen,roi_pct,hit_races,hit_race_pct,avg_min_odds_played,max_drawdown_yen,max_drawdown_race_id,max_losing_streak,top_skip_reason,top_skip_reason_count
+base_4156,Base 4wind with quoted odds coverage for 4-1/4-5/4-6.,1528,4584,458400,560180,101780,122.2,267,17.47,23.04,98130,202506141111,327,wind_not_target,37416
+only_wind_5_6_4156,Refined 4wind (wind 5-6m) with 4-1/4-5/4-6.,623,1869,186900,252430,65530,135.06,118,18.94,22.76,39470,202506151308,130,wind_not_target,37416
+only_wind_5_6_415,Refined 4wind (wind 5-6m) narrowed to 4-1/4-5.,623,1246,124600,184340,59740,147.95,92,14.77,24.39,27600,202506200803,138,wind_not_target,37416
+only_wind_5_6_415_skip_lt15,Refined 4wind 4-1/4-5; skip race if min quoted odds < 15.,353,706,70600,113580,42980,160.88,30,8.5,36.17,15440,202506181312,76,wind_not_target,37416
+only_wind_5_6_415_skip_lt18,Refined 4wind 4-1/4-5; skip race if min quoted odds < 18.,300,600,60000,105940,45940,176.57,26,8.67,39.66,14200,202506181312,71,wind_not_target,37416
+only_wind_5_6_415_skip_lt20,Refined 4wind 4-1/4-5; skip race if min quoted odds < 20.,259,518,51800,98910,47110,190.95,23,8.88,42.93,12000,202506181312,60,wind_not_target,37416

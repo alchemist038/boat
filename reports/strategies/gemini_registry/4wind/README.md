@@ -6,6 +6,7 @@
 - normalized strategy: `Gemini_H002_Exacta_L4_WindyAttack`
 - bet type: `2連単`
 - combos: `4-1`, `4-5`, `4-6`
+- promoted project folder: `d:\boat\projects\4wind`
 
 Nickname meaning:
 
@@ -78,17 +79,55 @@ Source:
 
 - [partner_analysis_20260320/README.md](/d:/boat/reports/strategies/gemini_registry/4wind/partner_analysis_20260320/README.md)
 
+## Path To Lane3 Cut
+
+The `lane3` condition was not the starting idea.
+
+The path was:
+
+1. Re-run `4wind` with expanded odds coverage
+2. Confirm the stronger structural zone was `wind 5-6m`
+3. Narrow the partner side from `4-1 / 4-5 / 4-6` to `4-1 / 4-5`
+4. Apply a market filter around the usable price zone
+5. Then inspect which inner-boat structures still improved the `4-1 / 4-5` package
+
+At the `4-1 / 4-5 + wind 5-6 + min_odds 10-50` stage, lane-2 and lane-3 classes were sliced.
+
+What stood out:
+
+- lane 2 had one obvious weak pocket: `lane2 = A2`
+- lane 3 was cleaner: ROI rose in order from `B2 -> B1 -> A2 -> A1`
+
+That led to the shorthand:
+
+- `3L = A`
+- meaning `lane3_class in ('A1', 'A2')`
+
+This was then checked again without the odds filter, and the improvement still remained.
+
+So the current read is:
+
+- `3L = A` looks like a core structural component inside refined `4wind`, not just a market-pricing artifact
+- in other words, the current shape is better read as `4wind` being helped by a strong lane 3 inner-pressure structure
+- this is stronger than a mere auxiliary note and should be treated as part of the main explanatory skeleton
+
+Source:
+
+- [lane3_path_20260322.md](/d:/boat/reports/strategies/gemini_registry/4wind/lane3_path_20260322.md)
+
 ## Current View
 
 - useful discovery, but no longer a standalone adoption candidate
 - standalone operation was rejected because hit rate stayed too low for practical use
-- keep it as an auxiliary theory:
-- when another logic already has a reason to like a race, `4wind only_wind_5_6` can strengthen a lane-4 head view
+- keep it as a structural theory:
+- the refined read now includes `lane3_class in ('A1', 'A2')` as a main component rather than a side note
+- when another logic already has a reason to like a race, this `4wind` structure can strengthen a lane-4 head view
 - if lane-4 partners are needed, start from `4-1 / 4-5` before considering wider coverage
 
 ## Suggested Next Analysis
 
-- use as a sub-signal inside another rule rather than reviving it alone
+- use as a structural module inside another rule rather than reviving it alone
 - test whether `lane 4 head strength` improves an existing rule's ranking model
+- test whether `3L = A` should be fixed as part of the refined `4wind` definition in the next OOS pass
 - test whether `4-1 / 4-5` should be treated as partner priors, not direct fixed bets
 

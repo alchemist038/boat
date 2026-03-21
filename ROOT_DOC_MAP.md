@@ -23,6 +23,8 @@ Use it when you want to understand what to open next without guessing.
 
 - [README.md](./README.md)
   - repository overview, CLI entry points, storage model, and canonical shared data root
+- [R_CONCEPT.md](./R_CONCEPT.md)
+  - project-level definition of `R` as max-drawdown-based risk scaling
 - [CODEX_START_HERE.md](./CODEX_START_HERE.md)
   - startup procedure for a new session
 - [PROJECT_STATUS.md](./PROJECT_STATUS.md)
@@ -48,6 +50,7 @@ Open these when the task is about logic evaluation, backtests, and adopted vs ca
 - [PROJECT_STATUS.md](./PROJECT_STATUS.md)
 - [projects/125/README.md](./projects/125/README.md)
 - [projects/c2/status_notebooklm_20260313.txt](./projects/c2/status_notebooklm_20260313.txt)
+- [R_CONCEPT.md](./R_CONCEPT.md)
 - [reports/strategies/gemini_registry/README.md](./reports/strategies/gemini_registry/README.md)
 - [reports/strategies/gemini_registry/4wind/README.md](./reports/strategies/gemini_registry/4wind/README.md)
 

@@ -9,3 +9,5 @@ Shared ownership rules are documented in `live_trigger/PROJECT_RULES.md`.
   - status notebook and other project-level notes for the 125 strategy
 - `c2/`
   - status notebook and related notes for the C2 strategy
+- `4wind/`
+  - promoted project notes for the refined 4wind strategy
