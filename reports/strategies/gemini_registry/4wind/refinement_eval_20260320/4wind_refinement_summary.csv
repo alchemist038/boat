@@ -1,0 +1,13 @@
+﻿period,variant_name,description,evaluated_races,played_races,bet_count,stake_yen,return_yen,profit_yen,roi_pct,hit_races,hit_race_pct,max_drawdown_yen,max_drawdown_race_id,max_losing_streak,top_skip_reason,top_skip_reason_count
+2024-01-01_to_2024-12-31,base,"Base 4wind: wind>=4, lane4 ST diff<=-0.05, lane4 exhibition rank<=3.",56064,1534,4602,460200,927690,467490,201.58,403,26.27,9030,202407100609,29,wind_not_target,38847
+2024-01-01_to_2024-12-31,exclude_wind_7_plus,Base 4wind plus wind_speed_m<=6.,56064,1359,4077,407700,852030,444330,208.98,360,26.49,8430,202407100609,24,wind_not_target,38847
+2024-01-01_to_2024-12-31,exclude_wave56_wind34,Base 4wind plus exclude wave 5-6cm when wind is in 3-4 bucket. Under base rule this is effectively wave 5-6cm with wind=4.,56064,1500,4500,450000,917930,467930,203.98,397,26.47,8950,202409211002,29,wind_not_target,38847
+2024-01-01_to_2024-12-31,only_wind_5_6,Base 4wind plus restrict to wind 5-6m.,56064,639,1917,191700,456240,264540,238.0,173,27.07,7420,202407100609,19,wind_not_target,38847
+2025-01-01_to_2025-12-31,base,"Base 4wind: wind>=4, lane4 ST diff<=-0.05, lane4 exhibition rank<=3.",55908,1676,5028,502800,736580,233780,146.5,338,20.17,99030,202506141111,330,wind_not_target,38172
+2025-01-01_to_2025-12-31,exclude_wind_7_plus,Base 4wind plus wind_speed_m<=6.,55908,1451,4353,435300,654270,218970,150.3,299,20.61,90710,202506151308,294,wind_not_target,38172
+2025-01-01_to_2025-12-31,exclude_wave56_wind34,Base 4wind plus exclude wave 5-6cm when wind is in 3-4 bucket. Under base rule this is effectively wave 5-6cm with wind=4.,55908,1634,4902,490200,717350,227150,146.34,330,20.2,95130,202506141111,317,wind_not_target,38172
+2025-01-01_to_2025-12-31,only_wind_5_6,Base 4wind plus restrict to wind 5-6m.,55908,664,1992,199200,305470,106270,153.35,143,21.54,39470,202506151308,130,wind_not_target,38172
+2026-01-01_to_2026-03-18,base,"Base 4wind: wind>=4, lane4 ST diff<=-0.05, lane4 exhibition rank<=3.",12156,399,1197,119700,142120,22420,118.73,64,16.04,39150,202603182306,121,wind_not_target,7780
+2026-01-01_to_2026-03-18,exclude_wind_7_plus,Base 4wind plus wind_speed_m<=6.,12156,331,993,99300,110350,11050,111.13,49,14.8,33690,202603182306,101,wind_not_target,7780
+2026-01-01_to_2026-03-18,exclude_wave56_wind34,Base 4wind plus exclude wave 5-6cm when wind is in 3-4 bucket. Under base rule this is effectively wave 5-6cm with wind=4.,12156,395,1185,118500,142120,23620,119.93,64,16.2,38850,202603182306,120,wind_not_target,7780
+2026-01-01_to_2026-03-18,only_wind_5_6,Base 4wind plus restrict to wind 5-6m.,12156,186,558,55800,65390,9590,117.19,31,16.67,17790,202603171011,49,wind_not_target,7780

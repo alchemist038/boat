@@ -10,6 +10,11 @@ __pycache__/
 *.log
 *.out
 *.err
+desktop.ini
+/125_recent_analysis_result.csv
+/c2_recent_analysis_result.csv
+/copy_inbox/
+/forward/history/*.csv
 
 data/raw/**
 data/bronze/**
@@ -52,3 +57,4 @@ live_trigger/auto_system/data/teleboat_resident_browser.json
 !live_trigger/watchlists/.gitkeep
 !live_trigger/ready/.gitkeep
 !live_trigger/plans/.gitkeep
+live_trigger/boxes/**/desktop.ini

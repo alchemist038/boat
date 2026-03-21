@@ -1,5 +1,14 @@
 # Bet Project Status
 
+## Companion Docs
+
+- root index: [ROOT_DOC_MAP.md](./ROOT_DOC_MAP.md)
+- main trigger overview: [live_trigger/README.md](./live_trigger/README.md)
+- portable trigger bundle: [live_trigger/PORTABLE_BUNDLE.md](./live_trigger/PORTABLE_BUNDLE.md)
+- fresh exec overview: [live_trigger_fresh_exec/README.md](./live_trigger_fresh_exec/README.md)
+- fresh execution flow: [live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md](./live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md)
+- shared runtime rules: [live_trigger/PROJECT_RULES.md](./live_trigger/PROJECT_RULES.md)
+
 - updated_at: 2026-03-21 18:25 JST
 - scope: `C:\CODEX_WORK\boat_clone\live_trigger`
 - purpose: trigger 現状整理と、自動ベット完成に向けた次構造の整理

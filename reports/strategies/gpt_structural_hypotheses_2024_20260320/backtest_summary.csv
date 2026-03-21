@@ -1,0 +1,4 @@
+﻿strategy_name,source_hypothesis_id,description,played_races,bet_count,stake_yen,return_yen,profit_yen,roi_pct,hit_races,hit_race_pct,max_drawdown_yen,max_drawdown_race_id,max_losing_streak,top_skip_reason,top_skip_reason_count
+GPT_HA_Trifecta_WeakInsideBias,A,lane1 looks mediocre but not visibly weak; spray 2-ALL-ALL and 3-ALL-ALL,1085,43400,4340000,2820070,-1519930,64.98,339,31.24,1645930,202412200501,14,lane1_win_rate_rank_not_3plus,24768
+GPT_HB_Trifecta_OuterExTop,B,outer-lane exhibition top with only middling win-rate rank; play top-lane-ALL-ALL,12835,256700,25670000,16016330,-9653670,62.39,865,6.74,10011340,202412310812,243,exhibition_top_not_outer,35003
+GPT_HC_Trifecta_B2Simplification,C,"single B2 at lane6, lane1 not A1, lane2 A1; play 2-1-ALL and 2-3-ALL",522,4176,417600,239630,-177970,57.38,124,23.75,179750,202412311608,18,b2_count_not_1,41173

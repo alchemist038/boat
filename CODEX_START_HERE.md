@@ -1,5 +1,10 @@
 # Codex Start Here
 
+## Root Doc Map
+
+- Use [ROOT_DOC_MAP.md](./ROOT_DOC_MAP.md) as the repo-level index.
+- It routes data / DB work, strategy work, portable trigger work, fresh execution work, and machine handoff notes.
+
 通常運用では、まずこの 4 手だけで十分です。
 
 1. 自分が `ins14` か `i5` か確認する

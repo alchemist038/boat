@@ -1,5 +1,13 @@
 # boat-race-data
 
+## Documentation Entry Points
+
+- Root index: [ROOT_DOC_MAP.md](./ROOT_DOC_MAP.md)
+- Startup checklist: [CODEX_START_HERE.md](./CODEX_START_HERE.md)
+- High-level project status: [PROJECT_STATUS.md](./PROJECT_STATUS.md)
+- Bet / trigger status: [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
+- Shared DB status: [DB_STATUS.md](./DB_STATUS.md)
+
 BOAT RACE公式サイトを主軸にした、`raw -> bronze -> silver` の収集基盤です。目的は予想ロジックではなく、後から統計分析・バックテスト・期待値計算に回せる再取得可能なデータを作ることです。
 
 ## 対象データ

@@ -1,0 +1,6 @@
+﻿lane,avg_national_win_rate,avg_local_win_rate,avg_motor_place_rate,avg_exhibition_rank,avg_win_rate_rank,avg_st_diff_from_inside,second_place_hits,second_place_rate_pct
+1,5.521,5.088,32.125,3.231,3.014,,138,28.34
+2,5.311,4.852,31.947,3.633,3.387,0.02,68,13.96
+3,5.063,4.646,31.946,3.945,3.801,0.026,58,11.91
+5,4.985,4.498,32.694,4.057,3.776,0.035,141,28.95
+6,4.944,4.459,32.497,4.088,3.762,0.013,82,16.84

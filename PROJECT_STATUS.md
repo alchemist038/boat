@@ -1,5 +1,13 @@
 # PROJECT STATUS
 
+## Companion Docs
+
+- root index: [ROOT_DOC_MAP.md](./ROOT_DOC_MAP.md)
+- shared DB detail: [DB_STATUS.md](./DB_STATUS.md)
+- bet / trigger detail: [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
+- portable trigger bundle: [live_trigger/PORTABLE_BUNDLE.md](./live_trigger/PORTABLE_BUNDLE.md)
+- fresh execution line: [live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md](./live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md)
+
 ## 2026-03-19 Update
 
 ### Current Operating Model
