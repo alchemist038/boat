@@ -10,7 +10,12 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+SYSTEM_ROOT = Path(__file__).resolve().parent
+LIVE_TRIGGER_ROOT = SYSTEM_ROOT.parent
+for import_root in (SYSTEM_ROOT, LIVE_TRIGGER_ROOT):
+    import_text = str(import_root)
+    if import_text not in sys.path:
+        sys.path.append(import_text)
 
 from app.core.bets import bet_point_count, bet_total_amount
 from app.core.database import AirBetAudit, BetExecution, BetIntent, ExecutionEvent, SessionEvent, SessionLocal, TargetRace
@@ -29,12 +34,12 @@ from app.core.teleboat import (
     load_teleboat_resident_state,
     load_teleboat_session_state,
 )
+from shared_contract import SHARED_BOX_ROOT
 
 bootstrap_runtime_path()
 
 from boat_race_data.live_trigger import load_trigger_profiles
 
-SYSTEM_ROOT = Path(__file__).resolve().parent
 MODULES = [
     "app/modules/01_sync_watchlists.py",
     "app/modules/02_evaluate_targets.py",
@@ -62,7 +67,7 @@ def _run_single_cycle() -> None:
 
 
 def _profile_rows(settings: dict[str, object]) -> list[dict[str, object]]:
-    profiles = load_trigger_profiles(SYSTEM_ROOT.parent / "boxes", include_disabled=True)
+    profiles = load_trigger_profiles(SHARED_BOX_ROOT, include_disabled=True)
     rows: list[dict[str, object]] = []
     for profile in profiles:
         rows.append(

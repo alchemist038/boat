@@ -28,9 +28,10 @@ from boat_race_data.live_trigger import (
     run_air_bet_flow_cli,
 )
 from boat_race_data.logic_board import build_logic_board
+from shared_contract import SHARED_BOX_ROOT
 import random
 
-PROFILE_ROOT = APP_ROOT / "boxes"
+PROFILE_ROOT = SHARED_BOX_ROOT
 PLANS_ROOT = APP_ROOT / "plans"
 RAW_ROOT = APP_ROOT / "raw"
 WATCHLIST_ROOT = APP_ROOT / "watchlists"

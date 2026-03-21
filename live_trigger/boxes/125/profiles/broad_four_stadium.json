@@ -3,7 +3,7 @@
   "profile_id": "125_broad_four_stadium",
   "strategy_id": "125",
   "display_name": "125 Broad Four",
-  "description": "Broad candidate for Suminoe + Naruto + Ashiya + Edogawa. Keep disabled until the final trigger condition is fixed.",
+  "description": "Adopted runtime profile for the current four-stadium 125 branch. Uses the shared B1/B2/rem5/exgap conditions described in the project summary.",
   "accent_color": "#2f7a4b",
   "enabled": true,
   "stadiums": [
@@ -14,15 +14,17 @@
   ],
   "watch_minutes_before_deadline": 25,
   "pre_filters": {
-    "lane1_class_exclude": [
-      "A1"
+    "lane1_class_include": [
+      "B1"
     ],
-    "lane1_motor_place_rate_min": 35.0,
-    "lane1_motor_top3_rate_min": 45.0
+    "lane5_class_exclude": [
+      "B2"
+    ],
+    "lane6_class_include": [
+      "B2"
+    ]
   },
   "final_filters": {
-    "lane1_exhibition_best_gap_max": 0.02,
-    "lane1_exhibition_vs_lane2_max_gap": 0.03,
-    "lane1_exhibition_vs_lane3_max_gap": 0.03
+    "lane1_exhibition_best_gap_max": 0.02
   }
 }

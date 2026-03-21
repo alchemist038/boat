@@ -16,10 +16,7 @@ bootstrap_runtime_path()
 from boat_race_data.live_trigger import read_watchlist
 
 
-def _target_key(row: dict[str, object]) -> str:
-    return f"{row.get('race_id', '')}::{row.get('profile_id', '')}"
-
-
+EARLY_TARGET_STATUSES = {"imported", "monitoring", "checked_waiting"}
 EVALUATED_PAYLOAD_KEYS = {
     "status",
     "final_reason",
@@ -44,8 +41,12 @@ TERMINAL_TARGET_STATUSES = {
 }
 
 
+def _target_key(row: dict[str, object]) -> str:
+    return f"{row.get('race_id', '')}::{row.get('profile_id', '')}"
+
+
 def _preserve_evaluated_payload(target: TargetRace, row: dict[str, object]) -> dict[str, object]:
-    if target.beforeinfo_checked_at is None and target.status in {"imported", "monitoring", "checked_waiting"}:
+    if target.beforeinfo_checked_at is None and target.status in EARLY_TARGET_STATUSES:
         return dict(row)
 
     merged = dict(row)
@@ -53,9 +54,19 @@ def _preserve_evaluated_payload(target: TargetRace, row: dict[str, object]) -> d
         existing = json.loads(target.payload_json or "{}")
     except json.JSONDecodeError:
         existing = {}
+
     for key in EVALUATED_PAYLOAD_KEYS:
-        if key in existing:
+        if key in existing and existing[key] not in {"", None}:
             merged[key] = existing[key]
+
+    if target.row_status and target.row_status not in {"", "waiting_beforeinfo"}:
+        merged["status"] = target.row_status
+    if target.last_reason:
+        if target.row_status == "trigger_ready":
+            merged["final_reason"] = target.last_reason
+        elif not merged.get("final_reason"):
+            merged["final_reason"] = target.last_reason
+
     return merged
 
 
@@ -165,7 +176,7 @@ def main() -> None:
                         session,
                         target=target,
                         event_type="watchlist_imported",
-                        message=f"{watchlist_path.name} から取り込み",
+                        message=f"Imported from {watchlist_path.name}",
                     )
                     imported += 1
                     continue
@@ -183,7 +194,7 @@ def main() -> None:
                 merged_row = _preserve_evaluated_payload(target, row)
                 target.row_status = str(merged_row.get("status", ""))
                 target.payload_json = json_dumps(merged_row)
-                if target.status in {"imported", "monitoring", "checked_waiting"}:
+                if target.status in EARLY_TARGET_STATUSES:
                     target.last_reason = str(merged_row.get("final_reason") or merged_row.get("pre_reason") or "")
                 updated += 1
 
@@ -196,7 +207,7 @@ def main() -> None:
 
         session.commit()
         print(
-            f"[{now:%Y-%m-%d %H:%M:%S}] sync_watchlists completed: "
+            f"[{now:%Y-%m-%d %H:%M:%S}] fresh sync completed: "
             f"imported={imported} updated={updated} withdrawn={withdrawn} files={len(watchlist_files)}"
         )
     finally:

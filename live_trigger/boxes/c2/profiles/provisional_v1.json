@@ -3,7 +3,7 @@
   "profile_id": "c2_provisional_v1",
   "strategy_id": "c2",
   "display_name": "C2 Provisional V1",
-  "description": "Semi-regular C2 proxy: women-race title proxy, lane1 slow start-exhibition ST, and lane1 exhibition within 0.02 of lanes 2 and 3.",
+  "description": "Adopted runtime profile for the current provisional C2 branch. It intentionally follows the project provisional spec, not the strict refined C2 spec.",
   "accent_color": "#8a4b08",
   "enabled": true,
   "stadiums": [],

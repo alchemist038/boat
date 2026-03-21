@@ -171,6 +171,7 @@ C:\CODEX_WORK\boat_clone\live_trigger\auto_system\run_system.bat
 - Teleboat にログインします
 - 対象場・対象レースへ進みます
 - bet list と確認画面まで進みます
+- 確認画面で購入金額と投票用パスワードまで自動入力します
 - 人が送信したあと、結果画面を検知できた場合は `submitted` として記録します
 - タイムアウトした場合は `assist_timeout` になります
 

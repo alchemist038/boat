@@ -5,24 +5,19 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-AUTO_SYSTEM_ROOT = Path(__file__).resolve().parents[2]
-LIVE_TRIGGER_ROOT = AUTO_SYSTEM_ROOT.parent
-for import_root in (AUTO_SYSTEM_ROOT, LIVE_TRIGGER_ROOT):
-    import_text = str(import_root)
-    if import_text not in sys.path:
-        sys.path.append(import_text)
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from app.core.bets import build_bet_rows
 from app.core.database import BetIntent, SessionLocal, TargetRace, initialize_database, json_dumps, log_event
 from app.core.settings import (
     RAW_ROOT,
+    SHARED_BOX_ROOT,
+    bootstrap_runtime_path,
     execution_mode,
     load_settings,
     profile_amount,
     profile_enabled,
-    bootstrap_runtime_path,
 )
-from shared_contract import SHARED_BOX_ROOT
 
 bootstrap_runtime_path()
 
@@ -76,7 +71,7 @@ def _ensure_intents(session, *, target: TargetRace, settings: dict[str, object])
             target=target,
             intent=intent,
             event_type="intent_created",
-            message=f"{bet_row['bet_type']} {bet_row['combo']} / {bet_row['amount']}円 ({target_mode})",
+            message=f"{bet_row['bet_type']} {bet_row['combo']} / {bet_row['amount']} ({target_mode})",
         )
     return created
 
@@ -107,7 +102,7 @@ def main() -> None:
         )
 
         if not targets:
-            print(f"[{now:%Y-%m-%d %H:%M:%S}] evaluate_targets: no active targets for today")
+            print(f"[{now:%Y-%m-%d %H:%M:%S}] fresh evaluate: no active targets for today")
             return
 
         with BoatRaceClient(timeout_seconds=30) as client:
@@ -121,7 +116,7 @@ def main() -> None:
                 if now >= window_close_at:
                     if target.status not in {"checked_skip", "air_bet_logged", "real_bet_placed", "expired"}:
                         target.status = "expired"
-                        target.last_reason = f"監視ウィンドウ終了 ({window_close_at:%H:%M:%S})"
+                        target.last_reason = f"window closed at {window_close_at:%H:%M:%S}"
                         log_event(
                             session,
                             target=target,
@@ -134,7 +129,7 @@ def main() -> None:
                 if not profile_enabled(settings, target.profile_id):
                     if target.status != "checked_skip":
                         target.status = "checked_skip"
-                        target.last_reason = "profile disabled in auto_system"
+                        target.last_reason = "profile disabled in fresh_exec"
                         log_event(
                             session,
                             target=target,
@@ -163,7 +158,7 @@ def main() -> None:
                         session,
                         target=target,
                         event_type="monitoring_started",
-                        message=f"締切 {window_start_minutes}〜{window_end_minutes} 分前の監視を開始",
+                        message=f"watch window {window_start_minutes}-{window_end_minutes} minutes before deadline",
                     )
 
                 previous_status = target.status
@@ -222,8 +217,9 @@ def main() -> None:
 
         session.commit()
         print(
-            f"[{now:%Y-%m-%d %H:%M:%S}] evaluate_targets completed: checked={checked} go={go_count} "
-            f"skip={skip_count} waiting={waiting_count} expired={expired_count}"
+            f"[{now:%Y-%m-%d %H:%M:%S}] fresh evaluate completed: "
+            f"checked={checked} go={go_count} skip={skip_count} "
+            f"waiting={waiting_count} expired={expired_count}"
         )
     finally:
         session.close()

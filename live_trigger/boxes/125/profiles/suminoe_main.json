@@ -3,7 +3,7 @@
   "profile_id": "125_suminoe_main",
   "strategy_id": "125",
   "display_name": "125 Suminoe Main",
-  "description": "Primary adopted 125 logic. Suminoe 1-2-5 with low-grade lane1, motor support, and good exhibition gap.",
+  "description": "Canonical-style 125 main profile for Suminoe 1-2-5. This profile matches the project memo closely but is currently disabled in runtime.",
   "accent_color": "#165d5b",
   "enabled": false,
   "stadiums": [

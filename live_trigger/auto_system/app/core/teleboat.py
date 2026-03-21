@@ -114,6 +114,12 @@ METHOD_SELECTOR_MAP = {
     "フォーメーション投票": "#betway4",
 }
 
+METHOD_SELECTOR_BY_KEY = {
+    "regular": "#betway1",
+    "box": "#betway3",
+    "formation": "#betway4",
+}
+
 BET_TYPE_SELECTOR_MAP = {
     "3連単": "#betkati6",
     "3連複": "#betkati7",
@@ -121,6 +127,26 @@ BET_TYPE_SELECTOR_MAP = {
     "2連複": "#betkati4",
     "拡連複": "#betkati5",
     "単勝": "#betkati1",
+}
+
+BET_TYPE_SELECTOR_BY_CODE = {
+    "trifecta": "#betkati6",
+    "trio": "#betkati7",
+    "exacta": "#betkati3",
+    "quinella": "#betkati4",
+    "quinella_place": "#betkati5",
+    "win": "#betkati1",
+}
+
+ADD_BUTTON_SELECTOR_BY_METHOD_KEY = {
+    "regular": "#regAmountBtn",
+    "box": "#boxAmountBtn",
+    "formation": "#formaAmountBtn",
+}
+
+COMBINATION_CONFIRM_SELECTOR_BY_METHOD_KEY = {
+    "box": "#combiConfirmBtnBox",
+    "formation": "#combiConfirmBtnForma",
 }
 
 
@@ -456,6 +482,91 @@ def _click_first(page: Page, selectors: Iterable[str], *, description: str, time
     if last_error is not None:
         raise TeleboatError(f"{description} のクリックに失敗しました: {last_error}")
     raise TeleboatError(f"{description} に使える要素が見つかりません")
+
+
+def _wait_for_any_selector(page: Page, selectors: Iterable[str], *, timeout_ms: int = 5_000) -> bool:
+    deadline = time.time() + max(1, timeout_ms / 1000)
+    candidates = [selector for selector in selectors if selector]
+    while time.time() < deadline:
+        for selector in candidates:
+            locator = page.locator(selector).first
+            if _count(locator) == 0:
+                continue
+            try:
+                locator.scroll_into_view_if_needed(timeout=1_000)
+            except Exception:  # noqa: BLE001
+                pass
+            return True
+        page.wait_for_timeout(200)
+    return False
+
+
+def _wait_for_regular_value_ready(page: Page, selector: str, *, description: str, timeout_ms: int = 5_000):
+    locator = page.locator(selector).first
+    last_class_name = ""
+    deadline = time.time() + max(1, timeout_ms / 1000)
+    while time.time() < deadline:
+        if _count(locator) == 0:
+            page.wait_for_timeout(150)
+            continue
+        try:
+            locator.scroll_into_view_if_needed(timeout=1_000)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            if not locator.is_visible(timeout=500):
+                page.wait_for_timeout(150)
+                continue
+            class_name = (locator.get_attribute("class") or "").strip()
+            last_class_name = class_name
+            if "miss" not in class_name.lower().split():
+                return locator
+        except Exception:  # noqa: BLE001
+            pass
+        page.wait_for_timeout(150)
+    raise TeleboatError(f"{description} が選択可能状態になりませんでした: class={last_class_name or '-'}")
+
+
+def _click_regular_value(page: Page, *, selector: str, description: str, timeout_ms: int = 4_000) -> None:
+    cell = _wait_for_regular_value_ready(
+        page,
+        selector,
+        description=description,
+        timeout_ms=max(timeout_ms, 5_000),
+    )
+    anchor = page.locator(f"{selector} a").first
+
+    attempts = [
+        (anchor, False, False),
+        (cell, False, False),
+        (anchor, True, False),
+        (cell, True, False),
+        (anchor, False, True),
+        (cell, False, True),
+    ]
+
+    last_error: Exception | None = None
+    for locator, force, js_click in attempts:
+        if _count(locator) == 0:
+            continue
+        try:
+            try:
+                locator.scroll_into_view_if_needed(timeout=1_000)
+            except Exception:  # noqa: BLE001
+                pass
+            if js_click:
+                locator.evaluate("(el) => { if (el && typeof el.click === 'function') { el.click(); } }")
+            else:
+                locator.click(timeout=timeout_ms, force=force)
+            return
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            page.wait_for_timeout(250)
+            continue
+
+    if last_error is not None:
+        raise TeleboatError(f"{description} のクリックに失敗しました: {last_error}")
+    raise TeleboatError(f"{description} のクリック対象が見つかりませんでした")
 
 
 def _fill_first(page: Page, selectors: Iterable[str], value: str, *, description: str, timeout_ms: int = 5_000) -> str:
@@ -828,12 +939,68 @@ def _find_ready_resident_page(context) -> Page | None:
     return ready_pages[0]
 
 
+def _resident_teleboat_pages(context) -> list[Page]:
+    pages: list[Page] = []
+    for page in list(context.pages):
+        try:
+            if page.is_closed():
+                continue
+            current_url = page.url or ""
+        except Exception:  # noqa: BLE001
+            continue
+        if "ib.mbrace.or.jp" in current_url:
+            pages.append(page)
+    return pages
+
+
+def _refresh_resident_pages(context, *, force_base_url: bool) -> None:
+    for page in _resident_teleboat_pages(context):
+        try:
+            current_url = page.url or ""
+        except Exception:  # noqa: BLE001
+            current_url = ""
+
+        try:
+            needs_navigation = force_base_url or _is_session_timeout_page(page) or _visible_exists(page, LOGIN_FORM_SELECTORS)
+        except Exception:  # noqa: BLE001
+            needs_navigation = force_base_url
+
+        try:
+            if needs_navigation:
+                page.goto(BASE_URL, wait_until="domcontentloaded", timeout=15_000)
+                _settle(page, milliseconds=700)
+                continue
+
+            if current_url:
+                page.reload(wait_until="domcontentloaded", timeout=10_000)
+                _settle(page, milliseconds=700)
+        except Exception:  # noqa: BLE001
+            if needs_navigation:
+                continue
+            try:
+                page.goto(BASE_URL, wait_until="domcontentloaded", timeout=15_000)
+                _settle(page, milliseconds=700)
+            except Exception:  # noqa: BLE001
+                continue
+
+
 def _activate_resident_ready_page(context, *, timeout_seconds: int = 6) -> Page | None:
     deadline = time.time() + max(1, timeout_seconds)
+    refreshed = False
+    forced_base_url = False
     while time.time() < deadline:
         ready_page = _find_ready_resident_page(context)
         if ready_page is not None:
             return _cleanup_resident_pages(context, preferred_page=ready_page)
+        remaining_seconds = deadline - time.time()
+        if not refreshed and remaining_seconds > 1:
+            _refresh_resident_pages(context, force_base_url=False)
+            refreshed = True
+            continue
+        if not forced_base_url and remaining_seconds > 1:
+            _refresh_resident_pages(context, force_base_url=True)
+            forced_base_url = True
+            continue
         time.sleep(0.5)
     ready_page = _find_ready_resident_page(context)
     if ready_page is not None:
@@ -1120,27 +1287,61 @@ def _select_regular_value(page: Page, *, column_index: int, token: str) -> None:
     _settle(page, milliseconds=250)
 
 
-def _select_method_and_bet_type(page: Page, *, method_label: str, bet_type_label: str) -> None:
+def _select_regular_value(page: Page, *, column_index: int, token: str) -> None:
+    normalized = token.strip().upper()
+    if not normalized or normalized == "ALL":
+        raise TeleboatError(f"騾壼ｸｸ謚慕･ｨ縺ｧ縺ｯ菴ｿ縺医↑縺・ｵ・分縺ｧ縺・ {token}")
+
+    selector = f"#regbtn_{normalized}_{int(column_index)}"
+    _click_regular_value(
+        page,
+        selector=selector,
+        description=f"騾壼ｸｸ謚慕･ｨ {column_index}蛻・{normalized}",
+        timeout_ms=4_000,
+    )
+    _settle(page, milliseconds=250)
+
+
+def _select_method_and_bet_type(
+    page: Page,
+    *,
+    method_label: str,
+    bet_type_label: str,
+    method_selector: str | None = None,
+    bet_type_selector: str | None = None,
+) -> None:
+    method_candidates = [
+        method_selector or "",
+        f"{method_selector} a" if method_selector else "",
+        METHOD_SELECTOR_MAP.get(method_label, ""),
+        f"text=\"{method_label}\"",
+        f"button:has-text('{method_label}')",
+        f"a:has-text('{method_label}')",
+    ]
+    if not _wait_for_any_selector(page, method_candidates, timeout_ms=5_000):
+        raise TeleboatError(f"投票方法({method_label}) に使える要素が見つかりません")
     _click_first(
         page,
-        [
-            METHOD_SELECTOR_MAP.get(method_label, ""),
-            f"text=\"{method_label}\"",
-            f"button:has-text('{method_label}')",
-            f"a:has-text('{method_label}')",
-        ],
+        method_candidates,
         description=f"投票方法({method_label})",
+        timeout_ms=5_000,
     )
     _settle(page, milliseconds=500)
+    bet_type_candidates = [
+        bet_type_selector or "",
+        f"{bet_type_selector} a" if bet_type_selector else "",
+        BET_TYPE_SELECTOR_MAP.get(bet_type_label, ""),
+        f"text=\"{bet_type_label}\"",
+        f"button:has-text('{bet_type_label}')",
+        f"a:has-text('{bet_type_label}')",
+    ]
+    if not _wait_for_any_selector(page, bet_type_candidates, timeout_ms=5_000):
+        raise TeleboatError(f"勝式({bet_type_label}) に使える要素が見つかりません")
     _click_first(
         page,
-        [
-            BET_TYPE_SELECTOR_MAP.get(bet_type_label, ""),
-            f"text=\"{bet_type_label}\"",
-            f"button:has-text('{bet_type_label}')",
-            f"a:has-text('{bet_type_label}')",
-        ],
+        bet_type_candidates,
         description=f"勝式({bet_type_label})",
+        timeout_ms=5_000,
     )
     _settle(page, milliseconds=500)
 
@@ -1215,6 +1416,7 @@ def _confirm_combination_selection(
     page: Page,
     *,
     method_label: str,
+    method_key: str | None = None,
     data_dir: Path,
     debug_prefix: str,
 ) -> int:
@@ -1222,7 +1424,7 @@ def _confirm_combination_selection(
         "ボックス投票": "#combiConfirmBtnBox",
         "フォーメーション投票": "#combiConfirmBtnForma",
     }
-    confirm_selector = confirm_selector_map.get(method_label)
+    confirm_selector = COMBINATION_CONFIRM_SELECTOR_BY_METHOD_KEY.get(method_key or "", "") or confirm_selector_map.get(method_label)
     if not confirm_selector:
         return max(1, _current_combination_count(page))
 
@@ -1336,6 +1538,219 @@ def _add_intent_to_bet_list(
             debug_prefix=f"{debug_prefix}_betlist_disabled",
             message="ベットリスト追加ボタンが有効化されませんでした",
             details={
+                "method_label": method_label,
+                "combination_count": combination_count,
+                "amount": amount,
+                "button_selector": add_button_selector,
+            },
+        )
+
+    _click_first(
+        page,
+        [
+            add_button_selector,
+            f"{add_button_selector} a",
+            "text=\"ベットリストに追加\"",
+            "button:has-text('ベットリストに追加')",
+            "input[value='ベットリストに追加']",
+        ],
+        description="ベットリストに追加",
+        timeout_ms=8_000,
+    )
+    _settle(page, milliseconds=500)
+    _wait_for_betlist_update(
+        page,
+        previous_total_amount=previous_total_amount,
+        previous_bet_count=previous_bet_count,
+        expected_increment=combination_count * amount,
+        data_dir=data_dir,
+        debug_prefix=f"{debug_prefix}_betlist_update",
+    )
+    return combination_count
+
+
+def _add_intent_to_bet_list(
+    page: Page,
+    *,
+    bet_type: str,
+    combo: str,
+    amount: int,
+    data_dir: Path,
+    debug_prefix: str,
+) -> int:
+    bet_type_label = BET_TYPE_TO_LABEL.get(str(bet_type).lower())
+    if not bet_type_label:
+        raise TeleboatError(f"譛ｪ蟇ｾ蠢懊・蛻ｸ遞ｮ縺ｧ縺・ {bet_type}")
+
+    parts = [part.strip().upper() for part in str(combo).split("-") if part.strip()]
+    if not parts:
+        raise TeleboatError(f"邨・分縺ｮ蠖｢蠑上′荳肴ｭ｣縺ｧ縺・ {combo}")
+
+    previous_total_amount = _current_total_amount(page)
+    previous_bet_count = _current_total_bet_count(page)
+    method_label = "繝輔か繝ｼ繝｡繝ｼ繧ｷ繝ｧ繝ｳ謚慕･ｨ" if "ALL" in parts else "騾壼ｸｸ謚慕･ｨ"
+
+    try:
+        _select_method_and_bet_type(page, method_label=method_label, bet_type_label=bet_type_label)
+
+        if method_label == "騾壼ｸｸ謚慕･ｨ":
+            for index, token in enumerate(parts, start=1):
+                _select_regular_value(page, column_index=index, token=token)
+            combination_count = 1
+        else:
+            for index, token in enumerate(parts, start=1):
+                _select_formation_value(page, column_index=index, token=token)
+            combination_count = _confirm_combination_selection(
+                page,
+                method_label=method_label,
+                data_dir=data_dir,
+                debug_prefix=f"{debug_prefix}_combination",
+            )
+
+        _fill_amount(page, amount)
+    except TeleboatExecutionError:
+        raise
+    except TeleboatError as exc:
+        _raise_preparation_error(
+            page,
+            data_dir=data_dir,
+            debug_prefix=f"{debug_prefix}_selection",
+            message=str(exc),
+            details={
+                "bet_type": bet_type,
+                "bet_type_label": bet_type_label,
+                "combo": combo,
+                "parts": parts,
+                "amount": amount,
+                "method_label": method_label,
+                "current_url": page.url or "",
+            },
+        )
+
+    add_button_map = {
+        "騾壼ｸｸ謚慕･ｨ": "#regAmountBtn",
+        "繝懊ャ繧ｯ繧ｹ謚慕･ｨ": "#boxAmountBtn",
+        "繝輔か繝ｼ繝｡繝ｼ繧ｷ繝ｧ繝ｳ謚慕･ｨ": "#formaAmountBtn",
+    }
+    add_button_selector = add_button_map.get(method_label, "#formaAmountBtn")
+    if not _button_is_enabled(page, add_button_selector):
+        _raise_preparation_error(
+            page,
+            data_dir=data_dir,
+            debug_prefix=f"{debug_prefix}_betlist_disabled",
+            message="繝吶ャ繝医Μ繧ｹ繝郁ｿｽ蜉繝懊ち繝ｳ縺梧怏蜉ｹ蛹悶＆繧後∪縺帙ｓ縺ｧ縺励◆",
+            details={
+                "method_label": method_label,
+                "combination_count": combination_count,
+                "amount": amount,
+                "button_selector": add_button_selector,
+            },
+        )
+
+    _click_first(
+        page,
+        [
+            add_button_selector,
+            f"{add_button_selector} a",
+            "text=\"繝吶ャ繝医Μ繧ｹ繝医↓霑ｽ蜉\"",
+            "button:has-text('繝吶ャ繝医Μ繧ｹ繝医↓霑ｽ蜉')",
+            "input[value='繝吶ャ繝医Μ繧ｹ繝医↓霑ｽ蜉']",
+        ],
+        description="繝吶ャ繝医Μ繧ｹ繝医↓霑ｽ蜉",
+        timeout_ms=8_000,
+    )
+    _settle(page, milliseconds=500)
+    _wait_for_betlist_update(
+        page,
+        previous_total_amount=previous_total_amount,
+        previous_bet_count=previous_bet_count,
+        expected_increment=combination_count * amount,
+        data_dir=data_dir,
+        debug_prefix=f"{debug_prefix}_betlist_update",
+    )
+    return combination_count
+
+
+def _add_intent_to_bet_list(
+    page: Page,
+    *,
+    bet_type: str,
+    combo: str,
+    amount: int,
+    data_dir: Path,
+    debug_prefix: str,
+) -> int:
+    bet_type_label = BET_TYPE_TO_LABEL.get(str(bet_type).lower())
+    if not bet_type_label:
+        raise TeleboatError(f"未対応の券種です: {bet_type}")
+
+    parts = [part.strip().upper() for part in str(combo).split("-") if part.strip()]
+    if not parts:
+        raise TeleboatError(f"組番の形式が不正です: {combo}")
+
+    previous_total_amount = _current_total_amount(page)
+    previous_bet_count = _current_total_bet_count(page)
+    method_key = "formation" if "ALL" in parts else "regular"
+    method_label = "フォーメーション投票" if method_key == "formation" else "通常投票"
+    method_selector = METHOD_SELECTOR_BY_KEY.get(method_key)
+    bet_type_selector = BET_TYPE_SELECTOR_BY_CODE.get(str(bet_type).lower())
+
+    try:
+        _select_method_and_bet_type(
+            page,
+            method_label=method_label,
+            bet_type_label=bet_type_label,
+            method_selector=method_selector,
+            bet_type_selector=bet_type_selector,
+        )
+
+        if method_key == "regular":
+            for index, token in enumerate(parts, start=1):
+                _select_regular_value(page, column_index=index, token=token)
+            combination_count = 1
+        else:
+            for index, token in enumerate(parts, start=1):
+                _select_formation_value(page, column_index=index, token=token)
+            combination_count = _confirm_combination_selection(
+                page,
+                method_label=method_label,
+                method_key=method_key,
+                data_dir=data_dir,
+                debug_prefix=f"{debug_prefix}_combination",
+            )
+
+        _fill_amount(page, amount)
+    except TeleboatExecutionError:
+        raise
+    except TeleboatError as exc:
+        _raise_preparation_error(
+            page,
+            data_dir=data_dir,
+            debug_prefix=f"{debug_prefix}_selection",
+            message=str(exc),
+            details={
+                "bet_type": bet_type,
+                "bet_type_label": bet_type_label,
+                "combo": combo,
+                "parts": parts,
+                "amount": amount,
+                "method_key": method_key,
+                "method_label": method_label,
+                "method_selector": method_selector,
+                "bet_type_selector": bet_type_selector,
+                "current_url": page.url or "",
+            },
+        )
+
+    add_button_selector = ADD_BUTTON_SELECTOR_BY_METHOD_KEY.get(method_key, "#formaAmountBtn")
+    if not _button_is_enabled(page, add_button_selector):
+        _raise_preparation_error(
+            page,
+            data_dir=data_dir,
+            debug_prefix=f"{debug_prefix}_betlist_disabled",
+            message="ベットリスト追加ボタンが有効化されませんでした",
+            details={
+                "method_key": method_key,
                 "method_label": method_label,
                 "combination_count": combination_count,
                 "amount": amount,
@@ -2077,6 +2492,11 @@ class TeleboatClient:
         page = self.page
 
         if mode == "assist_real":
+            confirmation_total_amount = _prefill_confirmation_inputs(
+                page,
+                vote_password=self._credentials.vote_password,
+                total_amount=_current_confirmation_total_amount(page),
+            )
             screenshot_path, html_path = _save_debug_artifacts(
                 page,
                 prefix=f"{target.race_id}_assist_confirm",
@@ -2095,7 +2515,12 @@ class TeleboatClient:
                 contract_no=contract_no,
                 screenshot_path=screenshot_path,
                 html_path=html_path,
-                details={"mode": mode, "session_state": session_state, "prepared_units": prepared_units},
+                details={
+                    "mode": mode,
+                    "session_state": session_state,
+                    "prepared_units": prepared_units,
+                    "confirmation_total_amount": confirmation_total_amount,
+                },
             )
 
         dialog_messages = _submit_vote(

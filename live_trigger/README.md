@@ -11,8 +11,9 @@
 ## フォルダ構成
 
 - `boxes/`
-  - logic / project ごとの BOX
+  - logic / project ごとの shared BOX
   - 各 BOX の `profiles/*.json` に条件を書く
+  - `trigger / auto / replay / fresh_exec` が共有する単一の条件ソース
 - `watchlists/`
   - 前日候補抽出の CSV
 - `ready/`
@@ -79,9 +80,17 @@ live_trigger\run_auto_ui.cmd
 ## 補足
 
 - batch 抽出は通常 `enabled: true` の profile が対象です
+- `boxes/` は runtime の single source of truth です
+- 新ラインは [live_trigger_fresh_exec/README.md](/c:/CODEX_WORK/boat_clone/live_trigger_fresh_exec/README.md) を参照してください
+- `trigger` は当日 watchlist の元データを作成し、`fresh_exec` はその当日分を取り込んで `beforeinfo` を自動取得し、shared BOX で GO 判定します
+- `fresh_exec` は `watchlists/raw/boxes` を共有しつつ、`settings.json/system.db/auto_run.log` は新ライン専用です
+- 2026-03-21 時点で、新ラインは `sync -> evaluate -> execute` の単独ループ、手動 Fresh テスト、確認画面到達、テスト後ログアウトまで確認済みです
+- 共有ルールは [PROJECT_RULES.md](/c:/CODEX_WORK/boat_clone/live_trigger/PROJECT_RULES.md) を参照してください
 - 実ベットを使う場合は `live_trigger\.env` を用意します
+- フォワードテスト中の現況確認は `run_forward_snapshot.cmd` でまとめて確認できます
 - 手順書は次を参照してください
   - [AUTO_BET_SYSTEM_RUNBOOK.md](/c:/CODEX_WORK/boat_clone/live_trigger/AUTO_BET_SYSTEM_RUNBOOK.md)
   - [AIR_BET_AUDIT_RUNBOOK.md](/c:/CODEX_WORK/boat_clone/live_trigger/AIR_BET_AUDIT_RUNBOOK.md)
+  - [FORWARD_TEST_RESPONSE_RUNBOOK.md](/c:/CODEX_WORK/boat_clone/live_trigger/FORWARD_TEST_RESPONSE_RUNBOOK.md)
   - [SELF_HEALING_AUTO_BET_VISION.md](/c:/CODEX_WORK/boat_clone/live_trigger/SELF_HEALING_AUTO_BET_VISION.md)
   - [IMPROVEMENT_NOTES.md](/c:/CODEX_WORK/boat_clone/live_trigger/IMPROVEMENT_NOTES.md)
