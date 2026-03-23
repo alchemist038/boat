@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sqlite3
 import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from functools import lru_cache
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any
@@ -20,10 +22,10 @@ if str(SRC_ROOT) not in sys.path:
 from boat_race_data.client import BoatRaceClient, FetchResult
 from boat_race_data.constants import STADIUMS
 from boat_race_data.live_trigger import (
+    build_watchlist_row,
     compute_watch_start_time,
     enrich_watchlist_row_with_beforeinfo,
     load_trigger_profiles,
-    read_watchlist,
 )
 from boat_race_data.parsers import parse_beforeinfo, parse_odds_2t, parse_racelist
 
@@ -31,14 +33,15 @@ DATA_DIR_NAME = "data"
 SETTINGS_FILENAME = "settings.json"
 DB_FILENAME = "system.db"
 AUTO_RUN_LOG_FILENAME = "auto_run.log"
+AUTO_LOOP_PID_FILENAME = "auto_loop.pid"
 
 SHARED_LIVE_TRIGGER_ROOT = REPO_ROOT / "live_trigger"
 SHARED_BOX_ROOT = SHARED_LIVE_TRIGGER_ROOT / "boxes"
-SHARED_WATCHLIST_ROOT = SHARED_LIVE_TRIGGER_ROOT / "watchlists"
-SHARED_RAW_ROOT = SHARED_LIVE_TRIGGER_ROOT / "raw"
 SHARED_BETS_PATH = SHARED_LIVE_TRIGGER_ROOT / "auto_system" / "app" / "core" / "bets.py"
 FRESH_AUTO_SYSTEM_ROOT = REPO_ROOT / "live_trigger_fresh_exec" / "auto_system"
+CANONICAL_DUCKDB_PATH = Path(r"\\038INS\boat\data\silver\boat_race.duckdb")
 LOCAL_SOURCE_PREFIX = "local::"
+SHARED_SOURCE_PREFIX = "shared::"
 
 VALID_EXECUTION_MODES = ("air", "assist_real", "armed_real")
 VALID_REAL_SESSION_STRATEGIES = ("fresh_per_execution", "burst_reuse")
@@ -101,6 +104,7 @@ _BETS_MODULE: ModuleType | None = None
 _FRESH_EXECUTOR_MODULE: ModuleType | None = None
 _LEGACY_TELEBOAT_MODULE: ModuleType | None = None
 _LEGACY_TELEBOAT_PATCHED = False
+_INITIALIZED_DB_PATHS: set[str] = set()
 
 
 @dataclass(slots=True)
@@ -133,6 +137,10 @@ def db_path(runtime_root: Path = RUNTIME_ROOT) -> Path:
 
 def auto_run_log_path(runtime_root: Path = RUNTIME_ROOT) -> Path:
     return data_dir(runtime_root) / AUTO_RUN_LOG_FILENAME
+
+
+def auto_loop_pid_path(runtime_root: Path = RUNTIME_ROOT) -> Path:
+    return data_dir(runtime_root) / AUTO_LOOP_PID_FILENAME
 
 
 def box_root(runtime_root: Path = RUNTIME_ROOT) -> Path:
@@ -220,6 +228,15 @@ def _maybe_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _passes_min_filter(value: Any, minimum: float | None) -> bool:
+    if minimum is None:
+        return True
+    parsed = _maybe_float(value)
+    if parsed is None:
+        return False
+    return parsed >= minimum
 
 
 def _fetch_text_cached(client: BoatRaceClient, url: str, raw_path: Path) -> FetchResult:
@@ -369,24 +386,198 @@ def _build_4wind_watchlist_row(
     }
 
 
-def _build_local_watchlist_sources(
+@lru_cache(maxsize=1)
+def _latest_racer_sex_index() -> dict[str, str]:
+    if not CANONICAL_DUCKDB_PATH.exists():
+        return {}
+    try:
+        import duckdb
+    except ImportError:
+        return {}
+
+    connection = duckdb.connect(str(CANONICAL_DUCKDB_PATH), read_only=True)
+    try:
+        rows = connection.execute(
+            """
+            SELECT racer_id, sex
+            FROM (
+                SELECT
+                    racer_id,
+                    sex,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY racer_id
+                        ORDER BY
+                            TRY_CAST(term_year AS INTEGER) DESC NULLS LAST,
+                            TRY_CAST(term_half AS INTEGER) DESC NULLS LAST,
+                            TRY_CAST(term_end_date AS DATE) DESC NULLS LAST,
+                            fetched_at DESC NULLS LAST
+                    ) AS row_no
+                FROM racer_stats_term
+                WHERE racer_id IS NOT NULL
+                  AND sex IS NOT NULL
+                  AND TRIM(racer_id) <> ''
+                  AND TRIM(sex) <> ''
+            )
+            WHERE row_no = 1
+            """
+        ).fetchall()
+    finally:
+        connection.close()
+
+    return {str(racer_id).strip(): str(sex).strip() for racer_id, sex in rows}
+
+
+def _normalize_racer_id(value: Any) -> str | None:
+    if value in {"", None}:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    return text
+
+
+def _c2_all_women_reason(entry_rows: list[dict[str, object]]) -> str | None:
+    lane_rows = [_entry_by_lane(entry_rows, lane) for lane in range(1, 7)]
+    if any(row is None for row in lane_rows):
+        return None
+
+    sex_index = _latest_racer_sex_index()
+    if not sex_index:
+        return None
+
+    sexes: list[str] = []
+    for row in lane_rows:
+        racer_id = _normalize_racer_id(row.get("racer_id")) if row is not None else None
+        if racer_id is None:
+            return None
+        sex = sex_index.get(racer_id)
+        if sex is None:
+            return None
+        sexes.append(sex)
+
+    if all(sex == "2" for sex in sexes):
+        return "women6_proxy"
+    return None
+
+
+def _build_c2_watchlist_row(
+    race_row: dict[str, object],
+    entry_rows: list[dict[str, object]],
+    profile: RuntimeProfileSpec,
+) -> dict[str, object] | None:
+    shared_profile = profile.shared_profile
+    if shared_profile is None:
+        return None
+
+    row = build_watchlist_row(race_row, entry_rows, shared_profile)
+    if row is not None:
+        return row
+
+    women_reason = _c2_all_women_reason(entry_rows)
+    if women_reason is None:
+        return None
+
+    lane1 = _entry_by_lane(entry_rows, 1)
+    if lane1 is None:
+        return None
+    if lane1.get("racer_class", "") in shared_profile.lane1_class_exclude:
+        return None
+    if shared_profile.lane1_class_include and lane1.get("racer_class", "") not in shared_profile.lane1_class_include:
+        return None
+
+    lane5 = _entry_by_lane(entry_rows, 5)
+    lane6 = _entry_by_lane(entry_rows, 6)
+    if lane5 and (lane5.get("racer_class", "") in shared_profile.lane5_class_exclude):
+        return None
+    if lane6 and shared_profile.lane6_class_include and (lane6.get("racer_class", "") not in shared_profile.lane6_class_include):
+        return None
+
+    if not _passes_min_filter(lane1.get("motor_place_rate"), shared_profile.lane1_motor_place_rate_min):
+        return None
+    if not _passes_min_filter(lane1.get("motor_top3_rate"), shared_profile.lane1_motor_top3_rate_min):
+        return None
+
+    deadline_time = str(race_row.get("deadline_time", ""))
+    row = {
+        "box_id": shared_profile.box_id,
+        "profile_id": shared_profile.profile_id,
+        "strategy_id": shared_profile.strategy_id,
+        "race_id": race_row.get("race_id", ""),
+        "race_date": race_row.get("race_date", ""),
+        "stadium_code": race_row.get("stadium_code", ""),
+        "stadium_name": race_row.get("stadium_name", ""),
+        "race_no": race_row.get("race_no", ""),
+        "meeting_title": race_row.get("meeting_title", ""),
+        "race_title": race_row.get("race_title", ""),
+        "deadline_time": deadline_time,
+        "watch_start_time": compute_watch_start_time(
+            str(race_row.get("race_date", "")),
+            deadline_time,
+            shared_profile.watch_minutes_before_deadline,
+        ),
+        "status": "waiting_beforeinfo",
+        "pre_reason": "",
+        "final_reason": "",
+        "lane1_racer_id": lane1.get("racer_id", ""),
+        "lane1_racer_name": lane1.get("racer_name", ""),
+        "lane1_racer_class": lane1.get("racer_class", ""),
+        "lane1_motor_no": lane1.get("motor_no", ""),
+        "lane1_motor_place_rate": lane1.get("motor_place_rate", ""),
+        "lane1_motor_top3_rate": lane1.get("motor_top3_rate", ""),
+        "lane1_exhibition_time": "",
+        "lane1_exhibition_best_gap": "",
+        "lane2_exhibition_time": "",
+        "lane3_exhibition_time": "",
+        "lane1_start_exhibition_st": "",
+        "min_other_start_exhibition_st": "",
+        "lane1_start_gap_over_rest": "",
+        "beforeinfo_fetched_at": "",
+    }
+
+    row["pre_reason"] = f"{women_reason}, class={lane1.get('racer_class', '')}"
+    return row
+
+
+def _build_runtime_watchlist_row(
+    race_row: dict[str, object],
+    entry_rows: list[dict[str, object]],
+    profile: RuntimeProfileSpec,
+) -> dict[str, object] | None:
+    if profile.strategy_id == "c2" and profile.source_kind == "shared":
+        return _build_c2_watchlist_row(race_row, entry_rows, profile)
+    if profile.source_kind == "shared" and profile.shared_profile is not None:
+        return build_watchlist_row(race_row, entry_rows, profile.shared_profile)
+    if profile.evaluator_kind == "4wind":
+        return _build_4wind_watchlist_row(race_row, entry_rows, profile)
+    return None
+
+
+def _build_runtime_watchlist_sources(
     runtime_root: Path = RUNTIME_ROOT,
     *,
     race_date: str,
 ) -> tuple[list[tuple[str, dict[str, object]]], list[str]]:
-    profiles = [profile for profile in load_runtime_profiles(runtime_root, include_disabled=False) if profile.source_kind == "local"]
+    profiles = load_runtime_profiles(runtime_root, include_disabled=False)
     if not profiles:
         return [], []
 
+    settings = load_settings(runtime_root)
     race_date_compact = race_date.replace("-", "")
     source_rows: list[tuple[str, dict[str, object]]] = []
     source_names: list[str] = []
     with BoatRaceClient(timeout_seconds=30) as client:
         discovered_stadiums: list[str] | None = None
         for profile in profiles:
-            source_name = f"{LOCAL_SOURCE_PREFIX}{profile.profile_id}"
+            source_prefix = SHARED_SOURCE_PREFIX if profile.source_kind == "shared" else LOCAL_SOURCE_PREFIX
+            source_name = f"{source_prefix}{profile.profile_id}"
             source_names.append(source_name)
-            stadiums = [str(code) for code in profile.data.get("stadiums", []) if str(code)]
+            if not profile_enabled(settings, profile.profile_id):
+                continue
+            stadiums: list[str] = []
+            if profile.source_kind == "shared" and profile.shared_profile is not None:
+                stadiums = [str(code) for code in profile.shared_profile.stadiums if str(code)]
+            else:
+                stadiums = [str(code) for code in profile.data.get("stadiums", []) if str(code)]
             if not stadiums:
                 if discovered_stadiums is None:
                     discovered_stadiums = client.discover_active_stadiums(race_date_compact)
@@ -411,9 +602,7 @@ def _build_local_watchlist_sources(
                     )
                     if race_row is None or not entry_rows:
                         continue
-                    row = None
-                    if profile.evaluator_kind == "4wind":
-                        row = _build_4wind_watchlist_row(race_row, entry_rows, profile)
+                    row = _build_runtime_watchlist_row(race_row, entry_rows, profile)
                     if row is not None:
                         source_rows.append((source_name, row))
     return source_rows, source_names
@@ -547,7 +736,7 @@ def _evaluate_runtime_row(
     client: BoatRaceClient,
 ) -> dict[str, bool]:
     if profile.evaluator_kind == "shared" and profile.shared_profile is not None:
-        return enrich_watchlist_row_with_beforeinfo(row, profile.shared_profile, client, SHARED_RAW_ROOT)
+        return enrich_watchlist_row_with_beforeinfo(row, profile.shared_profile, client, raw_root(runtime_root))
 
     if profile.evaluator_kind != "4wind":
         row["status"] = "error"
@@ -688,8 +877,11 @@ def _connect_db(runtime_root: Path = RUNTIME_ROOT) -> sqlite3.Connection:
     runtime_root.mkdir(parents=True, exist_ok=True)
     target_db_path = db_path(runtime_root)
     target_db_path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(target_db_path)
+    connection = sqlite3.connect(target_db_path, timeout=30.0)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA busy_timeout = 30000")
+    connection.execute("PRAGMA journal_mode = WAL")
+    connection.execute("PRAGMA synchronous = NORMAL")
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
 
@@ -698,6 +890,7 @@ def initialize_runtime(runtime_root: Path = RUNTIME_ROOT) -> None:
     runtime_root = Path(runtime_root)
     target_data_dir = data_dir(runtime_root)
     target_data_dir.mkdir(parents=True, exist_ok=True)
+    target_db_path = db_path(runtime_root)
 
     target_settings_path = settings_path(runtime_root)
     if not target_settings_path.exists():
@@ -705,6 +898,10 @@ def initialize_runtime(runtime_root: Path = RUNTIME_ROOT) -> None:
             json.dumps(DEFAULT_SETTINGS, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
+
+    cache_key = str(target_db_path.resolve())
+    if cache_key in _INITIALIZED_DB_PATHS and target_db_path.exists():
+        return
 
     with _connect_db(runtime_root) as connection:
         connection.executescript(
@@ -790,7 +987,7 @@ def initialize_runtime(runtime_root: Path = RUNTIME_ROOT) -> None:
             CREATE INDEX IF NOT EXISTS idx_session_events_event_type ON session_events (event_type);
             """
         )
-        connection.commit()
+    _INITIALIZED_DB_PATHS.add(cache_key)
 
 
 def load_settings(runtime_root: Path = RUNTIME_ROOT) -> dict[str, Any]:
@@ -867,6 +1064,52 @@ def _log(runtime_root: Path, message: str) -> None:
     log_file.parent.mkdir(parents=True, exist_ok=True)
     with log_file.open("a", encoding="utf-8") as handle:
         handle.write(timestamped + "\n")
+
+
+def _pid_is_running(pid: int | None) -> bool:
+    if pid is None or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def _read_auto_loop_pid(runtime_root: Path = RUNTIME_ROOT) -> int | None:
+    pid_path = auto_loop_pid_path(runtime_root)
+    if not pid_path.exists():
+        return None
+    try:
+        return int(pid_path.read_text(encoding="utf-8").strip())
+    except ValueError:
+        return None
+
+
+def _claim_auto_loop_pid(runtime_root: Path = RUNTIME_ROOT) -> int | None:
+    pid_path = auto_loop_pid_path(runtime_root)
+    pid_path.parent.mkdir(parents=True, exist_ok=True)
+    current_pid = os.getpid()
+    while True:
+        try:
+            descriptor = os.open(pid_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            existing_pid = _read_auto_loop_pid(runtime_root)
+            if existing_pid == current_pid:
+                return None
+            if existing_pid is not None and _pid_is_running(existing_pid):
+                return existing_pid
+            pid_path.unlink(missing_ok=True)
+            continue
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(str(current_pid))
+        return None
+
+
+def _release_auto_loop_pid(runtime_root: Path = RUNTIME_ROOT) -> None:
+    pid_path = auto_loop_pid_path(runtime_root)
+    if _read_auto_loop_pid(runtime_root) == os.getpid():
+        pid_path.unlink(missing_ok=True)
 
 
 def _load_module_from_path(module_name: str, path: Path) -> ModuleType:
@@ -1092,26 +1335,15 @@ def _preserve_evaluated_payload(existing_target: sqlite3.Row, row: dict[str, obj
     return merged
 
 
-def _shared_watchlist_sources(target_race_date: str) -> tuple[list[tuple[str, dict[str, object]]], list[str]]:
-    watchlist_files = sorted(SHARED_WATCHLIST_ROOT.glob("*.csv")) if SHARED_WATCHLIST_ROOT.exists() else []
-    source_rows: list[tuple[str, dict[str, object]]] = []
-    for watchlist_path in watchlist_files:
-        for row in read_watchlist(watchlist_path):
-            if str(row.get("race_date", "")) != target_race_date:
-                continue
-            if not row.get("race_id") or not row.get("profile_id"):
-                continue
-            source_rows.append((watchlist_path.name, dict(row)))
-    return source_rows, [path.name for path in watchlist_files]
-
-
 def sync_watchlists(runtime_root: Path = RUNTIME_ROOT, *, race_date: str | None = None) -> dict[str, Any]:
     initialize_runtime(runtime_root)
     target_race_date = _normalize_race_date(race_date)
-    shared_rows, shared_source_names = _shared_watchlist_sources(target_race_date)
-    local_rows, local_source_names = _build_local_watchlist_sources(runtime_root, race_date=target_race_date)
-    source_rows = [*shared_rows, *local_rows]
-    source_names = [*shared_source_names, *local_source_names]
+    settings = load_settings(runtime_root)
+    profiles = load_runtime_profiles(runtime_root, include_disabled=False)
+    active_profiles = [profile for profile in profiles if profile_enabled(settings, profile.profile_id)]
+    source_rows, source_names = _build_runtime_watchlist_sources(runtime_root, race_date=target_race_date)
+    shared_profiles = sum(1 for profile in active_profiles if profile.source_kind == "shared")
+    local_profiles = sum(1 for profile in active_profiles if profile.source_kind == "local")
     imported = 0
     updated = 0
     withdrawn = 0
@@ -1302,8 +1534,8 @@ def sync_watchlists(runtime_root: Path = RUNTIME_ROOT, *, race_date: str | None 
 
     return {
         "race_date": target_race_date,
-        "shared_files": len(shared_source_names),
-        "local_profiles": len(local_source_names),
+        "shared_profiles": shared_profiles,
+        "local_profiles": local_profiles,
         "source_rows": len(source_rows),
         "imported": imported,
         "updated": updated,
@@ -2331,30 +2563,38 @@ def auto_loop(
     max_cycles: int | None = None,
 ) -> dict[str, Any]:
     initialize_runtime(runtime_root)
+    existing_pid = _claim_auto_loop_pid(runtime_root)
+    if existing_pid is not None:
+        _log(runtime_root, f"auto-loop already running on PID {existing_pid}; exiting duplicate process")
+        return {"cycles": 0, "stopped": True, "already_running": True, "existing_pid": existing_pid}
+
     cycles = 0
-    while True:
-        settings = load_settings(runtime_root)
-        if not settings.get("system_running", False):
-            _log(runtime_root, "system_running=false, exiting loop")
-            break
+    try:
+        while True:
+            settings = load_settings(runtime_root)
+            if not settings.get("system_running", False):
+                _log(runtime_root, "system_running=false, exiting loop")
+                break
 
-        cycle_result = run_cycle(runtime_root)
-        cycles += 1
-        _log(runtime_root, f"cycle completed: {json.dumps(cycle_result, ensure_ascii=False)}")
-        if max_cycles is not None and cycles >= max_cycles:
-            _log(runtime_root, f"max_cycles={max_cycles} reached")
-            break
+            cycle_result = run_cycle(runtime_root)
+            cycles += 1
+            _log(runtime_root, f"cycle completed: {json.dumps(cycle_result, ensure_ascii=False)}")
+            if max_cycles is not None and cycles >= max_cycles:
+                _log(runtime_root, f"max_cycles={max_cycles} reached")
+                break
 
-        poll_seconds = max(5, int(settings.get("poll_seconds", 30)))
-        _log(runtime_root, f"sleeping {poll_seconds}s until next cycle")
-        remaining = poll_seconds
-        while remaining > 0:
-            chunk = min(5, remaining)
-            time.sleep(chunk)
-            remaining -= chunk
-            if not load_settings(runtime_root).get("system_running", False):
-                _log(runtime_root, "stop requested while sleeping")
-                return {"cycles": cycles, "stopped": True}
+            poll_seconds = max(5, int(settings.get("poll_seconds", 30)))
+            _log(runtime_root, f"sleeping {poll_seconds}s until next cycle")
+            remaining = poll_seconds
+            while remaining > 0:
+                chunk = min(5, remaining)
+                time.sleep(chunk)
+                remaining -= chunk
+                if not load_settings(runtime_root).get("system_running", False):
+                    _log(runtime_root, "stop requested while sleeping")
+                    return {"cycles": cycles, "stopped": True}
+    finally:
+        _release_auto_loop_pid(runtime_root)
 
     return {"cycles": cycles, "stopped": False}
 

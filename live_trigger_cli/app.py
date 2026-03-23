@@ -4,12 +4,14 @@ import os
 import sqlite3
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 APP_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = APP_ROOT.parent
@@ -19,6 +21,7 @@ if str(REPO_ROOT) not in sys.path:
 from live_trigger_cli import runtime
 
 PID_FILE = runtime.data_dir() / "auto_loop.pid"
+AUTO_REFRESH_INTERVAL_SECONDS = 5
 
 EXECUTION_MODE_LABELS = {
     "air": "Air",
@@ -61,72 +64,81 @@ st.markdown(
     """
     <style>
     .stApp {
-        color: #132a3a;
+        color: #f5f7fb;
         background:
-            radial-gradient(circle at top left, rgba(224, 244, 255, 0.92), transparent 34%),
-            radial-gradient(circle at top right, rgba(255, 241, 214, 0.90), transparent 32%),
-            linear-gradient(180deg, #f8fbff 0%, #f6f1e7 100%);
+            radial-gradient(circle at top left, rgba(29, 78, 137, 0.24), transparent 28%),
+            radial-gradient(circle at top right, rgba(203, 143, 33, 0.18), transparent 24%),
+            linear-gradient(180deg, #04070b 0%, #0a1018 42%, #111822 100%);
     }
     .block-container {
         padding-top: 1.4rem;
         padding-bottom: 2rem;
         max-width: 1300px;
     }
+    .stApp h1,
+    .stApp h2,
+    .stApp h3,
+    .stApp h4,
+    .stApp h5,
+    .stApp h6 {
+        color: #f8fbff !important;
+    }
     .stApp, .stApp p, .stApp label, .stApp span, .stApp div {
         color: inherit;
     }
     .cli-hero {
-        background: linear-gradient(135deg, #103a54 0%, #1f6b73 56%, #e7a500 100%);
+        background: linear-gradient(135deg, #08111a 0%, #113a58 48%, #9d6c08 100%);
         color: #ffffff;
         border-radius: 22px;
         padding: 1.25rem 1.4rem;
         margin-bottom: 1rem;
-        box-shadow: 0 18px 44px rgba(16, 58, 84, 0.18);
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35);
     }
     .cli-hero * {
         color: #ffffff !important;
     }
     .cli-note {
-        background: rgba(255, 255, 255, 0.78);
-        border: 1px solid rgba(16, 58, 84, 0.10);
+        background: rgba(12, 18, 28, 0.88);
+        border: 1px solid rgba(115, 145, 173, 0.18);
         border-radius: 16px;
         padding: 0.95rem 1rem;
         margin-bottom: 0.8rem;
-        box-shadow: 0 10px 26px rgba(16, 58, 84, 0.06);
+        box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22);
     }
     .cli-note code {
-        color: #9df4b5 !important;
-        background: #142433;
+        color: #b5ffcd !important;
+        background: #08111a;
         border-radius: 8px;
         padding: 0.12rem 0.35rem;
     }
     div[data-testid="stMetric"] {
-        background: rgba(255, 255, 255, 0.82);
-        border: 1px solid rgba(16, 58, 84, 0.10);
+        background: rgba(10, 16, 24, 0.9);
+        border: 1px solid rgba(115, 145, 173, 0.18);
         border-radius: 18px;
         padding: 0.9rem 1rem;
-        box-shadow: 0 10px 28px rgba(16, 58, 84, 0.06);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
     }
     div[data-testid="stMetricLabel"] p {
-        color: #4c6475 !important;
+        color: #a6b7c9 !important;
         font-weight: 600;
     }
     div[data-testid="stMetricValue"] {
-        color: #163247 !important;
+        color: #f7fbff !important;
     }
     .stTabs [data-baseweb="tab-list"] {
         gap: 0.35rem;
     }
     .stTabs [data-baseweb="tab"] {
-        background: rgba(255, 255, 255, 0.52);
+        background: rgba(12, 18, 28, 0.86);
         border-radius: 12px 12px 0 0;
-        color: #537083;
+        color: #a2b5c8;
         padding: 0.55rem 0.9rem 0.7rem;
+        border: 1px solid rgba(115, 145, 173, 0.14);
     }
     .stTabs [aria-selected="true"] {
-        color: #103a54 !important;
-        background: rgba(255, 255, 255, 0.92) !important;
-        border-bottom: 3px solid #e26d38 !important;
+        color: #ffffff !important;
+        background: rgba(18, 48, 73, 0.96) !important;
+        border-bottom: 3px solid #f3b23a !important;
         font-weight: 700;
     }
     div[data-testid="stForm"],
@@ -135,10 +147,59 @@ st.markdown(
     div[data-testid="stAlert"] {
         border-radius: 16px;
     }
+    div[data-testid="stForm"],
+    div[data-testid="stDataFrame"],
+    div[data-testid="stCodeBlock"],
+    div[data-testid="stAlert"],
+    div[data-testid="stJson"] {
+        background: rgba(10, 16, 24, 0.86);
+        border: 1px solid rgba(115, 145, 173, 0.14);
+    }
+    .stTextInput label,
+    .stTextArea label,
+    .stDateInput label,
+    .stNumberInput label,
+    .stSelectbox label,
+    .stCheckbox label,
+    .stRadio label {
+        color: #dbe7f2 !important;
+    }
+    .stTextInput input,
+    .stTextArea textarea,
+    .stDateInput input,
+    .stNumberInput input {
+        color: #f8fbff !important;
+        background: #121923 !important;
+        border: 1px solid rgba(115, 145, 173, 0.2) !important;
+    }
+    div[data-baseweb="base-input"] > div,
+    div[data-baseweb="select"] > div,
+    div[data-baseweb="textarea"] > div {
+        background: #121923 !important;
+        color: #f8fbff !important;
+        border-color: rgba(115, 145, 173, 0.2) !important;
+    }
+    div[data-baseweb="select"] * {
+        color: #f8fbff !important;
+    }
     .stButton > button,
     .stDownloadButton > button {
         border-radius: 12px;
-        border: 1px solid rgba(16, 58, 84, 0.12);
+        border: 1px solid rgba(115, 145, 173, 0.2);
+        background: linear-gradient(180deg, #161d28 0%, #0f141d 100%);
+        color: #f8fbff;
+    }
+    .stButton > button:hover,
+    .stDownloadButton > button:hover {
+        border-color: rgba(243, 178, 58, 0.45);
+        color: #ffffff;
+    }
+    div[data-testid="stCodeBlock"] pre,
+    div[data-testid="stCodeBlock"] code,
+    div[data-testid="stJson"] pre,
+    div[data-testid="stJson"] code {
+        color: #f8fbff !important;
+        background: #0a1018 !important;
     }
     </style>
     """,
@@ -153,6 +214,33 @@ def _notify_success(payload: dict[str, Any], *, label: str) -> None:
 
 def _notify_error(exc: Exception) -> None:
     st.error(str(exc))
+
+
+def _apply_auto_refresh(enabled: bool, *, interval_seconds: int = AUTO_REFRESH_INTERVAL_SECONDS) -> None:
+    interval_ms = max(1, int(interval_seconds)) * 1000
+    if enabled:
+        script = f"""
+        <script>
+        const parentWindow = window.parent;
+        if (parentWindow.__liveTriggerCliRefreshTimer) {{
+            clearTimeout(parentWindow.__liveTriggerCliRefreshTimer);
+        }}
+        parentWindow.__liveTriggerCliRefreshTimer = setTimeout(() => {{
+            parentWindow.location.reload();
+        }}, {interval_ms});
+        </script>
+        """
+    else:
+        script = """
+        <script>
+        const parentWindow = window.parent;
+        if (parentWindow.__liveTriggerCliRefreshTimer) {
+            clearTimeout(parentWindow.__liveTriggerCliRefreshTimer);
+            parentWindow.__liveTriggerCliRefreshTimer = null;
+        }
+        </script>
+        """
+    components.html(script, height=0)
 
 
 def _pid_is_running(pid: int | None) -> bool:
@@ -194,11 +282,22 @@ def _tail_log(path: Path, *, lines: int = 80) -> str:
 def _read_query(query: str, params: tuple[Any, ...] = ()) -> pd.DataFrame:
     if not runtime.db_path().exists():
         return pd.DataFrame()
-    connection = sqlite3.connect(runtime.db_path())
+    connection = sqlite3.connect(runtime.db_path(), timeout=2.0)
+    connection.execute("PRAGMA busy_timeout = 2000")
+    connection.execute("PRAGMA query_only = ON")
     try:
         return pd.read_sql_query(query, connection, params=params)
+    except Exception:
+        return pd.DataFrame()
     finally:
         connection.close()
+
+
+def _load_summary() -> tuple[dict[str, Any], str | None]:
+    try:
+        return runtime.latest_summary(), None
+    except Exception as exc:
+        return {"targets_by_status": {}, "intents_by_status": {}}, str(exc)
 
 
 def _status_text(value: Any) -> str:
@@ -440,15 +539,40 @@ def _parse_bet_lines(text: str) -> list[dict[str, Any]]:
 
 def _spawn_auto_loop() -> int:
     runtime.initialize_runtime()
-    log_file = runtime.auto_run_log_path()
-    log_file.parent.mkdir(parents=True, exist_ok=True)
-    handle = log_file.open("a", encoding="utf-8")
+    existing_pid = _read_pid()
+    if _pid_is_running(existing_pid):
+        return int(existing_pid)
+    creationflags = 0
+    creationflags |= getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    creationflags |= getattr(subprocess, "DETACHED_PROCESS", 0)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(
+        value
+        for value in (
+            str(REPO_ROOT),
+            str(REPO_ROOT / "src"),
+            env.get("PYTHONPATH", ""),
+        )
+        if value
+    )
     process = subprocess.Popen(
         [sys.executable, "-m", "live_trigger_cli", "auto-loop"],
         cwd=str(REPO_ROOT),
-        stdout=handle,
-        stderr=handle,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL,
+        close_fds=True,
+        creationflags=creationflags,
+        env=env,
     )
+    deadline = time.time() + 3.0
+    while time.time() < deadline:
+        running_pid = _read_pid()
+        if _pid_is_running(running_pid):
+            return int(running_pid)
+        if process.poll() is not None:
+            break
+        time.sleep(0.1)
     _write_pid(process.pid)
     return int(process.pid)
 
@@ -485,11 +609,36 @@ def _save_profile_table(edited: pd.DataFrame, current_settings: dict[str, Any]) 
     )
 
 
+def _profile_generation_summary() -> dict[str, Any]:
+    profiles = runtime.load_runtime_profiles(include_disabled=True)
+    return {
+        "shared_profiles": [profile.profile_id for profile in profiles if profile.source_kind == "shared"],
+        "local_profiles": [profile.profile_id for profile in profiles if profile.source_kind == "local"],
+        "raw_root": str(runtime.raw_root()),
+    }
+
+
 _clear_pid_if_stale()
 settings = runtime.load_settings()
-summary = runtime.latest_summary()
+summary, summary_warning = _load_summary()
 pid = _read_pid()
 loop_running = _pid_is_running(pid)
+generation_summary = _profile_generation_summary()
+
+if "ui_auto_refresh" not in st.session_state:
+    st.session_state["ui_auto_refresh"] = True
+
+refresh_cols = st.columns([1.1, 2.4, 1.5])
+auto_refresh_enabled = refresh_cols[0].toggle(
+    "5秒自動更新",
+    key="ui_auto_refresh",
+    help="状態表示を5秒ごとに更新します。設定入力や手動テスト中は OFF 推奨です。",
+)
+refresh_cols[1].caption(
+    "loop 状態や summary を 5 秒ごとに読み直します。入力中に邪魔なときは OFF にしてください。"
+)
+refresh_cols[2].caption(f"最終描画: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+_apply_auto_refresh(bool(auto_refresh_enabled))
 
 st.markdown(
     """
@@ -525,10 +674,36 @@ tab_overview, tab_settings, tab_actions, tab_manual, tab_data = st.tabs(
 )
 
 with tab_overview:
+    if summary_warning:
+        st.warning(f"概要集計を一時的に読めませんでした: {summary_warning}")
+    st.info(
+        "\n".join(
+            [
+                "使い方の最短手順",
+                "1. 設定 で execution_mode と profile の enabled / amount を決める",
+                "2. 実行 で対象日を入れて sync-watchlists を押す",
+                "3. evaluate-targets で GO 判定と intent を作る",
+                "4. execute-bets で air / real を実行する。まとめてやるなら run-cycle",
+                "5. まずは 手動テスト の confirm_only で確認画面まで試す",
+            ]
+        )
+    )
     col1, col2 = st.columns([1.2, 1.0])
     with col1:
         st.subheader("状態サマリー")
         st.json(summary)
+        st.subheader("このラインが生成する profile")
+        st.write(
+            {
+                "shared_profiles": generation_summary["shared_profiles"],
+                "local_profiles": generation_summary["local_profiles"],
+                "raw_root": generation_summary["raw_root"],
+            }
+        )
+        st.caption(
+            "sync-watchlists は shared watchlist CSV を読むのではなく、shared BOX と local BOX をもとに "
+            "このライン自身の raw キャッシュへ racelist を集めて候補を生成します。"
+        )
     with col2:
         st.subheader("ループ状態")
         st.write(f"PIDファイル: `{PID_FILE}`")
@@ -544,7 +719,7 @@ with tab_overview:
     if latest_targets.empty:
         st.info("まだ target はありません。")
     else:
-        st.dataframe(latest_targets, use_container_width=True, hide_index=True)
+        st.dataframe(latest_targets, width="stretch", hide_index=True)
 
     st.subheader("ログ末尾")
     log_text = _tail_log(runtime.auto_run_log_path(), lines=60)
@@ -641,7 +816,7 @@ with tab_settings:
             value=bool(settings["close_browser_after_execution"]),
         )
 
-        save_basic = st.form_submit_button("基本設定を保存", use_container_width=True)
+        save_basic = st.form_submit_button("基本設定を保存", width="stretch")
         if save_basic:
             try:
                 result = runtime.configure_runtime(
@@ -672,7 +847,7 @@ with tab_settings:
     profile_frame = _profile_frame(runtime.load_settings())
     edited_profiles = st.data_editor(
         profile_frame,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         num_rows="fixed",
         column_config={
@@ -685,7 +860,7 @@ with tab_settings:
         },
         key="live_trigger_cli_profile_editor",
     )
-    if st.button("Profile設定を保存", use_container_width=True):
+    if st.button("Profile設定を保存", width="stretch"):
         try:
             result = _save_profile_table(edited_profiles, runtime.load_settings())
             _notify_success(result, label="Profile設定")
@@ -700,6 +875,12 @@ with tab_actions:
     with col2:
         as_of_text = st.text_input("as_of 基準時刻", value="")
 
+    st.info(
+        f"{race_date} は新ライン自身が `125 / c2 / 4wind` を生成します。"
+        " shared watchlist CSV が空でも問題ありません。"
+    )
+    st.caption("基本の順番は `sync-watchlists -> evaluate-targets -> execute-bets` です。まとめてやるなら `run-cycle` を使います。")
+
     try:
         as_of_value = _parse_datetime_text(as_of_text) if as_of_text.strip() else None
     except ValueError as exc:
@@ -707,44 +888,44 @@ with tab_actions:
         st.error(str(exc))
 
     row1 = st.columns(4)
-    if row1[0].button("sync-watchlists", use_container_width=True):
+    if row1[0].button("sync-watchlists", width="stretch"):
         try:
-            with st.spinner("shared watchlist を取り込み中..."):
+            with st.spinner("新ライン用 watchlist を生成中..."):
                 _notify_success(runtime.sync_watchlists(race_date=race_date), label="sync-watchlists")
         except Exception as exc:  # noqa: BLE001
             _notify_error(exc)
-    if row1[1].button("evaluate-targets", use_container_width=True):
+    if row1[1].button("evaluate-targets", width="stretch"):
         try:
-            with st.spinner("beforeinfo を評価中..."):
+            with st.spinner("beforeinfo と odds を評価中..."):
                 _notify_success(runtime.evaluate_targets(race_date=race_date, as_of=as_of_value), label="evaluate-targets")
         except Exception as exc:  # noqa: BLE001
             _notify_error(exc)
-    if row1[2].button("execute-bets", use_container_width=True):
+    if row1[2].button("execute-bets", width="stretch"):
         try:
             with st.spinner("pending intents を実行中..."):
                 _notify_success(runtime.execute_bets(race_date=race_date, as_of=as_of_value), label="execute-bets")
         except Exception as exc:  # noqa: BLE001
             _notify_error(exc)
-    if row1[3].button("run-cycle", use_container_width=True):
+    if row1[3].button("run-cycle", width="stretch"):
         try:
-            with st.spinner("1サイクル実行中..."):
+            with st.spinner("1 サイクル実行中..."):
                 _notify_success(runtime.run_cycle(race_date=race_date, as_of=as_of_value), label="run-cycle")
         except Exception as exc:  # noqa: BLE001
             _notify_error(exc)
 
     st.subheader("ループ制御")
     loop_cols = st.columns(3)
-    if loop_cols[0].button("system_running を ON", use_container_width=True):
+    if loop_cols[0].button("system_running を ON", width="stretch"):
         try:
             _notify_success(runtime.configure_runtime(setting_overrides={"system_running": True}), label="system_running ON")
         except Exception as exc:  # noqa: BLE001
             _notify_error(exc)
-    if loop_cols[1].button("system_running を OFF", use_container_width=True):
+    if loop_cols[1].button("system_running を OFF", width="stretch"):
         try:
             _notify_success(runtime.configure_runtime(setting_overrides={"system_running": False}), label="system_running OFF")
         except Exception as exc:  # noqa: BLE001
             _notify_error(exc)
-    if loop_cols[2].button("auto-loop を起動", use_container_width=True):
+    if loop_cols[2].button("auto-loop を起動", width="stretch"):
         try:
             if loop_running:
                 st.warning(f"auto-loop はすでに PID `{pid}` で起動中です。")
@@ -786,7 +967,7 @@ with tab_manual:
     manual_timeout = manual_settings_row[1].number_input("manual timeout", min_value=30, value=180, step=30)
     login_timeout = manual_settings_row[2].number_input("login timeout", min_value=30, value=120, step=30)
 
-    if st.button("手動テストを実行", use_container_width=True):
+    if st.button("手動テストを実行", width="stretch"):
         try:
             payload: dict[str, Any] = {
                 "test_mode": test_mode,
@@ -823,28 +1004,28 @@ with tab_data:
         if frame.empty:
             st.info("target はまだありません。")
         else:
-            st.dataframe(frame, use_container_width=True, hide_index=True)
+            st.dataframe(frame, width="stretch", hide_index=True)
     with subtab2:
         frame = _latest_intents_frame()
         if frame.empty:
             st.info("intent はまだありません。")
         else:
-            st.dataframe(frame, use_container_width=True, hide_index=True)
+            st.dataframe(frame, width="stretch", hide_index=True)
     with subtab3:
         frame = _latest_executions_frame()
         if frame.empty:
             st.info("execution はまだありません。")
         else:
-            st.dataframe(frame, use_container_width=True, hide_index=True)
+            st.dataframe(frame, width="stretch", hide_index=True)
     with subtab4:
         frame = _latest_events_frame()
         if frame.empty:
             st.info("event はまだありません。")
         else:
-            st.dataframe(frame, use_container_width=True, hide_index=True)
+            st.dataframe(frame, width="stretch", hide_index=True)
     with subtab5:
         frame = _latest_session_events_frame()
         if frame.empty:
             st.info("session event はまだありません。")
         else:
-            st.dataframe(frame, use_container_width=True, hide_index=True)
+            st.dataframe(frame, width="stretch", hide_index=True)

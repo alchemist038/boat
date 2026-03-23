@@ -45,6 +45,8 @@ live_trigger/auto_system/data/teleboat_screenshots/
 live_trigger/auto_system/data/teleboat_session_state.json
 live_trigger/auto_system/data/teleboat_storage_state.json
 live_trigger/auto_system/data/teleboat_resident_browser.json
+live_trigger_cli/data/**
+live_trigger_cli/raw/**
 
 !data/raw/.gitkeep
 !data/bronze/.gitkeep
@@ -57,4 +59,6 @@ live_trigger/auto_system/data/teleboat_resident_browser.json
 !live_trigger/watchlists/.gitkeep
 !live_trigger/ready/.gitkeep
 !live_trigger/plans/.gitkeep
+!live_trigger_cli/data/.gitignore
+!live_trigger_cli/raw/.gitignore
 live_trigger/boxes/**/desktop.ini
