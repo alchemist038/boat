@@ -815,6 +815,27 @@ with tab_settings:
             "実行後にブラウザを閉じる",
             value=bool(settings["close_browser_after_execution"]),
         )
+        st.caption("Telegram GO 通知")
+        tg_col1, tg_col2 = st.columns(2)
+        telegram_enabled = tg_col1.checkbox(
+            "Telegram 通知を有効化",
+            value=bool(settings.get("telegram_enabled", False)),
+        )
+        telegram_go_notifications = tg_col2.checkbox(
+            "GO 通知を送る",
+            value=bool(settings.get("telegram_go_notifications", True)),
+        )
+        telegram_token = st.text_input(
+            "telegram_bot_token",
+            value=str(settings.get("telegram_bot_token", "")),
+            type="password",
+            help="未入力なら LIVE_TRIGGER_TELEGRAM_BOT_TOKEN / TELEGRAM_BOT_TOKEN を使います。",
+        )
+        telegram_chat_id = st.text_input(
+            "telegram_chat_id",
+            value=str(settings.get("telegram_chat_id", "")),
+            help="未入力なら LIVE_TRIGGER_TELEGRAM_CHAT_ID / TELEGRAM_CHAT_ID を使います。",
+        )
 
         save_basic = st.form_submit_button("基本設定を保存", width="stretch")
         if save_basic:
@@ -837,6 +858,10 @@ with tab_settings:
                         "top_stable_confirm_seconds": int(top_stable),
                         "logout_after_execution": logout_after_execution,
                         "close_browser_after_execution": close_browser_after_execution,
+                        "telegram_enabled": telegram_enabled,
+                        "telegram_go_notifications": telegram_go_notifications,
+                        "telegram_bot_token": telegram_token,
+                        "telegram_chat_id": telegram_chat_id,
                     },
                 )
                 _notify_success(result, label="基本設定")

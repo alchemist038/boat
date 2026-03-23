@@ -364,6 +364,113 @@ def test_build_runtime_watchlist_sources_collects_shared_and_local_profiles(
     assert {name for name, _ in source_rows} == set(source_names)
 
 
+def test_normalize_settings_accepts_telegram_fields() -> None:
+    settings = runtime._normalize_settings(
+        {
+            "telegram_enabled": "true",
+            "telegram_go_notifications": "1",
+            "telegram_bot_token": "token-123",
+            "telegram_chat_id": "456",
+        }
+    )
+
+    assert settings["telegram_enabled"] is True
+    assert settings["telegram_go_notifications"] is True
+    assert settings["telegram_bot_token"] == "token-123"
+    assert settings["telegram_chat_id"] == "456"
+
+
+def test_notify_telegram_go_logs_once(monkeypatch, tmp_path: Path) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime.initialize_runtime(runtime_root)
+    connection = sqlite3.connect(runtime.db_path(runtime_root))
+    connection.row_factory = sqlite3.Row
+    try:
+        now = runtime._format_datetime(datetime(2026, 3, 23, 10, 0, 0))
+        connection.execute(
+            """
+            INSERT INTO target_races (
+                target_key, race_id, race_date, stadium_code, stadium_name, race_no,
+                profile_id, strategy_id, source_watchlist_file, deadline_at, watch_start_at,
+                imported_at, updated_at, status, row_status, last_reason, payload_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "202603230101::4wind_base_415",
+                "202603230101",
+                "2026-03-23",
+                "01",
+                "桐生",
+                1,
+                "4wind_base_415",
+                "4wind",
+                "local::4wind_base_415",
+                "2026-03-23 10:10:00",
+                "2026-03-23 09:55:00",
+                now,
+                now,
+                "intent_created",
+                "trigger_ready",
+                "go",
+                "{}",
+            ),
+        )
+        connection.execute(
+            """
+            INSERT INTO bet_intents (
+                target_race_id, intent_key, execution_mode, status, bet_type, combo, amount, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (1, "intent-a", "assist_real", "pending", "exacta", "4-1", 100, now),
+        )
+        settings = runtime._normalize_settings(
+            {
+                "telegram_enabled": True,
+                "telegram_go_notifications": True,
+                "telegram_bot_token": "token-123",
+                "telegram_chat_id": "999",
+            }
+        )
+        sent_payloads: list[tuple[str, str, str]] = []
+
+        def fake_send_message(*, token: str, chat_id: str, text: str) -> dict[str, object]:
+            sent_payloads.append((token, chat_id, text))
+            return {"ok": True, "result": {"message_id": 321}}
+
+        monkeypatch.setattr(runtime, "_telegram_send_message", fake_send_message)
+        target = connection.execute("SELECT * FROM target_races WHERE id = 1").fetchone()
+
+        sent = runtime._notify_telegram_go(
+            connection,
+            target=target,
+            settings=settings,
+            reason="min_odds=12.40",
+            mode="assist_real",
+        )
+        sent_again = runtime._notify_telegram_go(
+            connection,
+            target=target,
+            settings=settings,
+            reason="min_odds=12.40",
+            mode="assist_real",
+        )
+
+        logged = connection.execute(
+            "SELECT event_type, message FROM execution_events WHERE event_type = 'telegram_go_notified'"
+        ).fetchall()
+
+        assert sent is True
+        assert sent_again is False
+        assert len(sent_payloads) == 1
+        assert sent_payloads[0][0] == "token-123"
+        assert sent_payloads[0][1] == "999"
+        assert "GO" in sent_payloads[0][2]
+        assert "4wind_base_415" in sent_payloads[0][2]
+        assert len(logged) == 1
+    finally:
+        connection.close()
+
+
 def test_evaluate_runtime_row_for_shared_profile_uses_runtime_raw_root(monkeypatch, tmp_path: Path) -> None:
     profile = next(
         profile

@@ -6,6 +6,8 @@ import os
 import sqlite3
 import sys
 import time
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import lru_cache
@@ -65,6 +67,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "top_stable_confirm_seconds": 3,
     "logout_after_execution": True,
     "close_browser_after_execution": True,
+    "telegram_enabled": False,
+    "telegram_go_notifications": True,
+    "telegram_bot_token": "",
+    "telegram_chat_id": "",
 }
 
 EARLY_TARGET_STATUSES = {"imported", "monitoring", "checked_waiting"}
@@ -155,6 +161,15 @@ def _json_dumps(payload: dict[str, Any] | list[Any] | None) -> str | None:
     if payload is None:
         return None
     return json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
+def _mask_secret(value: str, *, keep: int = 4) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if len(text) <= keep:
+        return "*" * len(text)
+    return f"{'*' * max(0, len(text) - keep)}{text[-keep:]}"
 
 
 def _normalize_bool(value: Any, *, default: bool) -> bool:
@@ -879,6 +894,20 @@ def _normalize_settings(payload: dict[str, Any] | None) -> dict[str, Any]:
         merged.get("close_browser_after_execution"),
         default=bool(DEFAULT_SETTINGS["close_browser_after_execution"]),
     )
+    merged["telegram_enabled"] = _normalize_bool(
+        merged.get("telegram_enabled"),
+        default=bool(DEFAULT_SETTINGS["telegram_enabled"]),
+    )
+    merged["telegram_go_notifications"] = _normalize_bool(
+        merged.get("telegram_go_notifications"),
+        default=bool(DEFAULT_SETTINGS["telegram_go_notifications"]),
+    )
+    merged["telegram_bot_token"] = str(
+        merged.get("telegram_bot_token", DEFAULT_SETTINGS["telegram_bot_token"])
+    ).strip()
+    merged["telegram_chat_id"] = str(
+        merged.get("telegram_chat_id", DEFAULT_SETTINGS["telegram_chat_id"])
+    ).strip()
     return merged
 
 
@@ -1320,6 +1349,137 @@ def _log_session_event(
             _json_dumps(details),
         ),
     )
+
+
+def _telegram_bot_token(settings: dict[str, Any]) -> str:
+    return str(
+        os.environ.get("LIVE_TRIGGER_TELEGRAM_BOT_TOKEN")
+        or os.environ.get("TELEGRAM_BOT_TOKEN")
+        or settings.get("telegram_bot_token")
+        or ""
+    ).strip()
+
+
+def _telegram_chat_id(settings: dict[str, Any]) -> str:
+    return str(
+        os.environ.get("LIVE_TRIGGER_TELEGRAM_CHAT_ID")
+        or os.environ.get("TELEGRAM_CHAT_ID")
+        or settings.get("telegram_chat_id")
+        or ""
+    ).strip()
+
+
+def _telegram_go_notifications_enabled(settings: dict[str, Any]) -> bool:
+    return bool(settings.get("telegram_enabled")) and bool(settings.get("telegram_go_notifications"))
+
+
+def _target_has_event(connection: sqlite3.Connection, *, target_race_id: int, event_type: str) -> bool:
+    row = connection.execute(
+        """
+        SELECT 1
+        FROM execution_events
+        WHERE target_race_id = ?
+          AND event_type = ?
+        LIMIT 1
+        """,
+        (target_race_id, event_type),
+    ).fetchone()
+    return row is not None
+
+
+def _target_intents(connection: sqlite3.Connection, *, target_race_id: int) -> list[sqlite3.Row]:
+    return connection.execute(
+        """
+        SELECT bet_type, combo, amount, execution_mode
+        FROM bet_intents
+        WHERE target_race_id = ?
+        ORDER BY id ASC
+        """,
+        (target_race_id,),
+    ).fetchall()
+
+
+def _format_go_notification(target: sqlite3.Row, intents: list[sqlite3.Row], *, reason: str, mode: str) -> str:
+    header = [
+        "GO",
+        f"{target['race_date']} {target['stadium_name'] or target['stadium_code']} {target['race_no']}R",
+        f"profile: {target['profile_id']}",
+        f"mode: {mode}",
+    ]
+    if reason:
+        header.append(f"reason: {reason}")
+    if target["deadline_at"]:
+        header.append(f"deadline: {target['deadline_at']}")
+
+    lines = ["\n".join(header)]
+    if intents:
+        lines.append("bets:")
+        for intent in intents:
+            lines.append(f"- {intent['bet_type']} {intent['combo']} {intent['amount']}")
+    return "\n".join(lines)
+
+
+def _telegram_send_message(*, token: str, chat_id: str, text: str) -> dict[str, Any]:
+    payload = urllib.parse.urlencode(
+        {
+            "chat_id": chat_id,
+            "text": text,
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        data=payload,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=15) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _notify_telegram_go(
+    connection: sqlite3.Connection,
+    *,
+    target: sqlite3.Row,
+    settings: dict[str, Any],
+    reason: str,
+    mode: str,
+) -> bool:
+    target_race_id = int(target["id"])
+    if not _telegram_go_notifications_enabled(settings):
+        return False
+    if _target_has_event(connection, target_race_id=target_race_id, event_type="telegram_go_notified"):
+        return False
+
+    token = _telegram_bot_token(settings)
+    chat_id = _telegram_chat_id(settings)
+    if not token or not chat_id:
+        return False
+
+    intents = _target_intents(connection, target_race_id=target_race_id)
+    text = _format_go_notification(target, intents, reason=reason, mode=mode)
+
+    try:
+        response = _telegram_send_message(token=token, chat_id=chat_id, text=text)
+        _log_event(
+            connection,
+            target_race_id=target_race_id,
+            event_type="telegram_go_notified",
+            message=f"chat={chat_id}",
+            details={
+                "message_id": response.get("result", {}).get("message_id"),
+                "chat_id_masked": _mask_secret(chat_id),
+            },
+        )
+        return True
+    except Exception as exc:  # noqa: BLE001
+        _log_event(
+            connection,
+            target_race_id=target_race_id,
+            event_type="telegram_go_notify_failed",
+            message=str(exc),
+            details={"chat_id_masked": _mask_secret(chat_id)},
+        )
+        return False
 
 
 def _count_target_intents(connection: sqlite3.Connection, target_race_id: int) -> int:
@@ -1875,6 +2035,19 @@ def evaluate_targets(
                         int(target["id"]),
                     ),
                 )
+                if result["ready"]:
+                    refreshed_target = connection.execute(
+                        "SELECT * FROM target_races WHERE id = ?",
+                        (int(target["id"]),),
+                    ).fetchone()
+                    if refreshed_target is not None:
+                        _notify_telegram_go(
+                            connection,
+                            target=refreshed_target,
+                            settings=settings,
+                            reason=new_reason,
+                            mode=execution_mode(settings),
+                        )
                 checked += 1
 
         connection.commit()
