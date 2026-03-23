@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from functools import lru_cache
 import json
 from pathlib import Path
 import time
@@ -32,6 +33,11 @@ WATCHLIST_COLUMNS = [
     "lane1_racer_id",
     "lane1_racer_name",
     "lane1_racer_class",
+    "lane2_racer_class",
+    "lane3_racer_class",
+    "lane4_racer_class",
+    "lane5_racer_class",
+    "lane6_racer_class",
     "lane1_motor_no",
     "lane1_motor_place_rate",
     "lane1_motor_top3_rate",
@@ -44,6 +50,8 @@ WATCHLIST_COLUMNS = [
     "lane1_start_gap_over_rest",
     "beforeinfo_fetched_at",
 ]
+
+CANONICAL_DUCKDB_PATH = Path(r"\\038INS\boat\data\silver\boat_race.duckdb")
 
 
 @dataclass(slots=True)
@@ -274,11 +282,19 @@ def build_watchlist_row(
     entry_rows: list[dict[str, object]],
     profile: TriggerProfile,
 ) -> dict[str, object] | None:
+    if int(race_row.get("is_final_day", 0) or 0) == 1:
+        return None
     lane1 = _entry_by_lane(entry_rows, 1)
     if lane1 is None:
         return None
+    lane2 = _entry_by_lane(entry_rows, 2)
+    lane3 = _entry_by_lane(entry_rows, 3)
+    lane4 = _entry_by_lane(entry_rows, 4)
+    proxy_reason = None
     if not _matches_title_filters(race_row, profile):
-        return None
+        proxy_reason = _c2_all_women_reason(entry_rows, profile)
+        if proxy_reason is None:
+            return None
     if lane1.get("racer_class", "") in profile.lane1_class_exclude:
         return None
     if profile.lane1_class_include and lane1.get("racer_class", "") not in profile.lane1_class_include:
@@ -316,11 +332,16 @@ def build_watchlist_row(
             profile.watch_minutes_before_deadline,
         ),
         "status": "waiting_beforeinfo",
-        "pre_reason": build_pre_reason(lane1, profile),
+        "pre_reason": build_pre_reason(lane1, profile, proxy_reason=proxy_reason),
         "final_reason": "",
         "lane1_racer_id": lane1.get("racer_id", ""),
         "lane1_racer_name": lane1.get("racer_name", ""),
         "lane1_racer_class": lane1.get("racer_class", ""),
+        "lane2_racer_class": "" if lane2 is None else lane2.get("racer_class", ""),
+        "lane3_racer_class": "" if lane3 is None else lane3.get("racer_class", ""),
+        "lane4_racer_class": "" if lane4 is None else lane4.get("racer_class", ""),
+        "lane5_racer_class": "" if lane5 is None else lane5.get("racer_class", ""),
+        "lane6_racer_class": "" if lane6 is None else lane6.get("racer_class", ""),
         "lane1_motor_no": lane1.get("motor_no", ""),
         "lane1_motor_place_rate": lane1.get("motor_place_rate", ""),
         "lane1_motor_top3_rate": lane1.get("motor_top3_rate", ""),
@@ -395,9 +416,16 @@ def enrich_watchlist_row_with_beforeinfo(
     return {"changed": True, "ready": False}
 
 
-def build_pre_reason(lane1: dict[str, object], profile: TriggerProfile) -> str:
+def build_pre_reason(
+    lane1: dict[str, object],
+    profile: TriggerProfile,
+    *,
+    proxy_reason: str | None = None,
+) -> str:
     parts: list[str] = []
-    if profile.meeting_title_keywords_any or profile.race_title_keywords_any:
+    if proxy_reason:
+        parts.append(proxy_reason)
+    elif profile.meeting_title_keywords_any or profile.race_title_keywords_any:
         parts.append("title_proxy")
     parts.append(f"class={lane1.get('racer_class', '')}")
     if profile.lane1_motor_place_rate_min is not None:
@@ -613,6 +641,81 @@ def _entry_by_lane(rows: list[dict[str, object]], lane: int) -> dict[str, object
     for row in rows:
         if int(row.get("lane", 0) or 0) == lane:
             return row
+    return None
+
+
+@lru_cache(maxsize=1)
+def _latest_racer_sex_index() -> dict[str, str]:
+    if not CANONICAL_DUCKDB_PATH.exists():
+        return {}
+    try:
+        import duckdb
+    except ImportError:
+        return {}
+
+    connection = duckdb.connect(str(CANONICAL_DUCKDB_PATH), read_only=True)
+    try:
+        rows = connection.execute(
+            """
+            SELECT racer_id, sex
+            FROM (
+                SELECT
+                    racer_id,
+                    sex,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY racer_id
+                        ORDER BY
+                            TRY_CAST(term_year AS INTEGER) DESC NULLS LAST,
+                            TRY_CAST(term_half AS INTEGER) DESC NULLS LAST,
+                            TRY_CAST(term_end_date AS DATE) DESC NULLS LAST,
+                            fetched_at DESC NULLS LAST
+                    ) AS row_no
+                FROM racer_stats_term
+                WHERE racer_id IS NOT NULL
+                  AND sex IS NOT NULL
+                  AND TRIM(racer_id) <> ''
+                  AND TRIM(sex) <> ''
+            )
+            WHERE row_no = 1
+            """
+        ).fetchall()
+    finally:
+        connection.close()
+
+    return {str(racer_id).strip(): str(sex).strip() for racer_id, sex in rows}
+
+
+def _normalize_racer_id(value: object) -> str | None:
+    if value in {"", None}:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _c2_all_women_reason(entry_rows: list[dict[str, object]], profile: TriggerProfile) -> str | None:
+    if profile.strategy_id != "c2":
+        return None
+
+    lane_rows = [_entry_by_lane(entry_rows, lane) for lane in range(1, 7)]
+    if any(row is None for row in lane_rows):
+        return None
+
+    sex_index = _latest_racer_sex_index()
+    if not sex_index:
+        return None
+
+    sexes: list[str] = []
+    for row in lane_rows:
+        racer_id = _normalize_racer_id(row.get("racer_id")) if row is not None else None
+        if racer_id is None:
+            return None
+        sex = sex_index.get(racer_id)
+        if sex is None:
+            return None
+        sexes.append(sex)
+
+    if all(sex == "2" for sex in sexes):
+        return "women6_proxy"
     return None
 
 

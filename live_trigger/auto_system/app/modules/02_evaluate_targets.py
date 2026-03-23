@@ -40,7 +40,12 @@ def _load_profile_map():
 def _ensure_intents(session, *, target: TargetRace, settings: dict[str, object]) -> int:
     amount = profile_amount(settings, target.profile_id)
     target_mode = execution_mode(settings)
-    bet_rows = build_bet_rows(strategy_id=target.strategy_id, profile_id=target.profile_id, amount=amount)
+    bet_rows = build_bet_rows(
+        strategy_id=target.strategy_id,
+        profile_id=target.profile_id,
+        amount=amount,
+        context={"race_id": target.race_id},
+    )
     if not bet_rows:
         return 0
 

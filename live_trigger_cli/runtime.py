@@ -478,6 +478,9 @@ def _build_c2_watchlist_row(
         return None
 
     lane1 = _entry_by_lane(entry_rows, 1)
+    lane2 = _entry_by_lane(entry_rows, 2)
+    lane3 = _entry_by_lane(entry_rows, 3)
+    lane4 = _entry_by_lane(entry_rows, 4)
     if lane1 is None:
         return None
     if lane1.get("racer_class", "") in shared_profile.lane1_class_exclude:
@@ -521,6 +524,11 @@ def _build_c2_watchlist_row(
         "lane1_racer_id": lane1.get("racer_id", ""),
         "lane1_racer_name": lane1.get("racer_name", ""),
         "lane1_racer_class": lane1.get("racer_class", ""),
+        "lane2_racer_class": "" if lane2 is None else lane2.get("racer_class", ""),
+        "lane3_racer_class": "" if lane3 is None else lane3.get("racer_class", ""),
+        "lane4_racer_class": "" if lane4 is None else lane4.get("racer_class", ""),
+        "lane5_racer_class": "" if lane5 is None else lane5.get("racer_class", ""),
+        "lane6_racer_class": "" if lane6 is None else lane6.get("racer_class", ""),
         "lane1_motor_no": lane1.get("motor_no", ""),
         "lane1_motor_place_rate": lane1.get("motor_place_rate", ""),
         "lane1_motor_top3_rate": lane1.get("motor_top3_rate", ""),
@@ -543,6 +551,8 @@ def _build_runtime_watchlist_row(
     entry_rows: list[dict[str, object]],
     profile: RuntimeProfileSpec,
 ) -> dict[str, object] | None:
+    if int(race_row.get("is_final_day", 0) or 0) == 1:
+        return None
     if profile.strategy_id == "c2" and profile.source_kind == "shared":
         return _build_c2_watchlist_row(race_row, entry_rows, profile)
     if profile.source_kind == "shared" and profile.shared_profile is not None:
@@ -1142,12 +1152,25 @@ def _build_local_bet_rows(*, strategy_id: str, profile_id: str, amount: int) -> 
     return []
 
 
-def _build_bet_rows(*, strategy_id: str, profile_id: str, amount: int) -> list[dict[str, Any]]:
+def _build_bet_rows(
+    *,
+    strategy_id: str,
+    profile_id: str,
+    amount: int,
+    context: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     local_rows = _build_local_bet_rows(strategy_id=strategy_id, profile_id=profile_id, amount=amount)
     if local_rows:
         return local_rows
     module = _load_shared_bets_module()
-    return list(module.build_bet_rows(strategy_id=strategy_id, profile_id=profile_id, amount=amount))
+    return list(
+        module.build_bet_rows(
+            strategy_id=strategy_id,
+            profile_id=profile_id,
+            amount=amount,
+            context=context,
+        )
+    )
 
 
 def _load_fresh_executor_module() -> ModuleType:
@@ -1560,6 +1583,7 @@ def _ensure_intents(
         strategy_id=str(target["strategy_id"]),
         profile_id=str(target["profile_id"]),
         amount=amount,
+        context={"race_id": str(target["race_id"])},
     )
     if not bet_rows:
         return 0

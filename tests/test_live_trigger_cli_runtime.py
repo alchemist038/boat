@@ -192,6 +192,37 @@ def test_build_runtime_watchlist_row_supports_shared_profile() -> None:
     assert row["status"] == "waiting_beforeinfo"
 
 
+def test_build_runtime_watchlist_row_excludes_final_day_for_local_profile() -> None:
+    profile = next(
+        profile
+        for profile in runtime.load_runtime_profiles(include_disabled=True)
+        if profile.profile_id == "4wind_base_415"
+    )
+    race_row = {
+        "race_id": "202603230112",
+        "race_date": "2026-03-23",
+        "stadium_code": "24",
+        "stadium_name": "大村",
+        "race_no": 12,
+        "meeting_title": "一般",
+        "race_title": "予選",
+        "deadline_time": "15:20",
+        "is_final_day": 1,
+    }
+    entry_rows = [
+        {"lane": 1, "racer_id": "1001", "racer_name": "Lane1", "racer_class": "B1"},
+        {"lane": 2, "racer_id": "1002", "racer_name": "Lane2", "racer_class": "A2"},
+        {"lane": 3, "racer_id": "1003", "racer_name": "Lane3", "racer_class": "A1"},
+        {"lane": 4, "racer_id": "1004", "racer_name": "Lane4", "racer_class": "A2"},
+        {"lane": 5, "racer_id": "1005", "racer_name": "Lane5", "racer_class": "B1"},
+        {"lane": 6, "racer_id": "1006", "racer_name": "Lane6", "racer_class": "B2"},
+    ]
+
+    row = runtime._build_runtime_watchlist_row(race_row, entry_rows, profile)
+
+    assert row is None
+
+
 def test_build_runtime_watchlist_row_supports_c2_all_women_proxy(monkeypatch) -> None:
     profile = next(
         profile
@@ -236,6 +267,8 @@ def test_build_runtime_watchlist_row_supports_c2_all_women_proxy(monkeypatch) ->
     assert row["profile_id"] == "c2_provisional_v1"
     assert row["race_id"] == "202603230801"
     assert row["pre_reason"] == "women6_proxy, class=A2"
+    assert row["lane3_racer_class"] == "B2"
+    assert row["lane5_racer_class"] == "B2"
 
 
 def test_build_runtime_watchlist_sources_collects_shared_and_local_profiles(

@@ -59,6 +59,7 @@ def _normalize_air_bet_record(record: dict[str, object]) -> dict[str, object]:
         strategy_id=strategy_id,
         profile_id=logic_name,
         amount=unit_amount,
+        context=normalized,
     )
     if not bet_rows:
         normalized["unit_amount"] = unit_amount
@@ -590,6 +591,7 @@ def main() -> None:
                                     strategy_id=str(r.get("strategy_id") or logic_name),
                                     profile_id=logic_name,
                                     amount=rec_amount,
+                                    context=r,
                                 )
                                 r["unit_amount"] = rec_amount
                                 r["ticket_count"] = sum(

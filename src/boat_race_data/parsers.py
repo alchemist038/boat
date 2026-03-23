@@ -194,6 +194,7 @@ def parse_racelist(
     race_title_text = clean_text(soup.select_one("h3.title16_titleDetail__add2020").get_text(" ", strip=True))
     race_title, distance_m = parse_race_title(race_title_text)
     race_date_iso = f"{race_date[:4]}-{race_date[4:6]}-{race_date[6:8]}"
+    meeting_day_no, meeting_day_label, is_final_day = _parse_meeting_day_info(soup)
 
     race = {
         "race_id": race_id,
@@ -204,6 +205,9 @@ def parse_racelist(
         "meeting_title": meeting_title,
         "race_title": race_title,
         "distance_m": distance_m,
+        "meeting_day_no": meeting_day_no,
+        "meeting_day_label": meeting_day_label,
+        "is_final_day": is_final_day,
         "deadline_time": _deadline_for_race(soup, race_no),
         "source_url": source_url,
         "fetched_at": fetched_at,
