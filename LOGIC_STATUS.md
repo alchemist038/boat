@@ -8,6 +8,7 @@ This file is the parent status doc for logic research, adopted forward logic, an
 - [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
 - [R_CONCEPT.md](./R_CONCEPT.md)
 - [RACER_INDEX_STATUS.md](./RACER_INDEX_STATUS.md)
+- [main_forward_trio_snapshot_20260325.md](./reports/strategies/combined/main_forward_trio_snapshot_20260325.md)
 - [projects/125/README.md](./projects/125/README.md)
 - [projects/4wind/README.md](./projects/4wind/README.md)
 - [live_trigger/PROJECT_RULES.md](./live_trigger/PROJECT_RULES.md)
@@ -31,6 +32,10 @@ Current adopted shared boxes:
 ## 2. Current Main Forward Set
 
 These are the three active forward logic tracks.
+
+Cross-trio DD / ROI snapshot:
+
+- [main_forward_trio_snapshot_20260325.md](./reports/strategies/combined/main_forward_trio_snapshot_20260325.md)
 
 ### `4wind_base_415`
 
