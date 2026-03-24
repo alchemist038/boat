@@ -8,11 +8,38 @@ from types import SimpleNamespace
 from live_trigger_cli import runtime
 
 
-def test_load_runtime_profiles_includes_local_4wind() -> None:
+def test_load_runtime_profiles_includes_shared_4wind() -> None:
     profiles = runtime.load_runtime_profiles(include_disabled=True)
-    profile_ids = {profile.profile_id for profile in profiles}
+    profile_map = {profile.profile_id: profile for profile in profiles}
 
-    assert "4wind_base_415" in profile_ids
+    assert "4wind_base_415" in profile_map
+    assert profile_map["4wind_base_415"].source_kind == "shared"
+    assert profile_map["4wind_base_415"].evaluator_kind == "4wind"
+
+
+def test_load_runtime_profiles_prefers_shared_over_local_duplicate(tmp_path: Path) -> None:
+    runtime_root = tmp_path / "runtime"
+    local_profile_path = runtime_root / "boxes" / "4wind" / "profiles" / "base_415.json"
+    local_profile_path.parent.mkdir(parents=True, exist_ok=True)
+    local_profile_path.write_text(
+        """
+{
+  "box_id": "4wind",
+  "profile_id": "4wind_base_415",
+  "strategy_id": "4wind",
+  "display_name": "Duplicate Local 4wind",
+  "enabled": true,
+  "local_runtime_kind": "4wind"
+}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    profiles = runtime.load_runtime_profiles(runtime_root=runtime_root, include_disabled=True)
+    profile_map = {profile.profile_id: profile for profile in profiles}
+
+    assert profile_map["4wind_base_415"].source_kind == "shared"
+    assert profile_map["4wind_base_415"].display_name == "4wind Base 415"
 
 
 def test_build_bet_rows_supports_4wind_exacta() -> None:
@@ -106,7 +133,7 @@ def test_pending_intent_groups_merge_same_race_and_combine_duplicates(tmp_path: 
                 1,
                 "4wind_base_415",
                 "4wind",
-                "local::4wind_base_415",
+                "shared::4wind_base_415",
                 deadline,
                 "2026-03-22 11:45:00",
                 runtime._format_datetime(now),
@@ -359,7 +386,7 @@ def test_build_runtime_watchlist_sources_collects_shared_and_local_profiles(
     assert set(source_names) == {
         "shared::125_broad_four_stadium",
         "shared::c2_provisional_v1",
-        "local::4wind_base_415",
+        "shared::4wind_base_415",
     }
     assert {name for name, _ in source_rows} == set(source_names)
 
@@ -404,7 +431,7 @@ def test_notify_telegram_go_logs_once(monkeypatch, tmp_path: Path) -> None:
                 1,
                 "4wind_base_415",
                 "4wind",
-                "local::4wind_base_415",
+                "shared::4wind_base_415",
                 "2026-03-23 10:10:00",
                 "2026-03-23 09:55:00",
                 now,
@@ -760,8 +787,8 @@ def test_sync_watchlists_withdraws_disabled_profile_targets(monkeypatch, tmp_pat
 
     result = runtime.sync_watchlists(runtime_root=runtime_root, race_date="2026-03-23")
 
-    assert result["shared_profiles"] == 0
-    assert result["local_profiles"] == 1
+    assert result["shared_profiles"] == 1
+    assert result["local_profiles"] == 0
     assert result["withdrawn"] == 1
 
     with runtime._connect_db(runtime_root) as connection:

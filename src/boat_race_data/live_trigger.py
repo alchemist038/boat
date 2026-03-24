@@ -77,6 +77,7 @@ class TriggerProfile:
     lane1_start_gap_over_rest_min: float | None
     lane1_exhibition_vs_lane2_max_gap: float | None
     lane1_exhibition_vs_lane3_max_gap: float | None
+    raw_payload: dict[str, Any]
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any], *, box_id: str = "") -> "TriggerProfile":
@@ -104,6 +105,7 @@ class TriggerProfile:
             lane1_start_gap_over_rest_min=_maybe_float(final_filters.get("lane1_start_gap_over_rest_min")),
             lane1_exhibition_vs_lane2_max_gap=_maybe_float(final_filters.get("lane1_exhibition_vs_lane2_max_gap")),
             lane1_exhibition_vs_lane3_max_gap=_maybe_float(final_filters.get("lane1_exhibition_vs_lane3_max_gap")),
+            raw_payload=dict(payload),
         )
 
 

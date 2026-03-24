@@ -276,6 +276,8 @@ def _entry_by_lane(rows: list[dict[str, object]], lane: int) -> dict[str, object
 
 
 def _wrap_shared_profile(profile: Any) -> RuntimeProfileSpec:
+    raw_payload = dict(getattr(profile, "raw_payload", {}) or {})
+    evaluator_kind = str(raw_payload.get("runtime_evaluator_kind") or "shared")
     return RuntimeProfileSpec(
         box_id=str(profile.box_id),
         profile_id=str(profile.profile_id),
@@ -286,8 +288,8 @@ def _wrap_shared_profile(profile: Any) -> RuntimeProfileSpec:
         enabled=bool(profile.enabled),
         watch_minutes_before_deadline=int(profile.watch_minutes_before_deadline),
         source_kind="shared",
-        evaluator_kind="shared",
-        data={},
+        evaluator_kind=evaluator_kind,
+        data=raw_payload,
         shared_profile=profile,
     )
 
@@ -336,6 +338,8 @@ def load_runtime_profiles(
     for profile in load_trigger_profiles(SHARED_BOX_ROOT, include_disabled=include_disabled):
         merged[profile.profile_id] = _wrap_shared_profile(profile)
     for profile in _load_local_profile_specs(runtime_root, include_disabled=include_disabled):
+        if profile.profile_id in merged:
+            continue
         merged[profile.profile_id] = profile
     return [merged[key] for key in sorted(merged)]
 
@@ -569,12 +573,12 @@ def _build_runtime_watchlist_row(
 ) -> dict[str, object] | None:
     if int(race_row.get("is_final_day", 0) or 0) == 1:
         return None
+    if profile.evaluator_kind == "4wind":
+        return _build_4wind_watchlist_row(race_row, entry_rows, profile)
     if profile.strategy_id == "c2" and profile.source_kind == "shared":
         return _build_c2_watchlist_row(race_row, entry_rows, profile)
     if profile.source_kind == "shared" and profile.shared_profile is not None:
         return build_watchlist_row(race_row, entry_rows, profile.shared_profile)
-    if profile.evaluator_kind == "4wind":
-        return _build_4wind_watchlist_row(race_row, entry_rows, profile)
     return None
 
 

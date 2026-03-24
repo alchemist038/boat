@@ -3,12 +3,12 @@
   "profile_id": "4wind_base_415",
   "strategy_id": "4wind",
   "display_name": "4wind Base 415",
-  "description": "Local 4wind runtime profile for exacta 4-1 / 4-5. This stays inside live_trigger_cli and does not modify the shared live_trigger line.",
+  "description": "Shared 4wind runtime profile for exacta 4-1 / 4-5.",
   "accent_color": "#1f5d78",
   "enabled": true,
   "watch_minutes_before_deadline": 25,
   "stadiums": [],
-  "local_runtime_kind": "4wind",
+  "runtime_evaluator_kind": "4wind",
   "lane3_class_include": [
     "A1",
     "A2"

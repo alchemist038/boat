@@ -1,15 +1,11 @@
-# BOX 4wind
+# BOX 4wind (Deprecated Local Copy)
 
-`4wind` は現状の shared `live_trigger/boxes/` にはまだ載せていないため、
-この新ライン専用の local box としてここに持ちます。
+`4wind` profile ownership has moved to shared `live_trigger/boxes/4wind/`.
 
-現在の runtime shape:
+This directory is no longer the active source of truth for the `4wind_base_415` profile.
 
-- wind `5-6m`
-- `lane4_st_diff_from_inside <= -0.05`
-- `lane4_exhibition_time_rank <= 3`
-- `lane3_class in ('A1', 'A2')`
-- quoted `min_odds 10-50`
-- exacta `4-1 / 4-5`
+Current rule:
 
-この box は `live_trigger_cli/runtime.py` の local evaluator でのみ解釈されます。
+- update the profile in `live_trigger/boxes/4wind/`
+- let `live_trigger_cli` consume the shared profile
+- keep this directory only as a migration marker until it can be removed cleanly

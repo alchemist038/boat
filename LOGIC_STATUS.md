@@ -22,11 +22,11 @@ This file is the parent status doc for logic research, adopted forward logic, an
   - `live_trigger/auto_system/app/core/bets.py`
 - local execution lines may consume this logic, but should not silently fork it
 
-Current explicit exception:
+Current adopted shared boxes:
 
-- `live_trigger_cli/boxes/4wind/`
-  - still exists as a line-local runtime profile
-  - should be treated as a temporary ownership exception until the profile is promoted into shared `live_trigger/boxes`
+- `live_trigger/boxes/125/`
+- `live_trigger/boxes/c2/`
+- `live_trigger/boxes/4wind/`
 
 ## 2. Current Main Forward Set
 
@@ -39,8 +39,8 @@ These are the three active forward logic tracks.
   - windy outside-head structure
   - partner focus `4-1 / 4-5`
   - `lane3_class in ('A1', 'A2')`
-- current runtime profile lives in:
-  - `live_trigger_cli/boxes/4wind/profiles/base_415.json`
+- current shared runtime profile lives in:
+  - `live_trigger/boxes/4wind/profiles/base_415.json`
 
 ### `c2_provisional_v1`
 
@@ -120,13 +120,13 @@ For the current main trio:
 
 Current recommendation:
 
-- promote `4wind` into shared `live_trigger/boxes`
+- completed: `4wind` now lives in shared `live_trigger/boxes`
 
 Reason:
 
 - `4wind` is now part of the main forward trio
 - the project rule is still "shared logic source, local execution line"
-- leaving `4wind` only under `live_trigger_cli/boxes` keeps the main trio split across two owners
+- keeping `4wind` under shared boxes keeps the main trio under one logic owner
 
 What this does not mean:
 
@@ -134,11 +134,8 @@ What this does not mean:
 - it does not require changing runtime state ownership
 - it does not require moving `4wind` out of the CLI execution flow
 
-Practical migration rule:
+Migration result:
 
-- freeze the current `base_415` profile as the shared logic version
-- create the shared `live_trigger/boxes/4wind/` copy
-- switch the CLI line to consume the shared profile
-- then treat the current line-local `live_trigger_cli/boxes/4wind/` copy as deprecated
-
-Until that migration is done, the current line-local `4wind` remains a temporary ownership exception.
+- `base_415` is stored under shared `live_trigger/boxes/4wind/`
+- `live_trigger_cli` consumes the shared profile
+- the old line-local `live_trigger_cli/boxes/4wind/` profile JSON is deprecated and no longer used as the active source
