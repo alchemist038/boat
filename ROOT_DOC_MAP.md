@@ -5,6 +5,14 @@ Use it when you want to understand what to open next without guessing.
 
 ## Recommended Read Order
 
+If you are bootstrapping work on `ins14`, start with:
+
+- [INS14_START.md](./INS14_START.md)
+
+If you are bootstrapping work on `i5`, start with:
+
+- [I5_START.md](./I5_START.md)
+
 1. [CODEX_START_HERE.md](./CODEX_START_HERE.md)
    - startup checklist for coordination and Git sync
 2. [ROOT_DOC_MAP.md](./ROOT_DOC_MAP.md)
@@ -31,6 +39,10 @@ Use it when you want to understand what to open next without guessing.
   - project-level definition of `R` as max-drawdown-based risk scaling
 - [CODEX_START_HERE.md](./CODEX_START_HERE.md)
   - startup procedure for a new session
+- [INS14_START.md](./INS14_START.md)
+  - single-file bootstrap for joining the project from `ins14`
+- [I5_START.md](./I5_START.md)
+  - single-file bootstrap for joining the project from `i5`
 - [PROJECT_STATUS.md](./PROJECT_STATUS.md)
   - high-level project state across data, strategy research, and incoming work
 - [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
@@ -105,6 +117,8 @@ Open these when the task is about the separate fresh real-execution line.
 
 Open these when the task depends on another machine, handoff, or shared ownership.
 
+- [INS14_START.md](./INS14_START.md)
+- [I5_START.md](./I5_START.md)
 - [TO_I5_FROM_ME.md](./TO_I5_FROM_ME.md)
 - [FROM_I5_TO_ME.md](./FROM_I5_TO_ME.md)
 - [TO_INS14_FROM_ME.md](./TO_INS14_FROM_ME.md)
