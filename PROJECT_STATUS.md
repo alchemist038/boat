@@ -3,10 +3,60 @@
 ## Companion Docs
 
 - root index: [ROOT_DOC_MAP.md](./ROOT_DOC_MAP.md)
+- operating model: [OPERATING_MODEL.md](./OPERATING_MODEL.md)
 - shared DB detail: [DB_STATUS.md](./DB_STATUS.md)
 - bet / trigger detail: [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
+- logic detail: [LOGIC_STATUS.md](./LOGIC_STATUS.md)
+- racer-index detail: [RACER_INDEX_STATUS.md](./RACER_INDEX_STATUS.md)
+- project path: [PROJECT_TIMELINE.md](./PROJECT_TIMELINE.md)
 - portable trigger bundle: [live_trigger/PORTABLE_BUNDLE.md](./live_trigger/PORTABLE_BUNDLE.md)
 - fresh execution line: [live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md](./live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md)
+
+## 2026-03-24 Integrated Direction
+
+### Current Non-Negotiables
+
+- Shared data root remains `\\038INS\boat\data`.
+- Shared DuckDB remains the canonical DB.
+- The main bet line is now `live_trigger_cli`.
+- Runtime logic source of truth remains under `live_trigger/boxes/` and the shared bet contract.
+- `racer_index` is part of logic research, not a separate operating line.
+
+### Current Machine Roles
+
+- `i5`
+  - historical DB recovery
+  - odds gap collection
+  - new bet-line construction and operation
+- `ins14`
+  - shared DB integration
+  - current/recent collection
+  - logic scan and racer-index work
+
+### Current Main Forward Set
+
+- `4wind`
+- `c2`
+- `125_broad_four_stadium`
+
+These three should now be treated as the main forward logic set.
+
+### Current Doc Structure
+
+- overall project state:
+  - [PROJECT_STATUS.md](./PROJECT_STATUS.md)
+- DB build / gaps / integration:
+  - [DB_STATUS.md](./DB_STATUS.md)
+- main bet line and waiting logic:
+  - [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
+- logic ownership and current forward set:
+  - [LOGIC_STATUS.md](./LOGIC_STATUS.md)
+- racer-index logic substrate:
+  - [RACER_INDEX_STATUS.md](./RACER_INDEX_STATUS.md)
+- ownership and sync boundaries:
+  - [OPERATING_MODEL.md](./OPERATING_MODEL.md)
+- recent project path:
+  - [PROJECT_TIMELINE.md](./PROJECT_TIMELINE.md)
 
 ## 2026-03-19 Update
 
@@ -142,6 +192,26 @@
 - Good next cuts:
   - `4wind`: stadium x wind bucket, monthly stability by stadium, wave interaction
   - `2press`: stadium x meeting-day bucket, stadium x wind bucket
+
+### 2026-03-24 Period Zero-Base Discovery
+
+- A local zero-base discovery pass was run on the bounded period slice `2025-03-11..2025-06-16`.
+- Shared data source was used in read-only mode:
+  - `\\038INS\boat\data\silver\boat_race.duckdb`
+- Because shared odds coverage starts on `2025-04-01`, the odds-backed exacta evaluation slice was:
+  - `2025-04-01..2025-06-16`
+- Canonical note:
+  - [zero_base_period_2025-03-11_to_2025-06-16_20260324/README.md](./reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/README.md)
+- Current top two carry-forward candidates from that note:
+  - `H-A`: `4-1`
+    - idea: lane 4 clearly beats lane 1 on exhibition ST, but lane 1 is still structurally alive enough to remain second
+  - `H-C`: `3-2`
+    - idea: lane 3 is A-class while lane 4 is B2, creating a cleaner lane-3 head path with lane 2 as the sticky inside partner
+- Lower-priority but preserved:
+  - `H-B`: `4-2`
+  - `H-D`: `5-2`
+- Main interpretation from the slice:
+  - the period favored several `outside head + specific inside partner` exacta shapes more than another inside-preservation story
 
 ### Quality Notes
 

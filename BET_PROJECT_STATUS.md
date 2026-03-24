@@ -3,15 +3,63 @@
 ## Companion Docs
 
 - root index: [ROOT_DOC_MAP.md](./ROOT_DOC_MAP.md)
+- operating model: [OPERATING_MODEL.md](./OPERATING_MODEL.md)
 - main trigger overview: [live_trigger/README.md](./live_trigger/README.md)
+- main CLI line: [live_trigger_cli/README.md](./live_trigger_cli/README.md)
 - portable trigger bundle: [live_trigger/PORTABLE_BUNDLE.md](./live_trigger/PORTABLE_BUNDLE.md)
+- next runtime concept: [live_trigger/BOX_GO_RUNTIME_CONCEPT.md](./live_trigger/BOX_GO_RUNTIME_CONCEPT.md)
 - fresh exec overview: [live_trigger_fresh_exec/README.md](./live_trigger_fresh_exec/README.md)
 - fresh execution flow: [live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md](./live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md)
 - shared runtime rules: [live_trigger/PROJECT_RULES.md](./live_trigger/PROJECT_RULES.md)
 
-- updated_at: 2026-03-21 18:25 JST
-- scope: `C:\CODEX_WORK\boat_clone\live_trigger`
-- purpose: trigger 現状整理と、自動ベット完成に向けた次構造の整理
+## 2026-03-24 Current Bet Line Direction
+
+### Main Line
+
+- `live_trigger_cli` is the current main bet line.
+- `live_trigger` remains the shared logic owner and portable backup line.
+- `live_trigger_fresh_exec` remains the fresh execution engine.
+
+### Current Main Forward Set
+
+- `4wind`
+- `c2`
+- `125_broad_four_stadium`
+
+These three should be treated as the current forward-running trio.
+
+`125_suminoe_main` is not part of the main trio right now.
+
+### Waiting Logic
+
+Current main-line waiting policy:
+
+- `assist_real`
+  - send `GO`
+  - open fresh confirmation
+  - wait for Telegram approval or reject
+  - submit only if approved in time
+  - reject or deadline timeout discards the attempt
+- `armed_real`
+  - submit automatically
+- `air`
+  - evaluate and notify only
+
+### Source-Of-Truth Reminder
+
+- logic ownership remains in shared `live_trigger/boxes/`
+- shared bet expansion remains in `live_trigger/auto_system/app/core/bets.py`
+- execution-specific runtime state must not redefine logic truth
+
+- updated_at: 2026-03-24 JST
+- scope:
+  - `C:\CODEX_WORK\boat_clone\live_trigger`
+  - `C:\CODEX_WORK\boat_clone\live_trigger_cli`
+  - `C:\CODEX_WORK\boat_clone\live_trigger_fresh_exec`
+- purpose:
+  - current bet-line status
+  - waiting / execution policy
+  - shared logic vs main CLI execution boundaries
 
 ## 0. 2026-03-21 時点のスナップショット
 
