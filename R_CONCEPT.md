@@ -1,5 +1,26 @@
 # R Concept
 
+## Position In Project
+
+`R` should now be read as a logic-side portfolio sizing concept.
+
+Companion docs:
+
+- [LOGIC_STATUS.md](./LOGIC_STATUS.md)
+- [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
+- [ROOT_DOC_MAP.md](./ROOT_DOC_MAP.md)
+
+It is:
+
+- part of logic and portfolio design
+- an input into runtime stake sizing
+
+It is not:
+
+- a DB concept
+- a race-selection rule by itself
+- a waiting/execution control concept
+
 This file defines the project-level meaning of `R`.
 
 ## Core Meaning
@@ -30,6 +51,34 @@ Where:
 
 Rounded practical values are allowed.
 
+## Target Choice Modes
+
+There are two acceptable ways to choose `target_max_dd`.
+
+### 1. Anchor Mode
+
+Use one strategy as the anchor.
+
+- example:
+  - `C2 = 1R`
+  - other strategies are scaled toward `C2` drawdown
+
+This is useful when one strategy is already the practical portfolio baseline.
+
+### 2. Average Mode
+
+Use the average natural `MAX DD` of the active strategy set.
+
+`target_max_dd = average(strategy_natural_max_dd)`
+
+This is useful when:
+
+- no single strategy should be the anchor
+- the goal is to average drawdown contribution across the active set
+- the runtime wants a neutral portfolio baseline
+
+In this mode, `R` is still computed per strategy, but the common target comes from the active portfolio average instead of one anchor line.
+
 ## Important Rules
 
 - Always use the same aligned period when computing `R`
@@ -37,6 +86,8 @@ Rounded practical values are allowed.
 - Recompute `R` if the formal logic changes
 - Recompute `R` if the main evaluation period changes materially
 - `R` is a portfolio-risk tool first, not an ROI-optimization tool
+- The chosen target mode (`anchor` or `average`) must be recorded with the `R` values
+- Runtime bet sizing should consume precomputed `R`; it should not estimate `MAX DD` on the fly
 
 ## Current Example
 
@@ -75,6 +126,39 @@ If strict DD parity is the goal, the current closer approximation is:
 - `C2 = 1R`
 - `125 = 36R`
 - `4wind = 5R`
+
+## Runtime Use
+
+`R` should feed bet sizing, not race selection.
+
+Recommended runtime interpretation:
+
+- BOX decides whether a race is structurally actionable
+- market check decides whether the live price is acceptable
+- `R` decides how large the final bet should be
+
+Recommended formula shape:
+
+`final_bet_amount = round_to_ticket_unit(base_r_yen * strategy_R * profile_multiplier)`
+
+Where:
+
+- `base_r_yen` is the common yen value of `1R`
+- `strategy_R` is precomputed from aligned backtest `MAX DD`
+- `profile_multiplier` is an optional operational override such as `0.5x`, `1.0x`, `1.5x`
+
+So `R` belongs to stake sizing, not to GO / NO_GO judgment.
+
+## Current Placement
+
+Within the current doc structure:
+
+- `LOGIC_STATUS.md`
+  - owns the current logic set and logic-adjacent research context
+- `R_CONCEPT.md`
+  - defines the shared portfolio-risk sizing language used by that logic
+- `BET_PROJECT_STATUS.md`
+  - describes how execution lines consume precomputed sizing
 
 ## Reference Files
 

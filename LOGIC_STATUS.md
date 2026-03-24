@@ -6,6 +6,7 @@ This file is the parent status doc for logic research, adopted forward logic, an
 
 - [PROJECT_STATUS.md](./PROJECT_STATUS.md)
 - [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
+- [R_CONCEPT.md](./R_CONCEPT.md)
 - [RACER_INDEX_STATUS.md](./RACER_INDEX_STATUS.md)
 - [projects/125/README.md](./projects/125/README.md)
 - [projects/4wind/README.md](./projects/4wind/README.md)
@@ -107,3 +108,37 @@ For the current main trio:
 - keep logic ownership under the shared source
 - record adopted filters and scope changes here
 - keep strategy-specific backtest and refinement notes in the relevant project/readme files
+
+## 7. Portfolio Sizing Layer
+
+- `R_CONCEPT.md` defines the shared meaning of `R`
+- `R` belongs to logic-side portfolio sizing
+- execution lines should consume precomputed `R`
+- execution lines should not redefine `R` ad hoc
+
+## 8. 4wind Promotion Decision
+
+Current recommendation:
+
+- promote `4wind` into shared `live_trigger/boxes`
+
+Reason:
+
+- `4wind` is now part of the main forward trio
+- the project rule is still "shared logic source, local execution line"
+- leaving `4wind` only under `live_trigger_cli/boxes` keeps the main trio split across two owners
+
+What this does not mean:
+
+- it does not require changing the main bet line away from `live_trigger_cli`
+- it does not require changing runtime state ownership
+- it does not require moving `4wind` out of the CLI execution flow
+
+Practical migration rule:
+
+- freeze the current `base_415` profile as the shared logic version
+- create the shared `live_trigger/boxes/4wind/` copy
+- switch the CLI line to consume the shared profile
+- then treat the current line-local `live_trigger_cli/boxes/4wind/` copy as deprecated
+
+Until that migration is done, the current line-local `4wind` remains a temporary ownership exception.
