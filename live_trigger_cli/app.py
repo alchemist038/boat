@@ -5,6 +5,7 @@ import sqlite3
 import subprocess
 import sys
 import time
+import ctypes
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -246,6 +247,19 @@ def _apply_auto_refresh(enabled: bool, *, interval_seconds: int = AUTO_REFRESH_I
 def _pid_is_running(pid: int | None) -> bool:
     if pid is None or pid <= 0:
         return False
+    if os.name == "nt":
+        process_query_limited_information = 0x1000
+        still_active = 259
+        handle = ctypes.windll.kernel32.OpenProcess(process_query_limited_information, False, pid)
+        if not handle:
+            return False
+        try:
+            exit_code = ctypes.c_ulong()
+            if not ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                return False
+            return exit_code.value == still_active
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
     try:
         os.kill(pid, 0)
     except OSError:
@@ -266,10 +280,66 @@ def _write_pid(pid: int) -> None:
     PID_FILE.write_text(str(pid), encoding="utf-8")
 
 
+def _discover_auto_loop_pid() -> int | None:
+    if os.name != "nt":
+        return None
+    try:
+        result = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-Command",
+                (
+                    "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; "
+                    "$p = Get-CimInstance Win32_Process "
+                    "| Where-Object { $_.Name -eq 'python.exe' -and $_.CommandLine -like '*-m live_trigger_cli auto-loop*' } "
+                    "| Sort-Object ProcessId -Descending "
+                    "| Select-Object -First 1 -ExpandProperty ProcessId; "
+                    "if ($p) { Write-Output $p }"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    stdout = (result.stdout or "").strip()
+    if not stdout:
+        return None
+    try:
+        pid = int(stdout.splitlines()[-1].strip())
+    except ValueError:
+        return None
+    return pid if _pid_is_running(pid) else None
+
+
+def _current_loop_pid() -> int | None:
+    pid = _read_pid()
+    if _pid_is_running(pid):
+        return pid
+    discovered_pid = _discover_auto_loop_pid()
+    if discovered_pid is not None:
+        try:
+            _write_pid(discovered_pid)
+        except OSError:
+            pass
+        return discovered_pid
+    return None
+
+
 def _clear_pid_if_stale() -> None:
     pid = _read_pid()
-    if pid is not None and not _pid_is_running(pid):
-        PID_FILE.unlink(missing_ok=True)
+    if pid is None:
+        return
+    if _pid_is_running(pid):
+        return
+    discovered_pid = _discover_auto_loop_pid()
+    if discovered_pid is not None:
+        _write_pid(discovered_pid)
+        return
+    PID_FILE.unlink(missing_ok=True)
 
 
 def _tail_log(path: Path, *, lines: int = 80) -> str:
@@ -539,8 +609,8 @@ def _parse_bet_lines(text: str) -> list[dict[str, Any]]:
 
 def _spawn_auto_loop() -> int:
     runtime.initialize_runtime()
-    existing_pid = _read_pid()
-    if _pid_is_running(existing_pid):
+    existing_pid = _current_loop_pid()
+    if existing_pid is not None:
         return int(existing_pid)
     creationflags = 0
     creationflags |= getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
@@ -567,8 +637,8 @@ def _spawn_auto_loop() -> int:
     )
     deadline = time.time() + 3.0
     while time.time() < deadline:
-        running_pid = _read_pid()
-        if _pid_is_running(running_pid):
+        running_pid = _current_loop_pid()
+        if running_pid is not None:
             return int(running_pid)
         if process.poll() is not None:
             break
@@ -621,12 +691,12 @@ def _profile_generation_summary() -> dict[str, Any]:
 _clear_pid_if_stale()
 settings = runtime.load_settings()
 summary, summary_warning = _load_summary()
-pid = _read_pid()
-loop_running = _pid_is_running(pid)
+pid = _current_loop_pid()
+loop_running = pid is not None
 generation_summary = _profile_generation_summary()
 
 if "ui_auto_refresh" not in st.session_state:
-    st.session_state["ui_auto_refresh"] = True
+    st.session_state["ui_auto_refresh"] = False
 
 refresh_cols = st.columns([1.1, 2.4, 1.5])
 auto_refresh_enabled = refresh_cols[0].toggle(
@@ -970,7 +1040,7 @@ with tab_manual:
     form_col1, form_col2, form_col3 = st.columns(3)
     test_mode = form_col1.selectbox(
         "test_mode",
-        options=["login_only", "confirm_only", "confirm_prefill", "assist_real", "armed_real"],
+        options=["login_only", "telegram_approval_test", "confirm_only", "confirm_prefill", "assist_real", "armed_real"],
     )
     stadium_code = form_col2.text_input("stadium_code", value="01")
     race_no = form_col3.number_input("race_no", min_value=1, max_value=12, value=12, step=1)

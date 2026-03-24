@@ -131,7 +131,7 @@ def _command_manual_test(args: argparse.Namespace) -> int:
         payload["stadium_code"] = args.stadium_code
         payload["race_no"] = args.race_no
         payload["bets"] = args.bet or []
-        if not payload["bets"]:
+        if args.test_mode not in {"telegram_approval_test"} and not payload["bets"]:
             raise SystemExit("manual-test requires at least one --bet unless --test-mode login_only")
         if args.deadline_at is not None:
             payload["deadline_at"] = args.deadline_at.strftime("%Y-%m-%d %H:%M:%S")
@@ -233,7 +233,7 @@ def build_parser() -> argparse.ArgumentParser:
     manual_test_parser.add_argument(
         "--test-mode",
         default="login_only",
-        choices=("login_only", "confirm_only", "confirm_prefill", "assist_real", "armed_real"),
+        choices=("login_only", "telegram_approval_test", "confirm_only", "confirm_prefill", "assist_real", "armed_real"),
         help="Manual test mode.",
     )
     manual_test_parser.add_argument("--stadium-code", help="Stadium code such as 01.")

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 import time
+import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -41,6 +43,7 @@ def _load_legacy_teleboat_module() -> ModuleType:
 
 LEGACY = _load_legacy_teleboat_module()
 STADIUM_CODE_TO_NAME = dict(getattr(LEGACY, "STADIUM_CODE_TO_NAME", {}))
+TELEGRAM_STATE_FILENAME = "telegram_state.json"
 
 
 def get_legacy_teleboat_module() -> ModuleType:
@@ -492,6 +495,117 @@ class FreshTeleboatExecutor:
         details["current_url"] = self._safe_url(self._page)
         return details
 
+    def _telegram_enabled(self) -> bool:
+        token = str(self._settings.get("telegram_bot_token") or "").strip()
+        chat_id = str(self._settings.get("telegram_chat_id") or "").strip()
+        return bool(self._settings.get("telegram_enabled")) and bool(token) and bool(chat_id)
+
+    def _telegram_state_path(self) -> Path:
+        return self._data_dir / TELEGRAM_STATE_FILENAME
+
+    def _load_telegram_state(self) -> dict[str, Any]:
+        path = self._telegram_state_path()
+        if not path.exists():
+            return {}
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            return {}
+
+    def _save_telegram_state(self, state: dict[str, Any]) -> None:
+        self._telegram_state_path().write_text(
+            json.dumps(state, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def _telegram_request(self, method: str, payload: dict[str, Any]) -> dict[str, Any]:
+        token = str(self._settings.get("telegram_bot_token") or "").strip()
+        if not token:
+            raise RuntimeError("telegram bot token is not configured")
+        request = urllib.request.Request(
+            f"https://api.telegram.org/bot{token}/{method}",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=15) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    def _consume_telegram_assist_action(self, *, race_id: str) -> dict[str, Any] | None:
+        if not self._telegram_enabled():
+            return None
+
+        state = self._load_telegram_state()
+        payload: dict[str, Any] = {}
+        last_update_id = state.get("last_update_id")
+        if isinstance(last_update_id, int):
+            payload["offset"] = last_update_id + 1
+
+        response = self._telegram_request("getUpdates", payload)
+        updates = list(response.get("result") or [])
+        if not updates:
+            return None
+
+        max_update_id = last_update_id if isinstance(last_update_id, int) else None
+        matched: dict[str, Any] | None = None
+        for item in updates:
+            update_id = item.get("update_id")
+            if isinstance(update_id, int):
+                max_update_id = update_id if max_update_id is None else max(max_update_id, update_id)
+            callback = item.get("callback_query") or {}
+            data = str(callback.get("data") or "")
+            if ":" not in data:
+                continue
+            action, callback_race_id = data.split(":", 1)
+            if callback_race_id != race_id:
+                continue
+            if action not in {"approve", "reject"}:
+                continue
+            matched = {
+                "action": action,
+                "callback_id": callback.get("id"),
+                "message_id": (callback.get("message") or {}).get("message_id"),
+                "message_chat_id": ((callback.get("message") or {}).get("chat") or {}).get("id"),
+                "username": (callback.get("from") or {}).get("username"),
+                "update_id": update_id,
+            }
+            break
+
+        if max_update_id is not None:
+            state["last_update_id"] = max_update_id
+            self._save_telegram_state(state)
+
+        if matched is None:
+            return None
+
+        callback_id = matched.get("callback_id")
+        answer_text = "承認を受け付けました。" if matched["action"] == "approve" else "却下を受け付けました。"
+        try:
+            if callback_id:
+                self._telegram_request(
+                    "answerCallbackQuery",
+                    {"callback_query_id": callback_id, "text": answer_text, "show_alert": False},
+                )
+        except Exception as exc:  # noqa: BLE001
+            self._warn(f"Failed to answer Telegram callback: {exc}")
+
+        try:
+            message_id = matched.get("message_id")
+            message_chat_id = matched.get("message_chat_id")
+            if message_id is not None and message_chat_id is not None:
+                self._telegram_request(
+                    "editMessageReplyMarkup",
+                    {
+                        "chat_id": message_chat_id,
+                        "message_id": message_id,
+                        "reply_markup": {"inline_keyboard": []},
+                    },
+                )
+        except Exception as exc:  # noqa: BLE001
+            self._warn(f"Failed to clear Telegram buttons: {exc}")
+
+        return matched
+
     def _wait_for_assist_submit(
         self,
         *,
@@ -524,6 +638,38 @@ class FreshTeleboatExecutor:
                     dialog_messages=dialog_seen,
                 )
                 dialog_seen.clear()
+                telegram_action = self._consume_telegram_assist_action(race_id=str(getattr(target, "race_id", "")))
+                if telegram_action is not None:
+                    if telegram_action["action"] == "approve":
+                        dialog_messages = LEGACY._submit_vote(
+                            page,
+                            vote_password=self._ensure_credentials(require_vote_password=True).vote_password,
+                            total_amount=LEGACY._current_confirmation_total_amount(page),
+                        )
+                        LEGACY._wait_for_submit_outcome(
+                            page,
+                            data_dir=data_dir,
+                            debug_prefix=f"{debug_prefix}_approved",
+                            dialog_messages=dialog_messages,
+                        )
+                        return {
+                            "submitted": True,
+                            "assist_wait_mode": wait_mode,
+                            "assist_wait_until_at": wait_until_at.isoformat(timespec="seconds"),
+                            "assist_deadline_at": deadline_at.isoformat(timespec="seconds") if deadline_at else None,
+                            "terminal_reason": "telegram_approved",
+                            "approval_source": "telegram",
+                            "approval_username": telegram_action.get("username"),
+                        }
+                    return {
+                        "submitted": False,
+                        "assist_wait_mode": wait_mode,
+                        "assist_wait_until_at": wait_until_at.isoformat(timespec="seconds"),
+                        "assist_deadline_at": deadline_at.isoformat(timespec="seconds") if deadline_at else None,
+                        "terminal_reason": "telegram_rejected",
+                        "approval_source": "telegram",
+                        "approval_username": telegram_action.get("username"),
+                    }
                 if LEGACY._exists(page, LEGACY.VOTE_SUCCESS_SELECTORS) or LEGACY._extract_contract_no(page):
                     return {
                         "submitted": True,
@@ -531,6 +677,7 @@ class FreshTeleboatExecutor:
                         "assist_wait_until_at": wait_until_at.isoformat(timespec="seconds"),
                         "assist_deadline_at": deadline_at.isoformat(timespec="seconds") if deadline_at else None,
                         "terminal_reason": "submitted",
+                        "approval_source": "manual",
                     }
                 if datetime.now() >= wait_until_at:
                     break
@@ -545,6 +692,61 @@ class FreshTeleboatExecutor:
             "assist_deadline_at": deadline_at.isoformat(timespec="seconds") if deadline_at else None,
             "terminal_reason": "deadline_passed" if deadline_at is not None else "manual_timeout",
         }
+
+    def wait_for_telegram_approval_test(
+        self,
+        *,
+        race_id: str,
+        timeout_seconds: int | None = None,
+    ) -> Any:
+        wait_seconds = max(5, int(timeout_seconds or self._manual_action_timeout_seconds))
+        wait_until_at = datetime.now() + timedelta(seconds=wait_seconds)
+        self._reset_trace(planned_steps=[FlowStepType.WAIT_MANUAL_SUBMIT.value])
+        while datetime.now() < wait_until_at:
+            telegram_action = self._consume_telegram_assist_action(race_id=race_id)
+            if telegram_action is not None:
+                action = str(telegram_action["action"])
+                username = telegram_action.get("username")
+                if action == "approve":
+                    self._record_step(FlowStepType.WAIT_MANUAL_SUBMIT)
+                    return LEGACY.TeleboatResult(
+                        execution_status="telegram_approved_test",
+                        message="Telegram approval test received an approve action.",
+                        details=self._sync_trace_details(
+                            {
+                                "race_id": race_id,
+                                "approval_source": "telegram",
+                                "approval_username": username,
+                                "terminal_reason": "telegram_approved_test",
+                            }
+                        ),
+                    )
+                self._record_step(FlowStepType.WAIT_MANUAL_SUBMIT)
+                return LEGACY.TeleboatResult(
+                    execution_status="telegram_rejected_test",
+                    message="Telegram approval test received a reject action.",
+                    details=self._sync_trace_details(
+                        {
+                            "race_id": race_id,
+                            "approval_source": "telegram",
+                            "approval_username": username,
+                            "terminal_reason": "telegram_rejected_test",
+                        }
+                    ),
+                )
+            time.sleep(1)
+
+        return LEGACY.TeleboatResult(
+            execution_status="telegram_timeout_test",
+            message="Telegram approval test timed out without a callback.",
+            details=self._sync_trace_details(
+                {
+                    "race_id": race_id,
+                    "terminal_reason": "telegram_timeout_test",
+                    "assist_wait_until_at": wait_until_at.isoformat(timespec="seconds"),
+                }
+            ),
+        )
 
     def logout(self) -> bool:
         candidates: list[Page] = []
@@ -718,16 +920,25 @@ class FreshTeleboatExecutor:
             )
             details.update({k: v for k, v in wait_result.items() if k != "submitted"})
             if not wait_result.get("submitted"):
+                rejected = wait_result.get("terminal_reason") == "telegram_rejected"
                 expired_screenshot_path, expired_html_path = LEGACY._save_debug_artifacts(
                     page,
-                    prefix=f"{target.race_id}_fresh_assist_window_closed",
+                    prefix=(
+                        f"{target.race_id}_fresh_assist_rejected"
+                        if rejected
+                        else f"{target.race_id}_fresh_assist_window_closed"
+                    ),
                     data_dir=self._data_dir,
                 )
-                details["cleanup_status"] = "assist_window_closed"
+                details["cleanup_status"] = "assist_rejected" if rejected else "assist_window_closed"
                 details.update(self._finalize_after_assist_window_close())
                 return LEGACY.TeleboatResult(
                     execution_status="assist_window_closed",
-                    message="Fresh executor assist mode closed the session after the vote window passed without manual submit.",
+                    message=(
+                        "Fresh executor assist mode was rejected via Telegram approval."
+                        if rejected
+                        else "Fresh executor assist mode closed the session after the vote window passed without manual submit."
+                    ),
                     screenshot_path=expired_screenshot_path or screenshot_path,
                     html_path=expired_html_path or html_path,
                     details=self._sync_trace_details(details),

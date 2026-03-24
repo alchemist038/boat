@@ -6,6 +6,7 @@ import os
 import sqlite3
 import sys
 import time
+import ctypes
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -1108,6 +1109,19 @@ def _log(runtime_root: Path, message: str) -> None:
 def _pid_is_running(pid: int | None) -> bool:
     if pid is None or pid <= 0:
         return False
+    if os.name == "nt":
+        process_query_limited_information = 0x1000
+        still_active = 259
+        handle = ctypes.windll.kernel32.OpenProcess(process_query_limited_information, False, pid)
+        if not handle:
+            return False
+        try:
+            exit_code = ctypes.c_ulong()
+            if not ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                return False
+            return exit_code.value == still_active
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
     try:
         os.kill(pid, 0)
     except OSError:
@@ -1373,6 +1387,10 @@ def _telegram_go_notifications_enabled(settings: dict[str, Any]) -> bool:
     return bool(settings.get("telegram_enabled")) and bool(settings.get("telegram_go_notifications"))
 
 
+def _telegram_completion_notifications_enabled(settings: dict[str, Any]) -> bool:
+    return bool(settings.get("telegram_enabled"))
+
+
 def _target_has_event(connection: sqlite3.Connection, *, target_race_id: int, event_type: str) -> bool:
     row = connection.execute(
         """
@@ -1399,6 +1417,18 @@ def _target_intents(connection: sqlite3.Connection, *, target_race_id: int) -> l
     ).fetchall()
 
 
+def _target_row(connection: sqlite3.Connection, *, target_race_id: int) -> sqlite3.Row | None:
+    return connection.execute(
+        """
+        SELECT id, race_id, race_date, stadium_code, stadium_name, race_no, profile_id, deadline_at
+        FROM target_races
+        WHERE id = ?
+        LIMIT 1
+        """,
+        (target_race_id,),
+    ).fetchone()
+
+
 def _format_go_notification(target: sqlite3.Row, intents: list[sqlite3.Row], *, reason: str, mode: str) -> str:
     header = [
         "GO",
@@ -1412,6 +1442,8 @@ def _format_go_notification(target: sqlite3.Row, intents: list[sqlite3.Row], *, 
         header.append(f"deadline: {target['deadline_at']}")
 
     lines = ["\n".join(header)]
+    if mode == "assist_real":
+        lines.append("telegram: 承認ボタンで投票 / 却下で破棄")
     if intents:
         lines.append("bets:")
         for intent in intents:
@@ -1419,17 +1451,77 @@ def _format_go_notification(target: sqlite3.Row, intents: list[sqlite3.Row], *, 
     return "\n".join(lines)
 
 
-def _telegram_send_message(*, token: str, chat_id: str, text: str) -> dict[str, Any]:
-    payload = urllib.parse.urlencode(
-        {
-            "chat_id": chat_id,
-            "text": text,
-        }
-    ).encode("utf-8")
+def _format_completion_notification(
+    target: sqlite3.Row,
+    intents: list[sqlite3.Row],
+    *,
+    mode: str,
+    contract_no: str | None,
+    submitted_at: datetime | None,
+) -> str:
+    header = [
+        "BET COMPLETED",
+        f"{target['race_date']} {target['stadium_name'] or target['stadium_code']} {target['race_no']}R",
+        f"profile: {target['profile_id']}",
+        f"mode: {mode}",
+    ]
+    if contract_no:
+        header.append(f"contract_no: {contract_no}")
+    if submitted_at is not None:
+        header.append(f"submitted_at: {submitted_at.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    lines = ["\n".join(header)]
+    if intents:
+        lines.append("bets:")
+        for intent in intents:
+            lines.append(f"- {intent['bet_type']} {intent['combo']} {intent['amount']}")
+    return "\n".join(lines)
+
+
+def _format_approval_test_notification(*, target: SimpleNamespace) -> str:
+    return "\n".join(
+        [
+            "TEST",
+            "Telegram 承認フロー確認です。",
+            f"対象: {target.race_id}",
+            "今回は callback 消費の確認だけで、実投票はしません。",
+        ]
+    )
+
+
+def _go_reply_markup(target: sqlite3.Row, *, mode: str) -> dict[str, Any] | None:
+    if mode != "assist_real":
+        return None
+    race_id = str(target["race_id"] or "").strip()
+    if not race_id:
+        return None
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "承認して投票", "callback_data": f"approve:{race_id}"},
+                {"text": "却下", "callback_data": f"reject:{race_id}"},
+            ]
+        ]
+    }
+
+
+def _telegram_send_message(
+    *,
+    token: str,
+    chat_id: str,
+    text: str,
+    reply_markup: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "chat_id": chat_id,
+        "text": text,
+    }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
     request = urllib.request.Request(
         f"https://api.telegram.org/bot{token}/sendMessage",
-        data=payload,
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json; charset=utf-8"},
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=15) as response:
@@ -1459,7 +1551,12 @@ def _notify_telegram_go(
     text = _format_go_notification(target, intents, reason=reason, mode=mode)
 
     try:
-        response = _telegram_send_message(token=token, chat_id=chat_id, text=text)
+        response = _telegram_send_message(
+            token=token,
+            chat_id=chat_id,
+            text=text,
+            reply_markup=_go_reply_markup(target, mode=mode),
+        )
         _log_event(
             connection,
             target_race_id=target_race_id,
@@ -1478,6 +1575,65 @@ def _notify_telegram_go(
             event_type="telegram_go_notify_failed",
             message=str(exc),
             details={"chat_id_masked": _mask_secret(chat_id)},
+        )
+        return False
+
+
+def _notify_telegram_submitted(
+    connection: sqlite3.Connection,
+    *,
+    target_race_id: int,
+    settings: dict[str, Any],
+    mode: str,
+    contract_no: str | None,
+    submitted_at: datetime | None,
+) -> bool:
+    if not _telegram_completion_notifications_enabled(settings):
+        return False
+    if _target_has_event(connection, target_race_id=target_race_id, event_type="telegram_submitted_notified"):
+        return False
+
+    token = _telegram_bot_token(settings)
+    chat_id = _telegram_chat_id(settings)
+    if not token or not chat_id:
+        return False
+
+    target = _target_row(connection, target_race_id=target_race_id)
+    if target is None:
+        return False
+    intents = _target_intents(connection, target_race_id=target_race_id)
+    text = _format_completion_notification(
+        target,
+        intents,
+        mode=mode,
+        contract_no=contract_no,
+        submitted_at=submitted_at,
+    )
+
+    try:
+        response = _telegram_send_message(token=token, chat_id=chat_id, text=text)
+        _log_event(
+            connection,
+            target_race_id=target_race_id,
+            event_type="telegram_submitted_notified",
+            message=f"chat={chat_id}",
+            details={
+                "message_id": response.get("result", {}).get("message_id"),
+                "chat_id_masked": _mask_secret(chat_id),
+                "contract_no": contract_no,
+            },
+        )
+        return True
+    except Exception as exc:  # noqa: BLE001
+        _log_event(
+            connection,
+            target_race_id=target_race_id,
+            event_type="telegram_submitted_notify_failed",
+            message=str(exc),
+            details={
+                "chat_id_masked": _mask_secret(chat_id),
+                "contract_no": contract_no,
+            },
         )
         return False
 
@@ -2097,6 +2253,29 @@ def _executor_settings_from_runtime(settings: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def _send_telegram_approval_test(*, settings: dict[str, Any], target: SimpleNamespace) -> dict[str, Any]:
+    token = _telegram_bot_token(settings)
+    chat_id = _telegram_chat_id(settings)
+    if not bool(settings.get("telegram_enabled")) or not token or not chat_id:
+        raise ValueError("Telegram approval test requires telegram_enabled, bot token, and chat_id.")
+
+    text = _format_approval_test_notification(target=target)
+    reply_markup = {
+        "inline_keyboard": [
+            [
+                {"text": "承認して投票", "callback_data": f"approve:{target.race_id}"},
+                {"text": "却下", "callback_data": f"reject:{target.race_id}"},
+            ]
+        ]
+    }
+    return _telegram_send_message(
+        token=token,
+        chat_id=chat_id,
+        text=text,
+        reply_markup=reply_markup,
+    )
+
+
 def _fresh_executor_api() -> dict[str, Any]:
     module = _load_fresh_executor_module()
     legacy = _load_legacy_teleboat_module()
@@ -2130,7 +2309,7 @@ def run_manual_test(
     if test_mode != "login_only":
         target = _build_manual_target(payload, stadium_name_map=stadium_name_map)
         intents = _build_manual_intents(payload)
-        if not intents:
+        if test_mode not in {"login_only", "telegram_approval_test"} and not intents:
             raise ValueError("manual-test requires at least one --bet unless test-mode is login_only")
 
     cleanup_after_test = _normalize_bool(payload.get("cleanup_after_test"), default=False)
@@ -2145,6 +2324,13 @@ def run_manual_test(
         with FreshTeleboatExecutor(data_dir=data_dir(runtime_root), settings=effective_settings) as executor:
             if test_mode == "login_only":
                 result = executor.login_only()
+            elif test_mode == "telegram_approval_test":
+                notification = _send_telegram_approval_test(settings=effective_settings, target=target)
+                result = executor.wait_for_telegram_approval_test(
+                    race_id=target.race_id,
+                    timeout_seconds=int(effective_settings.get("manual_action_timeout_seconds", 180)),
+                )
+                result.details["telegram_message_id"] = (notification.get("result") or {}).get("message_id")
             elif test_mode == "confirm_only":
                 result = executor.prepare_target_confirmation(target=target, intents=intents, prefill=False)
             elif test_mode == "confirm_prefill":
@@ -2600,6 +2786,15 @@ def execute_bets(
                                 "html_path": result.html_path,
                                 "execution_status": result.execution_status,
                             },
+                        )
+                    if result.execution_status == "submitted":
+                        _notify_telegram_submitted(
+                            connection,
+                            target_race_id=int(target_ids[0]),
+                            settings=settings,
+                            mode=mode,
+                            contract_no=result.contract_no,
+                            submitted_at=getattr(result, "submitted_at", now),
                         )
                     processed += len(intents)
                 except TeleboatConfigurationError as exc:

@@ -433,8 +433,14 @@ def test_notify_telegram_go_logs_once(monkeypatch, tmp_path: Path) -> None:
         )
         sent_payloads: list[tuple[str, str, str]] = []
 
-        def fake_send_message(*, token: str, chat_id: str, text: str) -> dict[str, object]:
-            sent_payloads.append((token, chat_id, text))
+        def fake_send_message(
+            *,
+            token: str,
+            chat_id: str,
+            text: str,
+            reply_markup: dict[str, object] | None = None,
+        ) -> dict[str, object]:
+            sent_payloads.append((token, chat_id, text, reply_markup))
             return {"ok": True, "result": {"message_id": 321}}
 
         monkeypatch.setattr(runtime, "_telegram_send_message", fake_send_message)
@@ -466,6 +472,131 @@ def test_notify_telegram_go_logs_once(monkeypatch, tmp_path: Path) -> None:
         assert sent_payloads[0][1] == "999"
         assert "GO" in sent_payloads[0][2]
         assert "4wind_base_415" in sent_payloads[0][2]
+        assert sent_payloads[0][3] == {
+            "inline_keyboard": [
+                [
+                    {"text": "承認して投票", "callback_data": "approve:202603230101"},
+                    {"text": "却下", "callback_data": "reject:202603230101"},
+                ]
+            ]
+        }
+        assert len(logged) == 1
+    finally:
+        connection.close()
+
+
+def test_go_reply_markup_only_for_assist_real() -> None:
+    target = {
+        "race_id": "202603240512",
+    }
+
+    assert runtime._go_reply_markup(target, mode="air") is None
+    assert runtime._go_reply_markup(target, mode="assist_real") == {
+        "inline_keyboard": [
+            [
+                {"text": "承認して投票", "callback_data": "approve:202603240512"},
+                {"text": "却下", "callback_data": "reject:202603240512"},
+            ]
+        ]
+    }
+
+
+def test_notify_telegram_submitted_logs_once(tmp_path: Path, monkeypatch) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime.initialize_runtime(runtime_root)
+    connection = sqlite3.connect(runtime.db_path(runtime_root))
+    connection.row_factory = sqlite3.Row
+    try:
+        now = runtime._format_datetime(datetime(2026, 3, 24, 17, 7, 13))
+        connection.execute(
+            """
+            INSERT INTO target_races (
+                target_key, race_id, race_date, stadium_code, stadium_name, race_no,
+                profile_id, strategy_id, source_watchlist_file, deadline_at, watch_start_at,
+                imported_at, updated_at, status, row_status, last_reason, payload_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "202603240512::c2_provisional_v1",
+                "202603240512",
+                "2026-03-24",
+                "05",
+                "多摩川",
+                12,
+                "c2_provisional_v1",
+                "c2",
+                "shared::c2_provisional_v1",
+                "2026-03-24 17:17:00",
+                "2026-03-24 16:52:00",
+                now,
+                now,
+                "real_bet_placed",
+                "real_bet_placed",
+                "submitted",
+                "{}",
+            ),
+        )
+        connection.executemany(
+            """
+            INSERT INTO bet_intents (
+                target_race_id, intent_key, execution_mode, status, bet_type, combo, amount, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (1, "intent-a", "assist_real", "executed", "trifecta", "2-ALL-ALL", 100, now),
+                (1, "intent-b", "assist_real", "executed", "trifecta", "3-ALL-ALL", 100, now),
+            ],
+        )
+        settings = runtime._normalize_settings(
+            {
+                "telegram_enabled": True,
+                "telegram_bot_token": "token-123",
+                "telegram_chat_id": "999",
+            }
+        )
+        sent_payloads: list[tuple[str, str, str, dict[str, object] | None]] = []
+
+        def fake_send_message(
+            *,
+            token: str,
+            chat_id: str,
+            text: str,
+            reply_markup: dict[str, object] | None = None,
+        ) -> dict[str, object]:
+            sent_payloads.append((token, chat_id, text, reply_markup))
+            return {"ok": True, "result": {"message_id": 654}}
+
+        monkeypatch.setattr(runtime, "_telegram_send_message", fake_send_message)
+
+        sent = runtime._notify_telegram_submitted(
+            connection,
+            target_race_id=1,
+            settings=settings,
+            mode="assist_real",
+            contract_no="0002",
+            submitted_at=datetime(2026, 3, 24, 17, 12, 8),
+        )
+        sent_again = runtime._notify_telegram_submitted(
+            connection,
+            target_race_id=1,
+            settings=settings,
+            mode="assist_real",
+            contract_no="0002",
+            submitted_at=datetime(2026, 3, 24, 17, 12, 8),
+        )
+
+        logged = connection.execute(
+            "SELECT event_type FROM execution_events WHERE event_type = 'telegram_submitted_notified'"
+        ).fetchall()
+
+        assert sent is True
+        assert sent_again is False
+        assert len(sent_payloads) == 1
+        assert sent_payloads[0][0] == "token-123"
+        assert sent_payloads[0][1] == "999"
+        assert "BET COMPLETED" in sent_payloads[0][2]
+        assert "contract_no: 0002" in sent_payloads[0][2]
+        assert sent_payloads[0][3] is None
         assert len(logged) == 1
     finally:
         connection.close()
