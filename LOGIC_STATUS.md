@@ -9,6 +9,7 @@ This file is the parent status doc for logic research, adopted forward logic, an
 - [R_CONCEPT.md](./R_CONCEPT.md)
 - [RACER_INDEX_STATUS.md](./RACER_INDEX_STATUS.md)
 - [main_forward_trio_snapshot_20260325.md](./reports/strategies/combined/main_forward_trio_snapshot_20260325.md)
+- [pre_review_logic_inventory_20260325.md](./reports/strategies/pre_review_logic_inventory_20260325.md)
 - [projects/125/README.md](./projects/125/README.md)
 - [projects/4wind/README.md](./projects/4wind/README.md)
 - [live_trigger/PROJECT_RULES.md](./live_trigger/PROJECT_RULES.md)
@@ -85,7 +86,27 @@ These should now be treated as adopted shared reads across the current forward s
   - not adopted yet
   - remains conditional / project-specific
 
-## 5. Racer Index Position
+## 5. Pre-Review / 検討前 Inventory
+
+For dormant logic that should remain reachable but is not part of the current forward trio, use:
+
+- [pre_review_logic_inventory_20260325.md](./reports/strategies/pre_review_logic_inventory_20260325.md)
+
+Current review priority there is:
+
+1. `2025-04-01..2025-06-16` bounded slice:
+   - `H-A / H-C / H-B / H-D`
+2. `2press`
+3. `H-003 / H-004 / H-005`
+
+Why the bounded slice is first:
+
+- the current trio DD / ROI comparison is anchored on `2025-04-01 .. 2026-03-09`
+- `125` has a recorded BT max-DD interval of `2025-03-11 -> 2025-06-16`
+- so the bounded exacta slice `2025-04-01 .. 2025-06-16` overlaps the early stress regime that already matters for the current main set
+- this makes it the best current `検討前` review zone
+
+## 6. Racer Index Position
 
 `racer_index` is a logic substrate.
 
@@ -105,7 +126,7 @@ Current racer-index status lives in:
 
 - [RACER_INDEX_STATUS.md](./RACER_INDEX_STATUS.md)
 
-## 6. Forward Discipline
+## 7. Forward Discipline
 
 For the current main trio:
 
@@ -114,14 +135,14 @@ For the current main trio:
 - record adopted filters and scope changes here
 - keep strategy-specific backtest and refinement notes in the relevant project/readme files
 
-## 7. Portfolio Sizing Layer
+## 8. Portfolio Sizing Layer
 
 - `R_CONCEPT.md` defines the shared meaning of `R`
 - `R` belongs to logic-side portfolio sizing
 - execution lines should consume precomputed `R`
 - execution lines should not redefine `R` ad hoc
 
-## 8. 4wind Promotion Decision
+## 9. 4wind Promotion Decision
 
 Current recommendation:
 
