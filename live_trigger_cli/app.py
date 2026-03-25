@@ -370,6 +370,54 @@ def _load_summary() -> tuple[dict[str, Any], str | None]:
         return {"targets_by_status": {}, "intents_by_status": {}}, str(exc)
 
 
+def _today_target_profile_frame(race_date: str | None = None) -> pd.DataFrame:
+    target_race_date = race_date or datetime.now().strftime("%Y-%m-%d")
+    frame = _read_query(
+        """
+        SELECT
+            profile_id,
+            status,
+            COUNT(*) AS count
+        FROM target_races
+        WHERE race_date = ?
+        GROUP BY profile_id, status
+        ORDER BY profile_id, status
+        """,
+        (target_race_date,),
+    )
+    if frame.empty:
+        return frame
+
+    pivot = (
+        frame.pivot_table(
+            index="profile_id",
+            columns="status",
+            values="count",
+            aggfunc="sum",
+            fill_value=0,
+        )
+        .reset_index()
+    )
+    pivot.columns.name = None
+    pivot["today_targets"] = pivot.drop(columns=["profile_id"], errors="ignore").sum(axis=1)
+    ordered_columns = ["profile_id", "today_targets"] + [
+        column for column in (
+            "imported",
+            "monitoring",
+            "checked_waiting",
+            "checked_skip",
+            "checked_go",
+            "intent_created",
+            "withdrawn",
+            "expired",
+            "real_bet_placed",
+            "air_bet_logged",
+        )
+        if column in pivot.columns
+    ]
+    return pivot[ordered_columns].sort_values(by=["today_targets", "profile_id"], ascending=[False, True])
+
+
 def _status_text(value: Any) -> str:
     text = str(value or "")
     return STATUS_LABELS.get(text, text)
@@ -614,7 +662,7 @@ def _spawn_auto_loop() -> int:
         return int(existing_pid)
     creationflags = 0
     creationflags |= getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    creationflags |= getattr(subprocess, "DETACHED_PROCESS", 0)
+    creationflags |= getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join(
         value
@@ -626,11 +674,8 @@ def _spawn_auto_loop() -> int:
         if value
     )
     process = subprocess.Popen(
-        [sys.executable, "-m", "live_trigger_cli", "auto-loop"],
+        [os.environ.get("COMSPEC", "cmd.exe"), "/c", sys.executable, "-m", "live_trigger_cli", "auto-loop"],
         cwd=str(REPO_ROOT),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        stdin=subprocess.DEVNULL,
         close_fds=True,
         creationflags=creationflags,
         env=env,
@@ -694,6 +739,9 @@ summary, summary_warning = _load_summary()
 pid = _current_loop_pid()
 loop_running = pid is not None
 generation_summary = _profile_generation_summary()
+today_race_date = datetime.now().strftime("%Y-%m-%d")
+today_target_profile_frame = _today_target_profile_frame(today_race_date)
+today_target_total = int(today_target_profile_frame["today_targets"].sum()) if not today_target_profile_frame.empty else 0
 
 if "ui_auto_refresh" not in st.session_state:
     st.session_state["ui_auto_refresh"] = False
@@ -722,12 +770,13 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-top = st.columns(5)
+top = st.columns(6)
 top[0].metric("実行モード", EXECUTION_MODE_LABELS.get(settings["execution_mode"], settings["execution_mode"]))
 top[1].metric("system_running", "ON" if settings["system_running"] else "OFF")
 top[2].metric("loop PID", str(pid) if loop_running else "-")
-top[3].metric("targets", str(sum(summary.get("targets_by_status", {}).values())))
-top[4].metric("pending intents", str(summary.get("intents_by_status", {}).get("pending", 0)))
+top[3].metric("today targets", str(today_target_total))
+top[4].metric("all targets", str(sum(summary.get("targets_by_status", {}).values())))
+top[5].metric("pending intents", str(summary.get("intents_by_status", {}).get("pending", 0)))
 
 st.markdown(
     """
@@ -762,6 +811,11 @@ with tab_overview:
     with col1:
         st.subheader("状態サマリー")
         st.json(summary)
+        st.subheader(f"当日 {today_race_date} のロジック別ターゲット数")
+        if today_target_profile_frame.empty:
+            st.caption("当日の target はまだありません。")
+        else:
+            st.dataframe(today_target_profile_frame, width="stretch", hide_index=True)
         st.subheader("このラインが生成する profile")
         st.write(
             {

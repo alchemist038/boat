@@ -27,5 +27,11 @@
     "lane1_start_gap_over_rest_min": 0.12,
     "lane1_exhibition_vs_lane2_max_gap": 0.02,
     "lane1_exhibition_vs_lane3_max_gap": 0.02
+  },
+  "racer_index_overlay": {
+    "enabled": true,
+    "exclude_when_pred1_lane": [1],
+    "source_signal": "daily_pred1_signal",
+    "window_months": 5
   }
 }

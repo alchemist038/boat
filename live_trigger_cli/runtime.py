@@ -54,7 +54,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "execution_mode": "air",
     "poll_seconds": 30,
     "check_window_start_minutes": 10,
-    "check_window_end_minutes": 5,
+    "check_window_end_minutes": 3,
     "default_bet_amount": 100,
     "profile_amounts": {},
     "active_profiles": {},
@@ -89,6 +89,8 @@ TERMINAL_TARGET_STATUSES = {
 EVALUATED_PAYLOAD_KEYS = {
     "status",
     "final_reason",
+    "racer_index_pred1_lane",
+    "racer_index_signal_date",
     "lane1_exhibition_time",
     "lane1_exhibition_best_gap",
     "lane2_exhibition_time",
@@ -255,8 +257,18 @@ def _passes_min_filter(value: Any, minimum: float | None) -> bool:
     return parsed >= minimum
 
 
-def _fetch_text_cached(client: BoatRaceClient, url: str, raw_path: Path) -> FetchResult:
+def _fetch_text_cached(
+    client: BoatRaceClient,
+    url: str,
+    raw_path: Path,
+    *,
+    refresh_after_seconds: int | None = None,
+) -> FetchResult:
     if raw_path.exists():
+        if refresh_after_seconds is not None:
+            age_seconds = time.time() - raw_path.stat().st_mtime
+            if age_seconds > max(0, int(refresh_after_seconds)):
+                return client.fetch_text(url, raw_path)
         content = raw_path.read_bytes()
         return FetchResult(
             url=url,
@@ -782,6 +794,7 @@ def _evaluate_runtime_row(
         client,
         client.build_race_url("beforeinfo", race_date_compact, stadium_code, race_no),
         raw_root(runtime_root) / "beforeinfo" / str(row["race_date"]) / f"{prefix}.html",
+        refresh_after_seconds=20,
     )
     beforeinfo_rows = parse_beforeinfo(
         beforeinfo_fetch.text or "",
@@ -797,6 +810,7 @@ def _evaluate_runtime_row(
         client,
         client.build_race_url("odds2t", race_date_compact, stadium_code, race_no),
         raw_root(runtime_root) / "odds2t" / str(row["race_date"]) / f"{prefix}.html",
+        refresh_after_seconds=20,
     )
     odds_rows = parse_odds_2t(
         odds_fetch.text or "",

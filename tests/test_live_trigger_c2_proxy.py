@@ -8,7 +8,11 @@ SRC_ROOT = ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from boat_race_data.live_trigger import build_watchlist_row, load_trigger_profiles
+from boat_race_data.live_trigger import (
+    build_watchlist_row,
+    enrich_watchlist_row_with_beforeinfo,
+    load_trigger_profiles,
+)
 
 
 def test_c2_all_women_proxy_accepts_tokoname_20260323_r1(monkeypatch) -> None:
@@ -103,3 +107,105 @@ def test_build_watchlist_row_excludes_final_day(monkeypatch) -> None:
     row = build_watchlist_row(race_row, entry_rows, profile)
 
     assert row is None
+
+
+def test_c2_racer_index_overlay_filters_when_pred1_is_lane1(monkeypatch, tmp_path: Path) -> None:
+    profile = next(
+        profile
+        for profile in load_trigger_profiles(ROOT / "live_trigger" / "boxes", include_disabled=True)
+        if profile.profile_id == "c2_provisional_v1"
+    )
+    import boat_race_data.live_trigger as live_trigger
+
+    monkeypatch.setattr(
+        live_trigger,
+        "_daily_pred1_lane_index",
+        lambda race_date_iso: {"202603230801": 1},
+    )
+
+    row = {
+        "race_id": "202603230801",
+        "race_date": "2026-03-23",
+        "stadium_code": "08",
+        "race_no": 1,
+        "status": "waiting_beforeinfo",
+        "pre_reason": "women6_proxy, class=A2",
+        "final_reason": "",
+    }
+
+    class FakeClient:
+        def build_race_url(self, page: str, race_date: str, stadium_code: str, race_no: int) -> str:
+            return f"{page}:{race_date}:{stadium_code}:{race_no}"
+
+    result = enrich_watchlist_row_with_beforeinfo(
+        row,
+        profile,
+        client=FakeClient(),
+        raw_root=tmp_path,
+    )
+
+    assert result == {"changed": True, "ready": False}
+    assert row["status"] == "filtered_out"
+    assert row["final_reason"] == "racer_index_pred1_lane=1 excluded"
+    assert row["racer_index_pred1_lane"] == 1
+    assert row["racer_index_signal_date"] == "2026-03-23"
+
+
+def test_c2_racer_index_overlay_keeps_row_when_pred1_is_not_lane1(monkeypatch, tmp_path: Path) -> None:
+    profile = next(
+        profile
+        for profile in load_trigger_profiles(ROOT / "live_trigger" / "boxes", include_disabled=True)
+        if profile.profile_id == "c2_provisional_v1"
+    )
+    import boat_race_data.live_trigger as live_trigger
+
+    monkeypatch.setattr(
+        live_trigger,
+        "_daily_pred1_lane_index",
+        lambda race_date_iso: {"202603230801": 2},
+    )
+    monkeypatch.setattr(
+        live_trigger,
+        "_fetch_text_cached",
+        lambda client, url, raw_path, refresh_after_seconds=None: type(
+            "Fetch",
+            (),
+            {
+                "text": "<html></html>",
+                "url": url,
+                "fetched_at": "2026-03-23T10:00:00",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        live_trigger,
+        "parse_beforeinfo",
+        lambda *args, **kwargs: [],
+    )
+
+    row = {
+        "race_id": "202603230801",
+        "race_date": "2026-03-23",
+        "stadium_code": "08",
+        "race_no": 1,
+        "status": "waiting_beforeinfo",
+        "pre_reason": "women6_proxy, class=A2",
+        "final_reason": "",
+    }
+
+    class FakeClient:
+        def build_race_url(self, page: str, race_date: str, stadium_code: str, race_no: int) -> str:
+            return f"{page}:{race_date}:{stadium_code}:{race_no}"
+
+    result = enrich_watchlist_row_with_beforeinfo(
+        row,
+        profile,
+        client=FakeClient(),
+        raw_root=tmp_path,
+    )
+
+    assert result == {"changed": True, "ready": False}
+    assert row["status"] == "waiting_beforeinfo"
+    assert row["final_reason"] == "beforeinfo not ready"
+    assert row["racer_index_pred1_lane"] == 2
+    assert row["racer_index_signal_date"] == "2026-03-23"

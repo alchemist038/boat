@@ -58,6 +58,30 @@ Current review order inside this slice:
 3. `H-B`
 4. `H-D`
 
+Current first-branch note:
+
+- [h_a_yearly_comparison_2024_2026ytd_20260325.md](/c:/CODEX_WORK/boat_clone/reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_a_yearly_comparison_2024_2026ytd_20260325.md)
+
+Current `H-A` working read:
+
+- simple and high-sample exacta branch
+- positive in `2024`, `2025`, and `2026_ytd` under official-settle proxy
+- weak windows are not random only
+- the main failure mode is:
+  - lane 4 stops taking the head
+  - lane 1 remains the actual winner too often
+- completed first refinements:
+  - `final day cut` helps without damaging the shape too much
+  - `lane4_class != B1` improves DD, but cuts away too much edge
+  - `pred1 = lane4` looks directionally useful as head confirmation, but is still too small-sample
+
+Current next-step order for `H-A`:
+
+1. keep `final day cut` as the first refined baseline
+2. search for selective lane-4 weakness cuts instead of full `B1` removal
+3. test stronger lane-4 head confirmation
+4. only then consider runtime promotion
+
 Reason for top priority:
 
 - current trio DD / ROI comparison is anchored on the aligned period `2025-04-01 .. 2026-03-09`

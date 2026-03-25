@@ -51,7 +51,7 @@ Current main-line waiting policy:
 - shared bet expansion remains in `live_trigger/auto_system/app/core/bets.py`
 - execution-specific runtime state must not redefine logic truth
 
-- updated_at: 2026-03-24 JST
+- updated_at: 2026-03-26 JST
 - scope:
   - `C:\CODEX_WORK\boat_clone\live_trigger`
   - `C:\CODEX_WORK\boat_clone\live_trigger_cli`
@@ -61,11 +61,51 @@ Current main-line waiting policy:
   - waiting / execution policy
   - shared logic vs main CLI execution boundaries
 
+## 2026-03-26 Recent Main-Line Changes
+
+### C2 racer-index overlay
+
+- `c2_provisional_v1` now reads the shared `racer_index_overlay` block from:
+  - `live_trigger/boxes/c2/profiles/provisional_v1.json`
+- current live rule:
+  - if `pred1_lane = 1`, mark the race `filtered_out`
+- this runs before `beforeinfo` confirmation
+- target payload now keeps:
+  - `racer_index_pred1_lane`
+  - `racer_index_signal_date`
+- purpose:
+  - reduce contradiction cases where the strategy wants to fade lane1, but racer-index still places lane1 at `pred1`
+
+### Monitoring window and stale beforeinfo handling
+
+- main-line monitoring window now runs:
+  - `deadline - 10 minutes`
+  - through `deadline - 3 minutes`
+- `beforeinfo` and `4wind odds2t` now refresh during the monitoring window when the cached file is stale
+- purpose:
+  - avoid holding an incomplete early HTML snapshot until the internal window closes
+
+### CLI UI summary cleanup
+
+- the top summary now separates:
+  - `today targets`
+  - `all targets`
+- the overview tab also shows:
+  - per-profile target counts for the current `race_date`
+
+### Logic review note
+
+- `H-A` work remains on the logic side only
+- it is recorded under:
+  - `LOGIC_STATUS.md`
+  - `pre_review_logic_inventory_20260325.md`
+- it is not part of the current live trio and does not change the main line yet
+
 ## 0. 2026-03-21 時点のスナップショット
 
 ### 0-1. できるようになったこと
 
-- 当日自動系は `締切 10 分前〜5 分前` の window driven で動作する
+- 当日自動系は `締切 10 分前〜3 分前` の window driven で動作する
 - `beforeinfo` は監視中に再取得するようになり、古いキャッシュ固定で `waiting_beforeinfo` のまま落ちる問題は緩和済み
 - `GO -> intent_created -> air_bet_logged` と `target_skipped` の両方を実レースで確認済み
 - `C2` の点数計算は `2-ALL-ALL = 20 点`、`3-ALL-ALL = 20 点` として扱い、合計金額も UI / DB 側で反映済み
@@ -166,7 +206,7 @@ Current main-line waiting policy:
 - `01_sync_watchlists.py`
   - 当日分の `watchlist` を DB に取り込む
 - `02_evaluate_targets.py`
-  - 締切 10 分前から 5 分前で状態確認し、`BetIntent` を作る
+  - 締切 10 分前から 3 分前で状態確認し、`BetIntent` を作る
 - `03_execute_air_bets.py`
   - `execution_mode` に応じて `air / assist_real / armed_real` を処理する
 

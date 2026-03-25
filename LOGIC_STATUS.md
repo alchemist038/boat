@@ -10,11 +10,13 @@ This file is the parent status doc for logic research, adopted forward logic, an
 - [RACER_INDEX_STATUS.md](./RACER_INDEX_STATUS.md)
 - [main_forward_trio_snapshot_20260325.md](./reports/strategies/combined/main_forward_trio_snapshot_20260325.md)
 - [pre_review_logic_inventory_20260325.md](./reports/strategies/pre_review_logic_inventory_20260325.md)
+- [h_a_yearly_comparison_2024_2026ytd_20260325.md](./reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_a_yearly_comparison_2024_2026ytd_20260325.md)
+- [summary.md](./reports/strategies/c2/c2_pred1_non_lane1_overlay_walkforward_2025-04-01_to_2026-03-09_5m_20260325/summary.md)
 - [projects/125/README.md](./projects/125/README.md)
 - [projects/4wind/README.md](./projects/4wind/README.md)
 - [live_trigger/PROJECT_RULES.md](./live_trigger/PROJECT_RULES.md)
 
-- updated_at: 2026-03-24 JST
+- updated_at: 2026-03-26 JST
 
 ## 1. Logic Ownership
 
@@ -57,6 +59,8 @@ Cross-trio DD / ROI snapshot:
   - or `women6_proxy`
 - current execution refinement:
   - `B2 cut` in `2-ALL-ALL / 3-ALL-ALL`
+  - racer-index contradiction cut:
+    - skip when `pred1_lane = 1`
 
 ### `125_broad_four_stadium`
 
@@ -106,6 +110,24 @@ Why the bounded slice is first:
 - so the bounded exacta slice `2025-04-01 .. 2025-06-16` overlaps the early stress regime that already matters for the current main set
 - this makes it the best current `検討前` review zone
 
+Current first-pass review result:
+
+- `H-A` has now been re-checked on `2024`, `2025`, and `2026_ytd` under official-settle proxy
+- note:
+  - [h_a_yearly_comparison_2024_2026ytd_20260325.md](./reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_a_yearly_comparison_2024_2026ytd_20260325.md)
+  - [h_a_final_day_cut_2024_2026ytd_20260325.md](./reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_a_final_day_cut_2024_2026ytd_20260325.md)
+  - [h_a_lane4_not_b1_2024_2026ytd_20260325.md](./reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_a_lane4_not_b1_2024_2026ytd_20260325.md)
+- working read:
+  - `H-A` is simple, high-sample, and still positive across years
+  - its weak windows are tied more to `lane4 head failure` than to normal partner variance
+  - `final day cut` is the current best first refinement candidate
+  - `lane4_class != B1` improves DD, but is too strong as a universal cut
+  - first racer-index head-confirmation check (`pred1 = lane4`) is now recorded, but sample is still too small for adoption
+  - next review order is:
+    - keep `final day cut` as the first refined baseline
+    - search for selective lane-4 weakness cuts instead of full `B1` removal
+    - test stronger lane-4 head confirmation
+
 ## 6. Racer Index Position
 
 `racer_index` is a logic substrate.
@@ -121,6 +143,9 @@ It is:
 - a persistent racer-ability layer
 - a source of candidate conditional filters and head signals
 - an input into future logic refinement
+- first concrete uses are now:
+  - `C2` contradiction filtering
+  - `H-A` head-confirmation research
 
 Current racer-index status lives in:
 

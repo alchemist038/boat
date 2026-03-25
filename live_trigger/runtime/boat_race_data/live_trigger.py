@@ -48,10 +48,15 @@ WATCHLIST_COLUMNS = [
     "lane1_start_exhibition_st",
     "min_other_start_exhibition_st",
     "lane1_start_gap_over_rest",
+    "racer_index_pred1_lane",
+    "racer_index_signal_date",
     "beforeinfo_fetched_at",
 ]
 
 CANONICAL_DUCKDB_PATH = Path(r"\\038INS\boat\data\silver\boat_race.duckdb")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+LOCAL_REPORTS_STRATEGY_ROOT = REPO_ROOT / "reports" / "strategies"
+SHARED_REPORTS_STRATEGY_ROOT = Path(r"\\038INS\boat\reports\strategies")
 
 
 @dataclass(slots=True)
@@ -354,6 +359,8 @@ def build_watchlist_row(
         "lane1_start_exhibition_st": "",
         "min_other_start_exhibition_st": "",
         "lane1_start_gap_over_rest": "",
+        "racer_index_pred1_lane": "",
+        "racer_index_signal_date": "",
         "beforeinfo_fetched_at": "",
     }
 
@@ -364,6 +371,12 @@ def enrich_watchlist_row_with_beforeinfo(
     client: BoatRaceClient,
     raw_root: Path,
 ) -> dict[str, bool]:
+    overlay_reason = _racer_index_overlay_reason(row, profile)
+    if overlay_reason is not None:
+        row["status"] = "filtered_out"
+        row["final_reason"] = overlay_reason
+        return {"changed": True, "ready": False}
+
     race_date = str(row["race_date"]).replace("-", "")
     stadium_code = str(row["stadium_code"])
     race_no = int(row["race_no"])
@@ -709,6 +722,80 @@ def _normalize_racer_id(value: object) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _racer_index_overlay_config(profile: TriggerProfile) -> dict[str, object]:
+    payload = profile.raw_payload.get("racer_index_overlay")
+    return payload if isinstance(payload, dict) else {}
+
+
+def _normalize_race_date_token(value: object) -> str:
+    return str(value or "").strip().replace("-", "").replace("/", "")
+
+
+@lru_cache(maxsize=32)
+def _daily_pred1_lane_index(race_date_iso: str) -> dict[str, int]:
+    race_date_token = _normalize_race_date_token(race_date_iso)
+    if len(race_date_token) != 8:
+        return {}
+
+    candidate_paths = [
+        SHARED_REPORTS_STRATEGY_ROOT / f"racer_rank_live_{race_date_token}" / "race_summary.csv",
+        LOCAL_REPORTS_STRATEGY_ROOT / f"racer_rank_live_{race_date_token}" / "race_summary.csv",
+    ]
+    for path in candidate_paths:
+        if not path.exists():
+            continue
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.DictReader(handle)
+            pred1_index: dict[str, int] = {}
+            for csv_row in reader:
+                race_id = str(csv_row.get("race_id", "")).strip()
+                pred1_lane = csv_row.get("pred1_lane")
+                if not race_id or pred1_lane in {"", None}:
+                    continue
+                try:
+                    pred1_index[race_id] = int(float(pred1_lane))
+                except (TypeError, ValueError):
+                    continue
+        if pred1_index:
+            return pred1_index
+    return {}
+
+
+def _racer_index_overlay_reason(row: dict[str, object], profile: TriggerProfile) -> str | None:
+    if profile.strategy_id != "c2":
+        return None
+
+    config = _racer_index_overlay_config(profile)
+    if not config:
+        return None
+    if config.get("enabled", True) is False:
+        return None
+
+    excluded_lanes: set[int] = set()
+    for value in config.get("exclude_when_pred1_lane", []):
+        try:
+            excluded_lanes.add(int(value))
+        except (TypeError, ValueError):
+            continue
+    if not excluded_lanes:
+        return None
+
+    race_id = str(row.get("race_id", "")).strip()
+    race_date = str(row.get("race_date", "")).strip()
+    if not race_id or not race_date:
+        return None
+
+    pred1_lane = _daily_pred1_lane_index(race_date).get(race_id)
+    if pred1_lane is None:
+        return None
+
+    row["racer_index_pred1_lane"] = pred1_lane
+    row["racer_index_signal_date"] = race_date
+    if pred1_lane in excluded_lanes:
+        return f"racer_index_pred1_lane={pred1_lane} excluded"
+    return None
 
 
 def _c2_all_women_reason(entry_rows: list[dict[str, object]], profile: TriggerProfile) -> str | None:

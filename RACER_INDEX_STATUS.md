@@ -2,7 +2,7 @@
 
 This file is the owner doc for racer-index research as a logic substrate under [LOGIC_STATUS.md](./LOGIC_STATUS.md).
 
-## Current Decision as of 2026-03-24
+## Current Decision as of 2026-03-26
 
 - Adopt `5M` as the first operating window
 - `5M` means the prior `5 months`
@@ -198,6 +198,47 @@ Current interpretation:
 - `pred1 != lane1` is a strong candidate condition
 - the first use-case should be head-fixed betting logic
 
+## First Live Overlay Decision
+
+The first concrete live overlay now adopted from this track is:
+
+- `C2`
+  - skip when `pred1_lane = 1`
+  - treat this as a contradiction filter for weak-lane1 logic
+  - do not treat this as a universal portfolio overlay rule
+
+Walk-forward read for the current `C2` proxy (`women6 + B2 cut + final day cut`):
+
+- note:
+  - [summary.md](./reports/strategies/c2/c2_pred1_non_lane1_overlay_walkforward_2025-04-01_to_2026-03-09_5m_20260325/summary.md)
+- baseline:
+  - `340 races`
+  - `ROI 129.71%`
+  - `profit +271,140 yen`
+  - `max DD 163,280 yen`
+- overlay `pred1 != lane1`:
+  - `113 races`
+  - `ROI 150.19%`
+  - `profit +145,050 yen`
+  - `max DD 32,840 yen`
+
+Current interpretation:
+
+- this materially compresses drawdown
+- it also removes a large amount of gross profit
+- so it should be read as a risk-compression overlay for `C2`, not as a general rule for every strategy
+
+## Current H-A Compatibility Read
+
+`H-A` is still research-only, but racer-index has now been checked as a possible head-confirmation layer.
+
+- note:
+  - [h_a_racer_index_pred1_lane4_feb_mar_20260325.md](./reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_a_racer_index_pred1_lane4_feb_mar_20260325.md)
+- current read:
+  - `pred1 = lane4` supports the idea of stronger lane-4 head confirmation
+  - the sample is still too small for adoption
+  - keep this in logic research, not in live runtime, for now
+
 ## Operating Method
 
 ### Daily
@@ -228,8 +269,12 @@ The current scripts and reports still live mainly on the shared operational side
   - `\\038INS\boat\workspace_codex\scripts\evaluate_base100_lane_multiplier_20260324.py`
   - `\\038INS\boat\workspace_codex\scripts\fit_racer_finish_score_20260324.py`
   - `\\038INS\boat\workspace_codex\scripts\backtest_three_projects_pred6_overlay_walkforward_20260324.py`
+  - `workspace_codex/scripts/backtest_c2_pred1_non_lane1_overlay_walkforward_20260325.py`
+  - `workspace_codex/scripts/evaluate_h_a_racer_index_overlay_20260325.py`
 - reports:
   - `\\038INS\boat\reports\strategies\base100_lane_multiplier_20260324\summary.md`
   - `\\038INS\boat\reports\strategies\combined\three_projects_pred6_overlay_walkforward_2025-04-01_to_2026-03-09_profile5m_20260324\summary.md`
   - `\\038INS\boat\reports\strategies\combined\three_projects_pred6_overlay_walkforward_2025-04-01_to_2026-03-09_profile8m_20260324\summary.md`
   - `\\038INS\boat\reports\strategies\combined\three_projects_pred6_overlay_walkforward_2025-04-01_to_2026-03-09_20260324\summary.md`
+  - `reports/strategies/c2/c2_pred1_non_lane1_overlay_walkforward_2025-04-01_to_2026-03-09_5m_20260325/summary.md`
+  - `reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_a_racer_index_pred1_lane4_feb_mar_20260325.md`
