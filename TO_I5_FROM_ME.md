@@ -1,91 +1,159 @@
 # TO I5 FROM ME
 
-`i5` の Codex は、このファイルを現時点の連絡メモとして読んでください。
+`i5` 側の Codex に渡す、現時点の handoff / delta メモです。
+bootstrap はこの 1 枚だけに頼らず、まず `I5_START.md` を読んでください。
 
 ## Context
+
 - machine: i5
 - from: me
-- status: info
-- updated_at: 2026-03-14 22:25 JST
-- priority: medium
+- status: active
+- updated_at: 2026-03-25 22:10 JST
+- priority: high
 
-## Current Note
+## First Read Order
 
-いま `i5` はアラートシステム作業を優先してよいです。
-このメモは「125 の整理が完了したこと」を共有するための情報更新です。
-現在の作業を中断する必要はありません。
+最初に次の順で読んでください。
 
-## Folder Intent
+1. `I5_START.md`
+2. `ROOT_DOC_MAP.md`
+3. `OPERATING_MODEL.md`
 
-今回から、戦略ごとに見る場所をそろえました。
+その後、作業ごとに分岐してください。
 
-- project notes:
-  - `projects/125/`
-  - `projects/c2/`
-- human-readable strategy reports:
-  - `reports/strategies/125/`
-  - `reports/strategies/c2/`
-- raw analysis outputs:
-  - `workspace_codex/analysis/125/`
-  - `workspace_codex/analysis/c2/`
-  - `workspace_codex/analysis/combined/`
+- DB / gap recovery:
+  - `DB_STATUS.md`
+  - `FROM_INS14_TO_ME.md`
+- main bet line / operation:
+  - `BET_PROJECT_STATUS.md`
+  - `live_trigger_cli/README.md`
+- logic / racer work:
+  - `LOGIC_STATUS.md`
+  - `RACER_INDEX_STATUS.md`
 
-つまり、
-- `projects/...` = 案件ノート
-- `reports/strategies/...` = 人が読む要約
-- `workspace_codex/analysis/...` = 生の分析出力
-です。
+## Current Fixed Rules
 
-## 125 Status
+以下は当面固定です。
 
-`125` は、いったん完成候補として整理済みです。
+- canonical shared data root:
+  - `\\038INS\boat\data`
+- canonical shared DB:
+  - `\\038INS\boat\data\silver\boat_race.duckdb`
+- main bet line:
+  - `live_trigger_cli`
+- logic source of truth:
+  - `live_trigger/boxes/`
+  - `live_trigger/shared_contract.py`
+  - `live_trigger/auto_system/app/core/bets.py`
+- logic substrate:
+  - `racer_index`
 
-Current main interpretation:
-- core is `lane1=B1`
-- `lane6=B2` is a valid remove condition
-- `lane5=B2` is clearly bad for `1-2-5`
-- `exgap<=0.02` strengthens the Suminoe-style setup
+runtime state は source として扱わないでください。
+特に `live_trigger_cli/data/`, `live_trigger_cli/raw/`, `*.db`, `*.log`, `*.pid` を share と丸ごと混ぜないでください。
 
-Current adopted candidates:
-- main single-stadium logic:
-  - Suminoe `1-2-5`
-- broad candidate:
-  - Suminoe + Naruto + Ashiya + Edogawa
+## Machine Split
 
-Canonical files:
-- `projects/125/status_notebooklm_20260313.txt`
-- `reports/strategies/125/summary_20260314.md`
-- `reports/strategies/125/review_20260314.md`
+`i5` の主担当:
+
+- historical DB recovery
+- isolated odds-gap collection in local worker trees
+- `live_trigger_cli` construction and forward operation
+- execution-line UX / notification / operator assist
+
+`ins14` の主担当:
+
+- current and recent collection
+- shared bronze import
+- final shared `refresh-silver`
+- shared DB integration
+- logic scan
+- racer-index work
+
+## Main Forward Set
+
+現行の主戦ロジックは次の 3 本です。
+
+- `4wind_base_415`
+- `c2_provisional_v1`
+- `125_broad_four_stadium`
+
+補足:
+
+- `4wind` は shared `live_trigger/boxes/4wind/` に昇格済み
+- `c2` は `women6/title proxy + final day cut + B2 cut`
+- `125` は broad four stadium 版を主戦に採用
+
+## Current i5 Actionables
+
+### 1. DB / Gap Recovery
+
+`i5` では引き続き historical 側の gap 回収を担当してください。
+shared canonical DB に直接ぶつける前に、local worker tree で raw / bronze / silver を確認する前提です。
+
+読む場所:
+
+- `DB_STATUS.md`
+- `workspace_codex/coordination/LONGRUN_BACKFILL_RUNBOOK.md`
+- `FROM_INS14_TO_ME.md`
+
+### 2. live_trigger_cli
+
+main bet line は `live_trigger_cli` です。
+ロジックを line-local に fork せず、shared `boxes` を使う側として扱ってください。
+
+特に守ること:
+
+- runtime logic は `live_trigger/boxes/` を正本にする
+- execution / Telegram / UI / waiting behavior は `live_trigger_cli` で進める
+- runtime 生成物は Git や share の source 扱いにしない
+
+### 3. racer_index / live-score
+
+`2026-03-25` の更新として、`pred1 != lane1` slice の live-score 読みを追加しています。
+これは i5 で継続してよい主タスクです。
+
+読む場所:
+
+- `RACER_INDEX_STATUS.md`
+- `racer_index/OPERATIONS.md`
+- `reports/strategies/racer_rank_live_20260325/summary.md`
+
+見るスクリプト:
+
+- `workspace_codex/scripts/predict_racer_rank_live.py`
+
+次にやってほしいこと:
+
+1. `pred1 != lane1` を one-day anecdote で終わらせず multi-day に拡張
+2. 次の 3 形を比較
+   - head-fixed exacta
+   - `pred1..pred4` `2連複BOX`
+   - `1-2 / 1-3 / 1-4` `2連複`
+3. 結論を `FROM_I5_TO_ME.md` に返す
+
+## Preserved Older Context
+
+旧 `125` メモは historical context として preserve しますが、いまの正本は以下です。
+
 - `projects/125/README.md`
+- `reports/strategies/125/summary_20260314.md`
+- `LOGIC_STATUS.md`
 
-## How To Confirm The Logic
-
-If you want to verify the current `125` logic, use this order:
-
-1. Read `projects/125/README.md`
-2. Read `reports/strategies/125/summary_20260314.md`
-3. Confirm the adopted conditions and BT/FW numbers there
-4. If you need source evidence, open these folders under `workspace_codex/analysis/125/`
-
-Main evidence folders:
-- `125line_relative_rank_probe_20260314`
-- `125line_lane1_class_split_20260314`
-- `top5_lane1_b1_stadium_deep_20260314`
-- `all_stadium_lane1_b1_theory_scan_20260314`
-- `four_stadium_monthly_20260314`
+つまり、このファイルは `125` 単独メモではなく、今後は `i5` の delta / handoff 専用として使います。
 
 ## Requested Response
 
-作業の切れ目でよいので、次の3点だけ `FROM_I5_TO_ME.md` に短く書いてください。
+区切りのよいところで `FROM_I5_TO_ME.md` に短く返答してください。
 
-- 新しいフォルダ構成を読めたか
-- `125` の完成状態を理解できたか
-- `125` の確認手順を理解できたか
+- 今回どの task を進めたか
+- block があるか
+- 次に何を見るか
 
 ## Codex Action
 
-1. `git pull`
-2. このファイルを読む
-3. 必要なら `projects/125/README.md` と `reports/strategies/125/summary_20260314.md` を読む
-4. 現在のアラートシステム作業は優先して継続
-5. 区切りのよいタイミングで `FROM_I5_TO_ME.md` に短く返答
+1. `git pull --ff-only origin main`
+2. `I5_START.md` を読む
+3. このファイルを読む
+4. 担当 task の status doc を読む
+5. 作業を進める
+6. 区切りで `FROM_I5_TO_ME.md` に返答
