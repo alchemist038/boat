@@ -84,3 +84,15 @@ def test_runtime_build_bet_rows_passes_context_to_shared_module(monkeypatch) -> 
         "amount": 100,
         "context": {"race_id": "202603230801"},
     }
+
+
+def test_build_bet_rows_supports_h_a_exacta() -> None:
+    rows = bets.build_bet_rows(
+        strategy_id="h_a",
+        profile_id="h_a_final_day_cut_v1",
+        amount=200,
+    )
+
+    assert rows == [
+        {"bet_type": "exacta", "combo": "4-1", "amount": 200},
+    ]

@@ -94,7 +94,8 @@ Reason for top priority:
 Working interpretation:
 
 - this slice should be treated as the first dormant branch review area because it may explain, complement, or hedge the trio's early drawdown regime
-- it is not yet a promoted runtime candidate, but it is the best current `検討前` source
+- it is now stored as a shared disabled candidate at [final_day_cut_v1.json](/c:/CODEX_WORK/boat_clone/live_trigger/boxes/h_a/profiles/final_day_cut_v1.json)
+- runtime adoption is still pending, so it remains the best current `検討前` source
 
 ### Priority 2: `2press`
 

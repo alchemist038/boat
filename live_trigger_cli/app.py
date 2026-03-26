@@ -466,7 +466,7 @@ def _profile_frame(settings: dict[str, Any]) -> pd.DataFrame:
                 "profile_id": profile.profile_id,
                 "display_name": profile.display_name,
                 "box_id": profile.box_id,
-                "enabled": runtime.profile_enabled(settings, profile.profile_id),
+                "enabled": runtime.profile_enabled(settings, profile.profile_id, default_enabled=profile.enabled),
                 "amount": runtime.profile_amount(settings, profile.profile_id),
                 "runtime_profile_enabled": bool(profile.enabled),
             }

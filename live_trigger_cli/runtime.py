@@ -603,7 +603,7 @@ def _build_runtime_watchlist_sources(
     *,
     race_date: str,
 ) -> tuple[list[tuple[str, dict[str, object]]], list[str]]:
-    profiles = load_runtime_profiles(runtime_root, include_disabled=False)
+    profiles = load_runtime_profiles(runtime_root, include_disabled=True)
     if not profiles:
         return [], []
 
@@ -617,7 +617,7 @@ def _build_runtime_watchlist_sources(
             source_prefix = SHARED_SOURCE_PREFIX if profile.source_kind == "shared" else LOCAL_SOURCE_PREFIX
             source_name = f"{source_prefix}{profile.profile_id}"
             source_names.append(source_name)
-            if not profile_enabled(settings, profile.profile_id):
+            if not profile_enabled(settings, profile.profile_id, default_enabled=profile.enabled):
                 continue
             stadiums: list[str] = []
             if profile.source_kind == "shared" and profile.shared_profile is not None:
@@ -1105,11 +1105,11 @@ def execution_mode(settings: dict[str, Any]) -> str:
     return mode
 
 
-def profile_enabled(settings: dict[str, Any], profile_id: str) -> bool:
+def profile_enabled(settings: dict[str, Any], profile_id: str, *, default_enabled: bool = True) -> bool:
     active_profiles = settings.get("active_profiles", {})
     if profile_id not in active_profiles:
-        return True
-    return bool(active_profiles.get(profile_id, True))
+        return bool(default_enabled)
+    return bool(active_profiles.get(profile_id, default_enabled))
 
 
 def profile_amount(settings: dict[str, Any], profile_id: str) -> int:
@@ -1767,8 +1767,12 @@ def sync_watchlists(runtime_root: Path = RUNTIME_ROOT, *, race_date: str | None 
     initialize_runtime(runtime_root)
     target_race_date = _normalize_race_date(race_date)
     settings = load_settings(runtime_root)
-    profiles = load_runtime_profiles(runtime_root, include_disabled=False)
-    active_profiles = [profile for profile in profiles if profile_enabled(settings, profile.profile_id)]
+    profiles = load_runtime_profiles(runtime_root, include_disabled=True)
+    active_profiles = [
+        profile
+        for profile in profiles
+        if profile_enabled(settings, profile.profile_id, default_enabled=profile.enabled)
+    ]
     source_rows, source_names = _build_runtime_watchlist_sources(runtime_root, race_date=target_race_date)
     shared_profiles = sum(1 for profile in active_profiles if profile.source_kind == "shared")
     local_profiles = sum(1 for profile in active_profiles if profile.source_kind == "local")
@@ -2124,7 +2128,7 @@ def evaluate_targets(
                         expired_count += 1
                     continue
 
-                if not profile_enabled(settings, str(target["profile_id"])):
+                if not profile_enabled(settings, str(target["profile_id"]), default_enabled=profile.enabled):
                     if target["status"] != "checked_skip":
                         message = "profile disabled in live_trigger_cli"
                         connection.execute(

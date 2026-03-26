@@ -407,6 +407,8 @@ def enrich_watchlist_row_with_beforeinfo(
         fetch.fetched_at,
     )
     row["beforeinfo_fetched_at"] = fetch.fetched_at
+    if profile.strategy_id == "h_a":
+        return _enrich_h_a_watchlist_row(row, profile, beforeinfo_rows)
     lane1 = _entry_by_lane(beforeinfo_rows, 1)
     if lane1 is None or lane1.get("exhibition_time") in ("", None):
         row["status"] = "waiting_beforeinfo"
@@ -443,12 +445,56 @@ def enrich_watchlist_row_with_beforeinfo(
     return {"changed": True, "ready": False}
 
 
+def _enrich_h_a_watchlist_row(
+    row: dict[str, object],
+    profile: TriggerProfile,
+    beforeinfo_rows: list[dict[str, object]],
+) -> dict[str, bool]:
+    lane1 = _entry_by_lane(beforeinfo_rows, 1)
+    lane4 = _entry_by_lane(beforeinfo_rows, 4)
+    lane1_start = _maybe_float(lane1.get("start_exhibition_st")) if lane1 is not None else None
+    lane4_start = _maybe_float(lane4.get("start_exhibition_st")) if lane4 is not None else None
+    lane1_rank = compute_start_rank(beforeinfo_rows, lane=1)
+    lane4_gap = None
+    if lane1_start is not None and lane4_start is not None:
+        lane4_gap = lane1_start - lane4_start
+
+    row["lane1_start_exhibition_st"] = "" if lane1_start is None else f"{lane1_start:.2f}"
+    row["lane4_start_exhibition_st"] = "" if lane4_start is None else f"{lane4_start:.2f}"
+    row["lane1_start_exhibition_rank"] = "" if lane1_rank is None else lane1_rank
+    row["lane4_ahead_lane1_start_gap"] = "" if lane4_gap is None else f"{lane4_gap:.3f}"
+
+    if lane1_start is None or lane4_start is None or lane1_rank is None:
+        row["status"] = "waiting_beforeinfo"
+        row["final_reason"] = "beforeinfo not ready"
+        return {"changed": True, "ready": False}
+
+    config = profile.raw_payload.get("ha_filters", {})
+    lane1_rank_max = int(config.get("lane1_start_rank_max", 3))
+    lane4_gap_min = _maybe_float(config.get("lane4_ahead_lane1_start_min"))
+    if lane4_gap_min is None:
+        lane4_gap_min = 0.05
+
+    matched = lane1_rank <= lane1_rank_max and lane4_gap >= lane4_gap_min
+    row["status"] = "trigger_ready" if matched else "filtered_out"
+    row["final_reason"] = build_h_a_reason(
+        lane1_rank=lane1_rank,
+        lane1_rank_max=lane1_rank_max,
+        lane4_gap=lane4_gap,
+        lane4_gap_min=lane4_gap_min,
+        matched=matched,
+    )
+    return {"changed": True, "ready": matched}
+
+
 def build_pre_reason(
     lane1: dict[str, object],
     profile: TriggerProfile,
     *,
     proxy_reason: str | None = None,
 ) -> str:
+    if profile.strategy_id == "h_a":
+        return "broad_exacta_4_1_candidate"
     parts: list[str] = []
     if proxy_reason:
         parts.append(proxy_reason)
@@ -506,7 +552,32 @@ def build_final_reason(
                 profile.lane1_start_gap_over_rest_min,
                 ">=" if matched else "<",
             )
-        )
+    )
+    return ", ".join(part for part in parts if part) or "beforeinfo ready"
+
+
+def build_h_a_reason(
+    *,
+    lane1_rank: int | None,
+    lane1_rank_max: int,
+    lane4_gap: float | None,
+    lane4_gap_min: float,
+    matched: bool,
+) -> str:
+    parts = [
+        _format_comparison(
+            "lane1_start_rank",
+            None if lane1_rank is None else float(lane1_rank),
+            float(lane1_rank_max),
+            "<=" if matched else ">",
+        ),
+        _format_comparison(
+            "lane4_ahead_lane1_start_gap",
+            lane4_gap,
+            lane4_gap_min,
+            ">=" if matched else "<",
+        ),
+    ]
     return ", ".join(part for part in parts if part) or "beforeinfo ready"
 
 
@@ -553,6 +624,21 @@ def compute_start_gap_over_rest(beforeinfo_rows: list[dict[str, object]], lane: 
     if lane_start is None or other_start is None:
         return None
     return lane_start - other_start
+
+
+def compute_start_rank(beforeinfo_rows: list[dict[str, object]], lane: int) -> int | None:
+    lane_row = _entry_by_lane(beforeinfo_rows, lane)
+    lane_start = _maybe_float(lane_row.get("start_exhibition_st")) if lane_row is not None else None
+    if lane_start is None:
+        return None
+    valid_starts = sorted(
+        value
+        for value in (_maybe_float(item.get("start_exhibition_st")) for item in beforeinfo_rows)
+        if value is not None
+    )
+    if not valid_starts:
+        return None
+    return valid_starts.index(lane_start) + 1
 
 
 def read_watchlist(path: Path) -> list[dict[str, object]]:

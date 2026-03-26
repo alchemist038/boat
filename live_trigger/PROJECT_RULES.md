@@ -4,7 +4,7 @@
 
 1. `live_trigger/boxes/` is the only canonical runtime source for strategy conditions.
 2. `trigger app`, `auto_system`, `replay tools`, `fresh_exec`, and future real executors must reference this shared `boxes/` root.
-3. No parallel tree may keep its own copied `125`, `c2`, or `4wind` profile JSON files.
+3. No parallel tree may keep its own copied `125`, `c2`, `4wind`, or `h_a` profile JSON files.
 
 ## Strategy Ownership
 

@@ -1,12 +1,17 @@
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
 
 from boat_race_data.live_trigger import (
     TriggerProfile,
     build_watchlist_row,
     compute_best_gap,
     compute_lane_gap,
+    compute_start_rank,
     compute_start_gap_over_rest,
     compute_watch_start_time,
+    enrich_watchlist_row_with_beforeinfo,
     load_trigger_profiles,
 )
 
@@ -126,6 +131,78 @@ def test_c2_gap_helpers_compute_expected_values() -> None:
     assert round(compute_lane_gap(rows, 1, 2) or 0.0, 3) == -0.01
     assert round(compute_lane_gap(rows, 1, 3) or 0.0, 3) == -0.02
     assert round(compute_start_gap_over_rest(rows, 1) or 0.0, 3) == 0.16
+
+
+def test_compute_start_rank_uses_fastest_start_exhibition_st() -> None:
+    rows = [
+        {"lane": 1, "start_exhibition_st": 0.16},
+        {"lane": 2, "start_exhibition_st": 0.09},
+        {"lane": 3, "start_exhibition_st": 0.11},
+        {"lane": 4, "start_exhibition_st": 0.08},
+    ]
+
+    assert compute_start_rank(rows, lane=1) == 4
+    assert compute_start_rank(rows, lane=4) == 1
+
+
+def test_h_a_profile_becomes_trigger_ready_with_start_rank_and_lane4_gap(monkeypatch, tmp_path: Path) -> None:
+    profile = next(
+        profile
+        for profile in load_trigger_profiles(ROOT / "live_trigger" / "boxes", include_disabled=True)
+        if profile.profile_id == "h_a_final_day_cut_v1"
+    )
+
+    monkeypatch.setattr(
+        sys.modules["boat_race_data.live_trigger"],
+        "_fetch_text_cached",
+        lambda client, url, raw_path, refresh_after_seconds=None: type(
+            "Fetch",
+            (),
+            {
+                "text": "<html></html>",
+                "url": url,
+                "fetched_at": "2026-03-26T10:00:00",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        sys.modules["boat_race_data.live_trigger"],
+        "parse_beforeinfo",
+        lambda *args, **kwargs: [
+            {"lane": 1, "start_exhibition_st": 0.12, "exhibition_time": 6.80},
+            {"lane": 2, "start_exhibition_st": 0.18, "exhibition_time": 6.82},
+            {"lane": 3, "start_exhibition_st": 0.14, "exhibition_time": 6.81},
+            {"lane": 4, "start_exhibition_st": 0.05, "exhibition_time": 6.78},
+            {"lane": 5, "start_exhibition_st": 0.19, "exhibition_time": 6.84},
+            {"lane": 6, "start_exhibition_st": 0.20, "exhibition_time": 6.83},
+        ],
+    )
+
+    row = {
+        "race_id": "202603261204",
+        "race_date": "2026-03-26",
+        "stadium_code": "12",
+        "race_no": 4,
+        "status": "waiting_beforeinfo",
+        "pre_reason": "broad_exacta_4_1_candidate",
+        "final_reason": "",
+    }
+
+    class FakeClient:
+        def build_race_url(self, page: str, race_date: str, stadium_code: str, race_no: int) -> str:
+            return f"{page}:{race_date}:{stadium_code}:{race_no}"
+
+    result = enrich_watchlist_row_with_beforeinfo(
+        row,
+        profile,
+        client=FakeClient(),
+        raw_root=tmp_path,
+    )
+
+    assert result == {"changed": True, "ready": True}
+    assert row["status"] == "trigger_ready"
+    assert "lane1_start_rank=2.000 <= 3" in row["final_reason"]
+    assert "lane4_ahead_lane1_start_gap=0.070 >= 0.05" in row["final_reason"]
 
 
 def test_load_trigger_profiles_reads_enabled_json_files(tmp_path: Path) -> None:

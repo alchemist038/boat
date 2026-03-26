@@ -1,0 +1,20 @@
+{
+  "box_id": "h_a",
+  "profile_id": "h_a_final_day_cut_v1",
+  "strategy_id": "h_a",
+  "display_name": "H-A Final Day Cut V1",
+  "description": "Exacta 4-1 candidate with final-day exclusion and ST confirmation.",
+  "accent_color": "#7c3aed",
+  "enabled": false,
+  "watch_minutes_before_deadline": 10,
+  "stadiums": [],
+  "runtime_evaluator_kind": "shared",
+  "ha_filters": {
+    "lane1_start_rank_max": 3,
+    "lane4_ahead_lane1_start_min": 0.05
+  },
+  "bet_type": "exacta",
+  "combos": [
+    "4-1"
+  ]
+}

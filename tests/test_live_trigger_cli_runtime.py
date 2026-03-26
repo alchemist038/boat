@@ -17,6 +17,15 @@ def test_load_runtime_profiles_includes_shared_4wind() -> None:
     assert profile_map["4wind_base_415"].evaluator_kind == "4wind"
 
 
+def test_load_runtime_profiles_includes_disabled_shared_h_a_candidate() -> None:
+    profiles = runtime.load_runtime_profiles(include_disabled=True)
+    profile_map = {profile.profile_id: profile for profile in profiles}
+
+    assert "h_a_final_day_cut_v1" in profile_map
+    assert profile_map["h_a_final_day_cut_v1"].source_kind == "shared"
+    assert profile_map["h_a_final_day_cut_v1"].enabled is False
+
+
 def test_load_runtime_profiles_prefers_shared_over_local_duplicate(tmp_path: Path) -> None:
     runtime_root = tmp_path / "runtime"
     local_profile_path = runtime_root / "boxes" / "4wind" / "profiles" / "base_415.json"
@@ -49,6 +58,11 @@ def test_build_bet_rows_supports_4wind_exacta() -> None:
         {"bet_type": "exacta", "combo": "4-1", "amount": 100},
         {"bet_type": "exacta", "combo": "4-5", "amount": 100},
     ]
+
+
+def test_profile_enabled_respects_profile_default_when_setting_is_absent() -> None:
+    assert runtime.profile_enabled({"active_profiles": {}}, "h_a_final_day_cut_v1", default_enabled=False) is False
+    assert runtime.profile_enabled({"active_profiles": {}}, "125_broad_four_stadium", default_enabled=True) is True
 
 
 def test_decide_4wind_evaluation_ready() -> None:

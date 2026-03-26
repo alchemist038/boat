@@ -113,6 +113,8 @@ Why the bounded slice is first:
 Current first-pass review result:
 
 - `H-A` has now been re-checked on `2024`, `2025`, and `2026_ytd` under official-settle proxy
+- shared runtime ownership now exists at [final_day_cut_v1.json](/c:/CODEX_WORK/boat_clone/live_trigger/boxes/h_a/profiles/final_day_cut_v1.json)
+  - keep it `disabled` until stake sizing and runtime adoption are explicitly approved
 - note:
   - [h_a_yearly_comparison_2024_2026ytd_20260325.md](./reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_a_yearly_comparison_2024_2026ytd_20260325.md)
   - [h_a_final_day_cut_2024_2026ytd_20260325.md](./reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_a_final_day_cut_2024_2026ytd_20260325.md)

@@ -197,4 +197,13 @@ def build_bet_rows(
             },
         ]
 
+    if normalized_strategy == "h_a" or normalized_profile.startswith("h_a"):
+        return [
+            {
+                "bet_type": "exacta",
+                "combo": "4-1",
+                "amount": amount,
+            }
+        ]
+
     return []
