@@ -91,6 +91,7 @@ Open these when the task is about the current main bet line.
 - [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
 - [OPERATING_MODEL.md](./OPERATING_MODEL.md)
 - [live_trigger_cli/README.md](./live_trigger_cli/README.md)
+- [live_trigger_cli_split/README.md](./live_trigger_cli_split/README.md)
 - [live_trigger/PROJECT_RULES.md](./live_trigger/PROJECT_RULES.md)
 - [live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md](./live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md)
 

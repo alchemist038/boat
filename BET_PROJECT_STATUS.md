@@ -132,6 +132,7 @@ Current main-line waiting policy:
 - keep `live_trigger_cli` as the current protected main operating line
 - do not mix the next broad-scan logic additions directly into the same combined loop by default
 - prepare a separate next box where:
+  - `live_trigger_cli_split/`
   - `sync_loop`
     - updates watchlists every `3-5` minutes
   - `bet_loop`
@@ -141,6 +142,12 @@ Current main-line waiting policy:
   - `live_trigger/auto_system/app/core/bets.py`
 
 This means the runtime structure may split, while logic truth remains shared.
+
+Current status:
+
+- the first minimal scaffold now exists under `live_trigger_cli_split/`
+- the current main line is still `live_trigger_cli`
+- the split box is not promoted yet
 
 ## 0. 2026-03-21 時点のスナップショット
 

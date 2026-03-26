@@ -129,6 +129,7 @@ This waiting logic belongs to the bet line, not to the logic source of truth.
 - `live_trigger_cli` remains the current protected main line.
 - The next runtime experiment should not fork shared logic truth.
 - Instead, prepare a separate runtime box that reuses shared logic and bet expansion while splitting loop responsibilities:
+  - `live_trigger_cli_split/`
   - `sync_loop`
     - low-frequency watchlist rebuild
   - `bet_loop`

@@ -102,6 +102,11 @@ runtime state は source として扱わないでください。
   - `sync/evaluate/execute` phase timing を `auto_run.log` に追加
   - `sync_interval_seconds = 300` を導入
   - 通常周回は `evaluate/execute` 中心、`sync` は数分おき
+- 次の broad-scan logic 追加先として、別系統の最小箱を切りました。
+  - `live_trigger_cli_split/`
+  - `sync_loop` と `bet_loop` を分離
+  - ただし shared logic / shared bets はそのまま再利用
+  - current main line は引き続き `live_trigger_cli`
 
 ### B. H-A
 
