@@ -82,6 +82,23 @@ Current next-step order for `H-A`:
 3. test stronger lane-4 head confirmation
 4. only then consider runtime promotion
 
+Current `H-B` working read:
+
+- baseline `H-B` is still positive as a rough-water `4-2` branch
+- `pred1 = lane4` is too strong and removes too much edge
+- `pred6_lane != 2` is the cleanest current racer-index refinement
+- that refinement also works on `2024`
+- however, the aligned equity shape against the current forward set still has long weak periods
+- so `H-B` should remain:
+  - `保留`
+  - `forward check`
+  - not a promotion-first branch
+
+Updated review implication:
+
+- keep `H-B` preserved with `pred6_lane != 2` as the current best version
+- move the next deep review focus to `H-C`
+
 Reason for top priority:
 
 - current trio DD / ROI comparison is anchored on the aligned period `2025-04-01 .. 2026-03-09`

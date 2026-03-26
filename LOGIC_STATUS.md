@@ -14,6 +14,8 @@ This file is the parent status doc for logic research, adopted forward logic, an
 - [README.md](./reports/strategies/combined/h_a_vs_main_forward_trio_2025-04-01_to_2026-03-09_20260326/README.md)
 - [h_b_2025_h1_official_settle_proxy_20260326.md](./reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_b_2025_h1_official_settle_proxy_20260326.md)
 - [README.md](./reports/strategies/zero_base_period_2025-01-01_to_2025-06-30_h_b_racer_index_overlay_5m_20260326/README.md)
+- [README.md](./reports/strategies/zero_base_period_2024-01-01_to_2024-12-31_h_b_racer_index_overlay_pred6_not2_5m_20260327/README.md)
+- [README.md](./reports/strategies/combined/h_b_vs_current_four_2025-04-01_to_2026-03-09_20260327/README.md)
 - [summary.md](./reports/strategies/c2/c2_pred1_non_lane1_overlay_walkforward_2025-04-01_to_2026-03-09_5m_20260325/summary.md)
 - [projects/125/README.md](./projects/125/README.md)
 - [projects/4wind/README.md](./projects/4wind/README.md)
@@ -141,15 +143,20 @@ Current second-pass review result:
 - note:
   - [h_b_2025_h1_official_settle_proxy_20260326.md](./reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_b_2025_h1_official_settle_proxy_20260326.md)
   - [README.md](./reports/strategies/zero_base_period_2025-01-01_to_2025-06-30_h_b_racer_index_overlay_5m_20260326/README.md)
+  - [README.md](./reports/strategies/zero_base_period_2024-01-01_to_2024-12-31_h_b_racer_index_overlay_pred6_not2_5m_20260327/README.md)
+  - [README.md](./reports/strategies/combined/h_b_vs_current_four_2025-04-01_to_2026-03-09_20260327/README.md)
 - working read:
   - baseline `H-B` is still positive and structurally looks like a rough-water `4-2` branch
   - `pred1 = lane4` is too strong and removes the payout edge
   - the cleanest current racer-index candidate is:
     - `pred6_lane != 2`
+  - `pred6_lane != 2` also holds up on `2024`
+  - but the aligned `2025-04-01 .. 2026-03-09` equity shape is still rough, with long flat / down periods
+  - so the branch should remain `hold / forward check`, not promotion-ready
   - next review order is:
-    - `H-B + pred6_lane != 2`
-    - `H-B + final day cut`
-    - `H-B + pred6_lane != 2 + final day cut`
+    - keep `H-B + pred6_lane != 2` as the preserved rough-water variant
+    - treat it as a forward-check candidate, not a main promotion candidate
+    - move next full review priority to `H-C`
 
 ## 6. Racer Index Position
 

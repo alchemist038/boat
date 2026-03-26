@@ -1,0 +1,3 @@
+﻿scope,qualifying_races,bets,hits,investment_yen,return_yen,profit_yen,roi_pct,hit_rate_pct,avg_hit_payout_yen,max_dd_yen,dd_peak_race_id,dd_bottom_race_id,longest_losing_streak,losing_streak_start_race_id,losing_streak_end_race_id,lane4_win_rate_pct,lane2_second_rate_pct,wave_ge6_rate_pct
+baseline_h_b_4-2,523,523,33,52300,104170,51870,199.18,6.31,3156.67,6210,202412231406,202408271003,46,202401231908,202402231508,28.49,23.33,100.0
+overlay_pred6_not2_h_b_4-2,471,471,32,47100,100990,53890,214.42,6.79,3155.94,5110,202412231406,202408271003,41,202406280305,202408271003,28.24,24.42,100.0
