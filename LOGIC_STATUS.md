@@ -11,6 +11,9 @@ This file is the parent status doc for logic research, adopted forward logic, an
 - [main_forward_trio_snapshot_20260325.md](./reports/strategies/combined/main_forward_trio_snapshot_20260325.md)
 - [pre_review_logic_inventory_20260325.md](./reports/strategies/pre_review_logic_inventory_20260325.md)
 - [h_a_yearly_comparison_2024_2026ytd_20260325.md](./reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_a_yearly_comparison_2024_2026ytd_20260325.md)
+- [README.md](./reports/strategies/combined/h_a_vs_main_forward_trio_2025-04-01_to_2026-03-09_20260326/README.md)
+- [h_b_2025_h1_official_settle_proxy_20260326.md](./reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_b_2025_h1_official_settle_proxy_20260326.md)
+- [README.md](./reports/strategies/zero_base_period_2025-01-01_to_2025-06-30_h_b_racer_index_overlay_5m_20260326/README.md)
 - [summary.md](./reports/strategies/c2/c2_pred1_non_lane1_overlay_walkforward_2025-04-01_to_2026-03-09_5m_20260325/summary.md)
 - [projects/125/README.md](./projects/125/README.md)
 - [projects/4wind/README.md](./projects/4wind/README.md)
@@ -125,10 +128,28 @@ Current first-pass review result:
   - `final day cut` is the current best first refinement candidate
   - `lane4_class != B1` improves DD, but is too strong as a universal cut
   - first racer-index head-confirmation check (`pred1 = lane4`) is now recorded, but sample is still too small for adoption
+  - H-A is now also plotted against the current main forward trio:
+    - [README.md](./reports/strategies/combined/h_a_vs_main_forward_trio_2025-04-01_to_2026-03-09_20260326/README.md)
   - next review order is:
     - keep `final day cut` as the first refined baseline
     - search for selective lane-4 weakness cuts instead of full `B1` removal
     - test stronger lane-4 head confirmation
+
+Current second-pass review result:
+
+- `H-B` has now been checked on `2025-01-01 .. 2025-06-30` under official-settle proxy
+- note:
+  - [h_b_2025_h1_official_settle_proxy_20260326.md](./reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_b_2025_h1_official_settle_proxy_20260326.md)
+  - [README.md](./reports/strategies/zero_base_period_2025-01-01_to_2025-06-30_h_b_racer_index_overlay_5m_20260326/README.md)
+- working read:
+  - baseline `H-B` is still positive and structurally looks like a rough-water `4-2` branch
+  - `pred1 = lane4` is too strong and removes the payout edge
+  - the cleanest current racer-index candidate is:
+    - `pred6_lane != 2`
+  - next review order is:
+    - `H-B + pred6_lane != 2`
+    - `H-B + final day cut`
+    - `H-B + pred6_lane != 2 + final day cut`
 
 ## 6. Racer Index Position
 

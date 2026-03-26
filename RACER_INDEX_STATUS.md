@@ -239,6 +239,21 @@ Current interpretation:
   - the sample is still too small for adoption
   - keep this in logic research, not in live runtime, for now
 
+## Current H-B Compatibility Read
+
+`H-B` is still research-only, but racer-index has now been checked as a rough-water partner filter candidate.
+
+- notes:
+  - [h_b_2025_h1_official_settle_proxy_20260326.md](./reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_b_2025_h1_official_settle_proxy_20260326.md)
+  - [README.md](./reports/strategies/zero_base_period_2025-01-01_to_2025-06-30_h_b_racer_index_overlay_5m_20260326/README.md)
+  - [pred6_lane_review_20260326.md](./reports/strategies/zero_base_period_2025-01-01_to_2025-06-30_h_b_racer_index_overlay_5m_20260326/pred6_lane_review_20260326.md)
+- current read:
+  - `pred1 = lane4` is too strong for `H-B`
+  - it shrinks the sample and removes too much payout edge
+  - the cleaner signal is on the weak side:
+    - exclude when `pred6_lane = 2`
+  - this is structurally plausible because `H-B = 4-2` still needs lane 2 to survive second
+
 ## Operating Method
 
 ### Daily

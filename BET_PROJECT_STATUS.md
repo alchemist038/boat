@@ -101,6 +101,47 @@ Current main-line waiting policy:
   - `pre_review_logic_inventory_20260325.md`
 - it is not part of the current live trio and does not change the main line yet
 
+## 2026-03-26 Loop Stability Read And Next Runtime Direction
+
+### What Was Actually Going Wrong
+
+- the visible `auto-loop` did not mainly fail because of bet execution
+- the main cost sat in `sync_watchlists`
+- `H-A` made this more visible because it is a broad-scan exacta branch and increased the number of candidate rows
+- the practical symptom was:
+  - the console looked frozen
+  - cycle spacing drifted far beyond the nominal `poll_seconds=30`
+
+### What Was Changed In The Current Main Line
+
+- reduced repeated `racelist` fetch / parse work during sync
+- added `sync / evaluate / execute` phase timing logs to `auto_run.log`
+- added `sync_interval_seconds = 300`
+- current main line now behaves as:
+  - `evaluate / execute` every normal poll
+  - `sync` only every few minutes
+
+### Current Read
+
+- the problem was primarily a loop-structure issue, not a raw PC-capacity issue
+- `H-A` can be carried in the current line after the sync reduction
+- but adding more broad-scan branches into the same combined loop will likely make the same pressure visible again
+
+### Adopted Next Direction
+
+- keep `live_trigger_cli` as the current protected main operating line
+- do not mix the next broad-scan logic additions directly into the same combined loop by default
+- prepare a separate next box where:
+  - `sync_loop`
+    - updates watchlists every `3-5` minutes
+  - `bet_loop`
+    - runs `evaluate + execute` every `30` seconds
+- keep logic ownership and bet expansion shared:
+  - `live_trigger/boxes/`
+  - `live_trigger/auto_system/app/core/bets.py`
+
+This means the runtime structure may split, while logic truth remains shared.
+
 ## 0. 2026-03-21 時点のスナップショット
 
 ### 0-1. できるようになったこと

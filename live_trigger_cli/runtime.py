@@ -53,6 +53,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "system_running": False,
     "execution_mode": "air",
     "poll_seconds": 30,
+    "sync_interval_seconds": 300,
     "check_window_start_minutes": 10,
     "check_window_end_minutes": 3,
     "default_bet_amount": 100,
@@ -611,8 +612,9 @@ def _build_runtime_watchlist_sources(
     race_date_compact = race_date.replace("-", "")
     source_rows: list[tuple[str, dict[str, object]]] = []
     source_names: list[str] = []
+    active_specs: list[tuple[RuntimeProfileSpec, str, list[str]]] = []
+    needs_discovered_stadiums = False
     with BoatRaceClient(timeout_seconds=30) as client:
-        discovered_stadiums: list[str] | None = None
         for profile in profiles:
             source_prefix = SHARED_SOURCE_PREFIX if profile.source_kind == "shared" else LOCAL_SOURCE_PREFIX
             source_name = f"{source_prefix}{profile.profile_id}"
@@ -625,29 +627,56 @@ def _build_runtime_watchlist_sources(
             else:
                 stadiums = [str(code) for code in profile.data.get("stadiums", []) if str(code)]
             if not stadiums:
-                if discovered_stadiums is None:
-                    discovered_stadiums = client.discover_active_stadiums(race_date_compact)
-                stadiums = list(discovered_stadiums)
+                needs_discovered_stadiums = True
+            active_specs.append((profile, source_name, stadiums))
+
+        if not active_specs:
+            return [], source_names
+
+        discovered_stadiums = client.discover_active_stadiums(race_date_compact) if needs_discovered_stadiums else []
+
+        resolved_specs: list[tuple[RuntimeProfileSpec, str, list[str]]] = []
+        unique_stadiums: list[str] = []
+        seen_stadiums: set[str] = set()
+        for profile, source_name, configured_stadiums in active_specs:
+            stadiums = list(configured_stadiums) if configured_stadiums else list(discovered_stadiums)
+            resolved_specs.append((profile, source_name, stadiums))
             for stadium_code in stadiums:
-                stadium_name = STADIUMS.get(stadium_code, "")
+                if stadium_code in seen_stadiums:
+                    continue
+                seen_stadiums.add(stadium_code)
+                unique_stadiums.append(stadium_code)
+
+        parsed_races: dict[tuple[str, int], tuple[dict[str, object], list[dict[str, object]]]] = {}
+        for stadium_code in unique_stadiums:
+            stadium_name = STADIUMS.get(stadium_code, "")
+            for race_no in range(1, 13):
+                prefix = f"{stadium_code}_{race_no:02d}"
+                fetch = _fetch_text_cached(
+                    client,
+                    client.build_race_url("racelist", race_date_compact, stadium_code, race_no),
+                    raw_root(runtime_root) / "racelist" / race_date / f"{prefix}.html",
+                )
+                race_row, entry_rows = parse_racelist(
+                    fetch.text or "",
+                    race_date_compact,
+                    stadium_code,
+                    stadium_name,
+                    race_no,
+                    fetch.url,
+                    fetch.fetched_at,
+                )
+                if race_row is None or not entry_rows:
+                    continue
+                parsed_races[(stadium_code, race_no)] = (race_row, entry_rows)
+
+        for profile, source_name, stadiums in resolved_specs:
+            for stadium_code in stadiums:
                 for race_no in range(1, 13):
-                    prefix = f"{stadium_code}_{race_no:02d}"
-                    fetch = _fetch_text_cached(
-                        client,
-                        client.build_race_url("racelist", race_date_compact, stadium_code, race_no),
-                        raw_root(runtime_root) / "racelist" / race_date / f"{prefix}.html",
-                    )
-                    race_row, entry_rows = parse_racelist(
-                        fetch.text or "",
-                        race_date_compact,
-                        stadium_code,
-                        stadium_name,
-                        race_no,
-                        fetch.url,
-                        fetch.fetched_at,
-                    )
-                    if race_row is None or not entry_rows:
+                    parsed = parsed_races.get((stadium_code, race_no))
+                    if parsed is None:
                         continue
+                    race_row, entry_rows = parsed
                     row = _build_runtime_watchlist_row(race_row, entry_rows, profile)
                     if row is not None:
                         source_rows.append((source_name, row))
@@ -856,6 +885,10 @@ def _normalize_settings(payload: dict[str, Any] | None) -> dict[str, Any]:
         mode = str(DEFAULT_SETTINGS["execution_mode"])
     merged["execution_mode"] = mode
     merged["poll_seconds"] = max(5, int(merged.get("poll_seconds", DEFAULT_SETTINGS["poll_seconds"])))
+    merged["sync_interval_seconds"] = max(
+        30,
+        int(merged.get("sync_interval_seconds", DEFAULT_SETTINGS["sync_interval_seconds"])),
+    )
     merged["check_window_start_minutes"] = max(
         1,
         int(merged.get("check_window_start_minutes", DEFAULT_SETTINGS["check_window_start_minutes"])),
@@ -3031,14 +3064,48 @@ def run_cycle(
     *,
     race_date: str | None = None,
     as_of: datetime | None = None,
+    include_sync: bool = True,
 ) -> dict[str, Any]:
-    sync_result = sync_watchlists(runtime_root, race_date=race_date)
-    evaluate_result = evaluate_targets(runtime_root, race_date=race_date, as_of=as_of)
-    execute_result = execute_bets(runtime_root, race_date=race_date, as_of=as_of)
+    cycle_started_at = time.perf_counter()
+    effective_race_date = _normalize_race_date(race_date) if race_date else (as_of or datetime.now()).strftime("%Y-%m-%d")
+
+    if include_sync:
+        _log(runtime_root, f"cycle phase start: sync race_date={effective_race_date}")
+        sync_started_at = time.perf_counter()
+        sync_result = sync_watchlists(runtime_root, race_date=effective_race_date)
+        sync_seconds = round(time.perf_counter() - sync_started_at, 2)
+        _log(runtime_root, f"cycle phase done: sync {sync_seconds:.2f}s")
+    else:
+        sync_seconds = 0.0
+        sync_result = {
+            "race_date": effective_race_date,
+            "skipped": True,
+            "reason": "sync interval not reached",
+        }
+        _log(runtime_root, f"cycle phase skipped: sync race_date={effective_race_date}")
+
+    _log(runtime_root, "cycle phase start: evaluate")
+    evaluate_started_at = time.perf_counter()
+    evaluate_result = evaluate_targets(runtime_root, race_date=effective_race_date, as_of=as_of)
+    evaluate_seconds = round(time.perf_counter() - evaluate_started_at, 2)
+    _log(runtime_root, f"cycle phase done: evaluate {evaluate_seconds:.2f}s")
+
+    _log(runtime_root, "cycle phase start: execute")
+    execute_started_at = time.perf_counter()
+    execute_result = execute_bets(runtime_root, race_date=effective_race_date, as_of=as_of)
+    execute_seconds = round(time.perf_counter() - execute_started_at, 2)
+    total_seconds = round(time.perf_counter() - cycle_started_at, 2)
+    _log(runtime_root, f"cycle phase done: execute {execute_seconds:.2f}s")
     return {
         "sync": sync_result,
         "evaluate": evaluate_result,
         "execute": execute_result,
+        "timings": {
+            "sync_seconds": sync_seconds,
+            "evaluate_seconds": evaluate_seconds,
+            "execute_seconds": execute_seconds,
+            "total_seconds": total_seconds,
+        },
     }
 
 
@@ -3054,6 +3121,8 @@ def auto_loop(
         return {"cycles": 0, "stopped": True, "already_running": True, "existing_pid": existing_pid}
 
     cycles = 0
+    last_sync_race_date: str | None = None
+    last_sync_monotonic: float | None = None
     try:
         while True:
             settings = load_settings(runtime_root)
@@ -3061,7 +3130,20 @@ def auto_loop(
                 _log(runtime_root, "system_running=false, exiting loop")
                 break
 
-            cycle_result = run_cycle(runtime_root)
+            now = datetime.now()
+            current_race_date = now.strftime("%Y-%m-%d")
+            sync_interval_seconds = max(30, int(settings.get("sync_interval_seconds", DEFAULT_SETTINGS["sync_interval_seconds"])))
+            should_sync = (
+                last_sync_race_date != current_race_date
+                or last_sync_monotonic is None
+                or (time.monotonic() - last_sync_monotonic) >= sync_interval_seconds
+            )
+            if should_sync:
+                _log(runtime_root, f"sync due: race_date={current_race_date}, interval={sync_interval_seconds}s")
+            cycle_result = run_cycle(runtime_root, race_date=current_race_date, as_of=now, include_sync=should_sync)
+            if should_sync:
+                last_sync_race_date = current_race_date
+                last_sync_monotonic = time.monotonic()
             cycles += 1
             _log(runtime_root, f"cycle completed: {json.dumps(cycle_result, ensure_ascii=False)}")
             if max_cycles is not None and cycles >= max_cycles:

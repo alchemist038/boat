@@ -123,3 +123,14 @@ This waiting logic belongs to the bet line, not to the logic source of truth.
 - Keep the CLI line safe by treating `live_trigger_cli` as the main operating line.
 - Keep logic safe by preserving the shared source-of-truth boundaries.
 - Keep racer-index under logic, not as a separate top-level operating line.
+
+## 8. Next Runtime Direction
+
+- `live_trigger_cli` remains the current protected main line.
+- The next runtime experiment should not fork shared logic truth.
+- Instead, prepare a separate runtime box that reuses shared logic and bet expansion while splitting loop responsibilities:
+  - `sync_loop`
+    - low-frequency watchlist rebuild
+  - `bet_loop`
+    - higher-frequency `evaluate + execute`
+- This split is meant to absorb future broad-scan logic additions without destabilizing the current main line.
