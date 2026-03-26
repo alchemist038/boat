@@ -7,7 +7,7 @@
 - project summary: [PROJECT_STATUS.md](./PROJECT_STATUS.md)
 - bet / trigger summary: [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
 
-- updated_at: 2026-03-24 22:10 JST
+- updated_at: 2026-03-27 08:05 JST
 - doc_owner_repo_root: `C:\CODEX_WORK\boat_clone`
 - canonical_data_root: `\\038INS\boat\data`
 - canonical_db: `\\038INS\boat\data\silver\boat_race.duckdb`
@@ -23,20 +23,23 @@
     - `FROM_INS14_TO_ME.md`
   - live measurement on shared `bronze/`, `silver/`, and `copy_inbox/`
 
-## 0. 2026-03-24 Refresh
+## 0. 2026-03-27 Overnight Gap Recovery Refresh
 
-Shared canonical DB and shared bronze were rechecked on `2026-03-24`.
+Shared canonical DB and shared bronze were rechecked again on `2026-03-27` after the overnight apply job on `2026-03-26`.
 
 Current read:
 
-- recent collection is now reflected through `2026-03-23`
-- validation inputs are continuous through `2026-03-23`
-- `odds_2t` and `odds_3t` recent extension is also reflected through `2026-03-23`
-- the remaining problem is no longer current-day recency
-- the remaining problem is still the historical odds gap block:
-  - `odds_2t`: `2025-08-21..2025-09-08`
-  - `odds_3t`: `2025-08-21..2025-09-08`
-  - `odds_3t`: `2025-12-25..2026-02-28`
+- recent collection is now reflected through `2026-03-25`
+- validation inputs are continuous through `2026-03-25`
+- `odds_2t` and `odds_3t` now both span `2025-04-01..2026-03-25`
+- the large historical gap blocks have been filled:
+  - `odds_2t`: `2025-08-21..2025-09-08` recovered
+  - `odds_3t`: `2025-08-21..2025-09-08` recovered
+  - `odds_3t`: `2025-12-25..2026-02-28` recovered
+- shared `bronze` no longer contains header-only `odds_3t` files
+- the remaining odds issue is no longer a contiguous gap block
+- the remaining odds issue is a set of `53` partial-mismatch days between `2025-04-08` and `2026-03-10`
+- from `2026-03-11` through `2026-03-25`, odds daily counts match expected full-card counts for both `2t` and `3t`
 
 ## 1. DB_STATUS Rule
 
@@ -63,48 +66,48 @@ The same principle applies to scheduled collection:
 
 Actual measurement from `\\038INS\boat\data\silver\boat_race.duckdb`:
 
-- `races`: `170,112` rows, `2023-03-11..2026-03-23`, `1109` distinct race days
-- `entries`: `1,020,672` rows, `2023-03-11..2026-03-23`, `1109` days
-- `results`: `167,852` rows, `2023-03-11..2026-03-23`, `1109` days
-- `beforeinfo_entries`: `994,513` rows, `2023-03-11..2026-03-23`, `1109` days
-- `race_meta`: `170,112` rows, `2023-03-11..2026-03-23`, `1109` days
+- `races`: `170,388` rows, `2023-03-11..2026-03-25`, `1111` distinct race days
+- `entries`: `1,022,328` rows, `2023-03-11..2026-03-25`, `1111` days
+- `results`: `168,124` rows, `2023-03-11..2026-03-25`, `1111` days
+- `beforeinfo_entries`: `996,169` rows, `2023-03-11..2026-03-25`, `1111` days
+- `race_meta`: `170,388` rows, `2023-03-11..2026-03-25`, `1111` days
 - `racer_stats_term`: `1,625` rows
-- `odds_2t`: `2,314,440` rows, `2025-04-01..2026-03-23`, `338` distinct days
-- `odds_3t`: `4,896,120` rows, `2025-04-01..2026-03-23`, `272` distinct days
+- `odds_2t`: `2,446,605` rows, `2025-04-01..2026-03-25`, `359` distinct days
+- `odds_3t`: `6,524,280` rows, `2025-04-01..2026-03-25`, `359` distinct days
 
 Distinct day ranges actually present in silver:
 
-- `odds_2t`: `2025-04-01..2025-08-20`, `2025-09-09..2026-03-23`
-- `odds_3t`: `2025-04-01..2025-08-20`, `2025-09-09..2025-12-24`, `2026-03-01..2026-03-23`
+- `odds_2t`: `2025-04-01..2026-03-25`
+- `odds_3t`: `2025-04-01..2026-03-25`
 
 Recent daily view from `collection_day_summary`:
 
-- `2026-03-19`: `race_count=180`, `odds_2t_count=8100`, `odds_3t_count=21600`
-- `2026-03-20`: `race_count=192`, `odds_2t_count=8640`, `odds_3t_count=23040`
 - `2026-03-21`: `race_count=180`, `odds_2t_count=8100`, `odds_3t_count=21600`
 - `2026-03-22`: `race_count=180`, `odds_2t_count=8100`, `odds_3t_count=21600`
 - `2026-03-23`: `race_count=156`, `odds_2t_count=7020`, `odds_3t_count=18720`
+- `2026-03-24`: `race_count=144`, `odds_2t_count=6480`, `odds_3t_count=17280`
+- `2026-03-25`: `race_count=132`, `odds_2t_count=5940`, `odds_3t_count=15840`
 
 ## 3. Current Shared Bronze Odds Status
 
 Actual non-empty file coverage under `\\038INS\boat\data\bronze`:
 
 - `odds_2t`
-  - files total: `338`
-  - non-empty files: `338`
-  - ranges: `2025-04-01..2025-08-20`, `2025-09-09..2026-03-23`
+  - files total: `359`
+  - non-empty files: `359`
+  - ranges: `2025-04-01..2026-03-25`
 - `odds_3t`
-  - files total: `338`
-  - non-empty files: `272`
-  - header-only files: `66`
-  - non-empty ranges: `2025-04-01..2025-08-20`, `2025-09-09..2025-12-24`, `2026-03-01..2026-03-23`
-  - header-only range: `2025-12-25..2026-02-28`
+  - files total: `359`
+  - non-empty files: `359`
+  - header-only files: `0`
+  - non-empty ranges: `2025-04-01..2026-03-25`
 
 Important observation:
 
-- shared `silver` is now rebuilt from the corrected shared `bronze`
-- the main remaining issue is `header-only` `odds_3t` bronze files for `2025-12-25..2026-02-28`
-- `refresh-silver` is now complete, but missing `3t` data still cannot appear where bronze CSVs are empty
+- shared `silver` has now been rebuilt again from the corrected shared `bronze`
+- the previous `header-only` `odds_3t` winter block has been replaced with real bronze data
+- bronze-level contiguous gaps are no longer the main issue
+- the remaining issue is silver-level partial mismatch on a subset of days, not total file absence
 
 ## 4. Validation Inputs Status
 
@@ -185,36 +188,39 @@ Result:
 
 ## 7. Remaining Gaps
 
-After the clean rebuild, the remaining missing coverage is:
+After the overnight `2026-03-26` apply job, the remaining missing coverage is no longer a contiguous block. The current residual issue is:
 
-### `odds_2t`
+### partial mismatch days after `2025-04-01`
 
-- `2025-08-21..2025-09-08` (`19` days)
-
-### `odds_3t`
-
-- `2025-08-21..2025-09-08` (`19` days)
-- `2025-12-25..2026-02-28` (`66` days)
+- mismatch day count: `53`
+- first mismatch day: `2025-04-08`
+- last mismatch day: `2026-03-10`
 
 Interpretation:
 
-- the late-summer `19`-day gap remains for both `2t` and `3t`
-- the winter `66`-day gap remains only for `3t`
-- this winter `3t` block is still empty at the bronze level, so it cannot be recovered by another rebuild alone
+- these are not zero-coverage day blocks
+- these are days where `odds_2t` and/or `odds_3t` counts are below full-card expectation
+- from `2026-03-11..2026-03-25`, odds counts are now fully aligned with expected daily totals
+
+Interpretation:
+
+- the large summer and winter gap blocks are closed
+- the next odds task is a forensic cleanup of the `53` partial-mismatch days
+- this is a lower-severity cleanup task than the former contiguous gap recovery
 
 ## 8. Current Working Interpretation
 
 The project documents and the live measurements now line up to the following interpretation:
 
 - the canonical operational truth remains the shared root `\\038INS\boat\data`
-- shared bronze has been updated with the available i5 handoff bundles
+- shared bronze has now been updated with the overnight summer/winter odds recovery payloads
 - canonical silver has been rebuilt from that corrected bronze
 - the main DB is now materially cleaner and more complete than before
-- recent-day collection is working through `2026-03-23`
+- recent-day collection is working through `2026-03-25`
 - the next data task is no longer "fix recent extension"
-- the next data task is specifically "collect or source the remaining historical missing odds days"
+- the next data task is specifically "analyze and close the 53 partial-mismatch odds days"
 
-This file should be updated again when the remaining `2t / 3t` gaps are filled.
+This file should be updated again when the remaining partial-mismatch days are explained or closed.
 
 ## 9. Scheduled Task Status
 
