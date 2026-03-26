@@ -321,7 +321,7 @@ def build_watchlist_row(
         return None
 
     deadline_time = str(race_row.get("deadline_time", ""))
-    return {
+    row = {
         "box_id": profile.box_id,
         "profile_id": profile.profile_id,
         "strategy_id": profile.strategy_id,
@@ -363,6 +363,17 @@ def build_watchlist_row(
         "racer_index_signal_date": "",
         "beforeinfo_fetched_at": "",
     }
+    return apply_watchlist_stage_overlays(row, profile)
+
+
+def apply_watchlist_stage_overlays(
+    row: dict[str, object],
+    profile: TriggerProfile,
+) -> dict[str, object] | None:
+    overlay_reason = _racer_index_overlay_reason(row, profile)
+    if overlay_reason is not None:
+        return None
+    return row
 
 
 def enrich_watchlist_row_with_beforeinfo(

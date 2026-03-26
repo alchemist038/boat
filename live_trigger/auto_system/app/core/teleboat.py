@@ -205,7 +205,9 @@ def _load_env() -> None:
     live_trigger_root = root.parent
     for path in (live_trigger_root / ".env", root / ".env"):
         if path.exists():
-            load_dotenv(path, override=False)
+            # Favor the project .env over inherited process env so credential
+            # updates are reflected in long-running worker processes.
+            load_dotenv(path, override=True)
     load_dotenv(override=False)
 
 
@@ -482,6 +484,68 @@ def _click_first(page: Page, selectors: Iterable[str], *, description: str, time
     if last_error is not None:
         raise TeleboatError(f"{description} のクリックに失敗しました: {last_error}")
     raise TeleboatError(f"{description} に使える要素が見つかりません")
+
+
+def _clear_bet_top_click_obstructions(page: Page) -> None:
+    for selectors in (
+        [
+            "#newsoverviewdispCloseButton",
+            "#newsoverviewDisp .btn.close a",
+            "#newsoverviewDisp .btn.close",
+        ],
+        [
+            "#toNoticeButton a",
+            "#toNoticeButton",
+        ],
+    ):
+        try:
+            if not _wait_for_any_selector(page, selectors, timeout_ms=500):
+                continue
+            _click_first(
+                page,
+                selectors,
+                description="お知らせオーバーレイを閉じる",
+                timeout_ms=1_500,
+            )
+            _settle(page, milliseconds=300)
+        except Exception:  # noqa: BLE001
+            continue
+
+    try:
+        page.evaluate(
+            """
+            () => {
+              const hideSelectors = [
+                '#overlay',
+                '#overlay2',
+                '#overlayProgress',
+                '#overlayDropDownList',
+                '#headerContainer .newsoverviewInfo',
+                '#headerContainer pre',
+              ];
+              const passthroughSelectors = [
+                '#headerContainer',
+                '#headerContainer *',
+              ];
+
+              for (const selector of hideSelectors) {
+                for (const element of document.querySelectorAll(selector)) {
+                  element.style.setProperty('display', 'none', 'important');
+                  element.style.setProperty('visibility', 'hidden', 'important');
+                  element.style.setProperty('pointer-events', 'none', 'important');
+                }
+              }
+
+              for (const selector of passthroughSelectors) {
+                for (const element of document.querySelectorAll(selector)) {
+                  element.style.setProperty('pointer-events', 'none', 'important');
+                }
+              }
+            }
+            """
+        )
+    except Exception:  # noqa: BLE001
+        return
 
 
 def _wait_for_any_selector(page: Page, selectors: Iterable[str], *, timeout_ms: int = 5_000) -> bool:
@@ -854,7 +918,7 @@ def _extract_contract_no(page: Page) -> str | None:
     except Exception:  # noqa: BLE001
         return None
 
-    match = re.search(r"契約番号[^0-9]*([0-9]{6,})", body)
+    match = re.search(r"契約番号[^0-9]*([0-9]{4,})", body)
     if match:
         return match.group(1)
     return None
@@ -1193,6 +1257,8 @@ def _select_race(page: Page, *, stadium_code: str, stadium_name: str | None, rac
 
     for attempt in range(2):
         try:
+            _clear_bet_top_click_obstructions(page)
+            _settle(page, milliseconds=250)
             _click_first(
                 page,
                 [
@@ -1205,6 +1271,8 @@ def _select_race(page: Page, *, stadium_code: str, stadium_name: str | None, rac
             )
             _settle(page)
 
+            _clear_bet_top_click_obstructions(page)
+            _settle(page, milliseconds=250)
             _click_first(
                 page,
                 [
@@ -1219,6 +1287,7 @@ def _select_race(page: Page, *, stadium_code: str, stadium_name: str | None, rac
             return
         except TeleboatError:
             if attempt == 0:
+                _clear_bet_top_click_obstructions(page)
                 _open_bet_top(page, force_navigation=True)
                 continue
             raise
@@ -1897,6 +1966,8 @@ def _prefill_confirmation_inputs(page: Page, *, vote_password: str, total_amount
     _fill_first(
         page,
         [
+            "#pass",
+            "input[name='betPassword']",
             "input[title='投票用パスワード']",
             "input[aria-label='投票用パスワード']",
             "input[name*='vote']",

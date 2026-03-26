@@ -1,0 +1,5 @@
+﻿logic,variant,races,hits,hit_rate_pct,bet_total_yen,payout_total_yen,profit_yen,roi_pct,max_dd_yen,max_losing_streak,normalized_profit_100yen,source_note
+125_broad_four_stadium,existing_aligned_x1 + final_day_cut,219,13,5.93607305936073,21900,49960,28060,228.12785388127855,-3700,38,28060.0,best aligned 125 race-results with final-day rows removed by current shared filter
+c2_provisional_v1,walkforward_pred1_non_lane1_overlay,113,54,47.78761061946903,289000,434050,145050,150.19031141868513,-32840,5,4848.9,"current-ish C2 proxy with B2 cut, final-day cut, and racer-index pred1!=lane1 overlay"
+4wind_base_415,existing_aligned_4-1_4-5 + final_day_cut,572,92,16.083916083916083,114400,184340,69940,161.13636363636363,-23000,115,34970.0,best aligned 4wind race-results with final-day rows removed by current shared filter
+H-A,final_day_cut_proxy,931,99,10.633727175080558,93100,195380,102280,209.86036519871107,-12400,44,102280.0,H-A exacta 4-1 official-settle proxy with final-day cut

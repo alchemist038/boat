@@ -151,6 +151,44 @@ def test_c2_racer_index_overlay_filters_when_pred1_is_lane1(monkeypatch, tmp_pat
     assert row["racer_index_signal_date"] == "2026-03-23"
 
 
+def test_c2_racer_index_overlay_filters_at_watchlist_build_stage(monkeypatch) -> None:
+    profile = next(
+        profile
+        for profile in load_trigger_profiles(ROOT / "live_trigger" / "boxes", include_disabled=True)
+        if profile.profile_id == "c2_provisional_v1"
+    )
+    import boat_race_data.live_trigger as live_trigger
+
+    monkeypatch.setattr(
+        live_trigger,
+        "_daily_pred1_lane_index",
+        lambda race_date_iso: {"202603230801": 1},
+    )
+
+    race_row = {
+        "race_id": "202603230801",
+        "race_date": "2026-03-23",
+        "stadium_code": "08",
+        "stadium_name": "Tokoname",
+        "race_no": 1,
+        "meeting_title": "Lady Cup",
+        "race_title": "1R",
+        "deadline_time": "10:18",
+    }
+    entry_rows = [
+        {"lane": 1, "racer_id": 4501, "racer_name": "Lane1", "racer_class": "A2", "motor_no": 43, "motor_place_rate": 32.47, "motor_top3_rate": 45.45},
+        {"lane": 2, "racer_id": 4909, "racer_name": "Lane2", "racer_class": "B1"},
+        {"lane": 3, "racer_id": 5324, "racer_name": "Lane3", "racer_class": "B2"},
+        {"lane": 4, "racer_id": 4478, "racer_name": "Lane4", "racer_class": "A2"},
+        {"lane": 5, "racer_id": 5389, "racer_name": "Lane5", "racer_class": "B1"},
+        {"lane": 6, "racer_id": 5173, "racer_name": "Lane6", "racer_class": "B1"},
+    ]
+
+    row = build_watchlist_row(race_row, entry_rows, profile)
+
+    assert row is None
+
+
 def test_c2_racer_index_overlay_keeps_row_when_pred1_is_not_lane1(monkeypatch, tmp_path: Path) -> None:
     profile = next(
         profile

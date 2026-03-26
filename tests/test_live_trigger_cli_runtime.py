@@ -298,6 +298,56 @@ def test_build_runtime_watchlist_row_supports_c2_all_women_proxy(monkeypatch) ->
     assert row["lane5_racer_class"] == "B2"
 
 
+def test_build_runtime_watchlist_row_filters_c2_when_racer_index_pred1_is_lane1(monkeypatch) -> None:
+    profile = next(
+        profile
+        for profile in runtime.load_runtime_profiles(include_disabled=True)
+        if profile.profile_id == "c2_provisional_v1"
+    )
+    monkeypatch.setattr(
+        runtime,
+        "_latest_racer_sex_index",
+        lambda: {
+            "4501": "2",
+            "4909": "2",
+            "5324": "2",
+            "4478": "2",
+            "5389": "2",
+            "5173": "2",
+        },
+    )
+
+    shared_live_trigger = runtime._load_shared_live_trigger_module()
+    monkeypatch.setattr(
+        shared_live_trigger,
+        "_daily_pred1_lane_index",
+        lambda race_date_iso: {"202603230801": 1},
+    )
+
+    race_row = {
+        "race_id": "202603230801",
+        "race_date": "2026-03-23",
+        "stadium_code": "08",
+        "stadium_name": "Tokoname",
+        "race_no": 1,
+        "meeting_title": "Lady Cup",
+        "race_title": "1R",
+        "deadline_time": "10:18",
+    }
+    entry_rows = [
+        {"lane": 1, "racer_id": 4501, "racer_name": "Lane1", "racer_class": "A2", "motor_no": 43, "motor_place_rate": 32.47, "motor_top3_rate": 45.45},
+        {"lane": 2, "racer_id": 4909, "racer_name": "Lane2", "racer_class": "B1"},
+        {"lane": 3, "racer_id": 5324, "racer_name": "Lane3", "racer_class": "B2"},
+        {"lane": 4, "racer_id": 4478, "racer_name": "Lane4", "racer_class": "A2"},
+        {"lane": 5, "racer_id": 5389, "racer_name": "Lane5", "racer_class": "B2"},
+        {"lane": 6, "racer_id": 5173, "racer_name": "Lane6", "racer_class": "B1"},
+    ]
+
+    row = runtime._build_runtime_watchlist_row(race_row, entry_rows, profile)
+
+    assert row is None
+
+
 def test_build_runtime_watchlist_sources_collects_shared_and_local_profiles(
     monkeypatch,
     tmp_path: Path,
@@ -405,6 +455,48 @@ def test_normalize_settings_accepts_telegram_fields() -> None:
     assert settings["telegram_go_notifications"] is True
     assert settings["telegram_bot_token"] == "token-123"
     assert settings["telegram_chat_id"] == "456"
+
+
+def test_runtime_select_race_clears_bet_top_obstructions_before_clicks(monkeypatch) -> None:
+    calls: list[tuple[str, object]] = []
+
+    class FakeLegacy:
+        STADIUM_CODE_TO_NAME = {"10": "三国"}
+
+        @staticmethod
+        def _open_bet_top(page) -> None:
+            calls.append(("open_bet_top", None))
+
+        @staticmethod
+        def _clear_bet_top_click_obstructions(page) -> None:
+            calls.append(("clear", None))
+
+        @staticmethod
+        def _settle(page, milliseconds=0) -> None:
+            calls.append(("settle", milliseconds))
+
+        @staticmethod
+        def _wait_for_any_selector(page, selectors, timeout_ms=0) -> bool:
+            calls.append(("wait", tuple(selectors)))
+            return True
+
+        @staticmethod
+        def _click_first(page, selectors, description="", timeout_ms=0) -> str:
+            calls.append(("click", description))
+            return selectors[0]
+
+        class TeleboatError(RuntimeError):
+            pass
+
+    monkeypatch.setattr(runtime, "_LEGACY_TELEBOAT_MODULE", FakeLegacy)
+
+    runtime._runtime_select_race(object(), stadium_code="10", stadium_name="三国", race_no=4)
+
+    clear_calls = [name for name, _ in calls if name == "clear"]
+    click_descriptions = [value for name, value in calls if name == "click"]
+
+    assert len(clear_calls) >= 2
+    assert click_descriptions == ["stadium card (三国)", "race tab (4R)"]
 
 
 def test_notify_telegram_go_logs_once(monkeypatch, tmp_path: Path) -> None:

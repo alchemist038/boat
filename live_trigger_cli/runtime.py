@@ -110,6 +110,7 @@ EVALUATED_PAYLOAD_KEYS = {
 }
 
 _BETS_MODULE: ModuleType | None = None
+_SHARED_LIVE_TRIGGER_MODULE: ModuleType | None = None
 _FRESH_EXECUTOR_MODULE: ModuleType | None = None
 _LEGACY_TELEBOAT_MODULE: ModuleType | None = None
 _LEGACY_TELEBOAT_PATCHED = False
@@ -575,6 +576,9 @@ def _build_c2_watchlist_row(
     }
 
     row["pre_reason"] = f"{women_reason}, class={lane1.get('racer_class', '')}"
+    overlay_reason = _load_shared_live_trigger_module()._racer_index_overlay_reason(row, shared_profile)
+    if overlay_reason is not None:
+        return None
     return row
 
 
@@ -1199,6 +1203,15 @@ def _load_shared_bets_module() -> ModuleType:
     return _BETS_MODULE
 
 
+def _load_shared_live_trigger_module() -> ModuleType:
+    global _SHARED_LIVE_TRIGGER_MODULE
+    if _SHARED_LIVE_TRIGGER_MODULE is None:
+        import boat_race_data.live_trigger as shared_live_trigger_module
+
+        _SHARED_LIVE_TRIGGER_MODULE = shared_live_trigger_module
+    return _SHARED_LIVE_TRIGGER_MODULE
+
+
 def _build_local_bet_rows(*, strategy_id: str, profile_id: str, amount: int) -> list[dict[str, Any]]:
     if amount <= 0:
         return []
@@ -1262,6 +1275,60 @@ def _visible_selector_texts(page: Any, selector: str) -> list[str]:
     return [str(value) for value in values if str(value).strip()]
 
 
+def _prepare_bet_top_click(page: Any, legacy: ModuleType) -> None:
+    clear_obstructions = getattr(legacy, "_clear_bet_top_click_obstructions", None)
+    if callable(clear_obstructions):
+        clear_obstructions(page)
+    legacy._settle(page, milliseconds=250)
+
+
+def _click_race_selector_with_retry(
+    page: Any,
+    legacy: ModuleType,
+    selectors: list[str],
+    *,
+    description: str,
+    timeout_ms: int,
+) -> None:
+    last_error: Exception | None = None
+    for _ in range(2):
+        _prepare_bet_top_click(page, legacy)
+        try:
+            legacy._click_first(
+                page,
+                selectors,
+                description=description,
+                timeout_ms=timeout_ms,
+            )
+            return
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            for selector in selectors:
+                if not selector:
+                    continue
+                locator = page.locator(selector).first
+                try:
+                    if legacy._count(locator) == 0:
+                        continue
+                except Exception:  # noqa: BLE001
+                    continue
+                try:
+                    locator.scroll_into_view_if_needed(timeout=1_000)
+                except Exception:  # noqa: BLE001
+                    pass
+                for use_js in (False, True):
+                    try:
+                        if use_js:
+                            locator.evaluate("(el) => { if (el && typeof el.click === 'function') { el.click(); } }")
+                        else:
+                            locator.click(timeout=timeout_ms, force=True)
+                        return
+                    except Exception as retry_exc:  # noqa: BLE001
+                        last_error = retry_exc
+    if last_error is not None:
+        raise last_error
+
+
 def _runtime_select_race(page: Any, *, stadium_code: str, stadium_name: str | None, race_no: int) -> None:
     legacy = _LEGACY_TELEBOAT_MODULE
     if legacy is None:
@@ -1272,6 +1339,7 @@ def _runtime_select_race(page: Any, *, stadium_code: str, stadium_name: str | No
     resolved_name = str(stadium_name or legacy.STADIUM_CODE_TO_NAME.get(normalized_stadium_code, normalized_stadium_code))
 
     legacy._open_bet_top(page)
+    _prepare_bet_top_click(page, legacy)
 
     stadium_selectors = [
         f"#jyo{normalized_stadium_code} a",
@@ -1283,13 +1351,15 @@ def _runtime_select_race(page: Any, *, stadium_code: str, stadium_name: str | No
             f"Could not find stadium card for {resolved_name} ({normalized_stadium_code}). "
             f"Visible cards: {available_cards or ['<none>']}"
         )
-    legacy._click_first(
+    _click_race_selector_with_retry(
         page,
+        legacy,
         stadium_selectors,
         description=f"stadium card ({resolved_name})",
         timeout_ms=8_000,
     )
     legacy._settle(page, milliseconds=700)
+    _prepare_bet_top_click(page, legacy)
 
     race_selectors = [
         f"#selRaceNo{normalized_race_no} a",
@@ -1301,8 +1371,9 @@ def _runtime_select_race(page: Any, *, stadium_code: str, stadium_name: str | No
             f"Could not find race tab {int(race_no)}R for {resolved_name} ({normalized_stadium_code}). "
             f"Visible races: {available_races or ['<none>']}"
         )
-    legacy._click_first(
+    _click_race_selector_with_retry(
         page,
+        legacy,
         race_selectors,
         description=f"race tab ({int(race_no)}R)",
         timeout_ms=8_000,
