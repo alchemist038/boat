@@ -17,11 +17,12 @@ This file is the parent status doc for logic research, adopted forward logic, an
 - [README.md](./reports/strategies/zero_base_period_2024-01-01_to_2024-12-31_h_b_racer_index_overlay_pred6_not2_5m_20260327/README.md)
 - [README.md](./reports/strategies/combined/h_b_vs_current_four_2025-04-01_to_2026-03-09_20260327/README.md)
 - [summary.md](./reports/strategies/c2/c2_pred1_non_lane1_overlay_walkforward_2025-04-01_to_2026-03-09_5m_20260325/summary.md)
+- [high_hit_candidate1_outer_pressure_review_20260329.md](./reports/strategies/recent_checks/high_hit_candidate1_outer_pressure_review_20260329.md)
 - [projects/125/README.md](./projects/125/README.md)
 - [projects/4wind/README.md](./projects/4wind/README.md)
 - [live_trigger/PROJECT_RULES.md](./live_trigger/PROJECT_RULES.md)
 
-- updated_at: 2026-03-26 JST
+- updated_at: 2026-03-29 JST
 
 ## 1. Logic Ownership
 
@@ -152,11 +153,61 @@ Current second-pass review result:
     - `pred6_lane != 2`
   - `pred6_lane != 2` also holds up on `2024`
   - but the aligned `2025-04-01 .. 2026-03-09` equity shape is still rough, with long flat / down periods
-  - so the branch should remain `hold / forward check`, not promotion-ready
+  - a fresh `2026-01-01 .. 2026-03-27` rerun is weak across all tested variants:
+    - baseline: `ROI 31.61%`
+    - `pred6_lane != 2`: `ROI 37.22%`
+    - `pred6_lane != 2 + final_day_cut`: `ROI 39.31%`
+  - so the branch should now remain `hold / skip`, not promotion-ready
   - next review order is:
-    - keep `H-B + pred6_lane != 2` as the preserved rough-water variant
-    - treat it as a forward-check candidate, not a main promotion candidate
+    - keep `H-B + pred6_lane != 2` as the preserved rough-water reference
+    - record `final day cut` as the next add-on only if the branch is reopened later
     - move next full review priority to `H-C`
+
+Current third-pass review result:
+
+- `H-C` has now been re-sliced across period / class / odds / stadium conditions
+- note:
+  - [h_c_slice_review_20260328.md](./reports/strategies/recent_checks/h_c_slice_review_20260328.md)
+  - [h_b_h_c_refresh_20260328.md](./reports/strategies/recent_checks/h_b_h_c_refresh_20260328.md)
+- working read:
+  - baseline `H-C` does not survive as a stable global class-only branch
+  - the worst damage is concentrated in `2025_h2`, while `2026_ytd` is not weak by itself
+  - `lane3=A1` is directionally better
+  - the cleanest current small-sample refinement is:
+    - `lane3=A1 & pred1_lane=3`
+  - but that refinement is still too small to promote:
+    - `2025_h2`: `ROI 58.00%`
+    - `2026_ytd`: `9 bets`, `ROI 296.67%`
+  - so the branch should remain `hold`, preserved for later review rather than promotion
+  - next review order is:
+    - keep stadium split as the first reopening lens
+    - keep `lane3=A1 & pred1_lane=3` as the leading refinement candidate
+    - avoid treating simple class-only cuts as sufficient
+
+Current closed exploratory check:
+
+- note:
+  - [high_hit_candidate1_outer_pressure_review_20260329.md](./reports/strategies/recent_checks/high_hit_candidate1_outer_pressure_review_20260329.md)
+- source:
+  - oldest-6m high-hit Gemini candidate 1
+  - original lane-1 trust exacta branch
+- strongest sub-read found during the recheck:
+  - keep the lane-1 trust conditions
+  - add `lane5_class = A1`
+  - add `lane6_class != A1`
+  - narrow to `1-2`
+- cross-year result is still not strong enough:
+  - `2023`: `ROI 103.46%`
+  - `2024`: `ROI 88.28%`
+  - `2025`: `ROI 88.52%`
+  - `2025-04-01 .. 2025-12-31` with `1-2 odds >= 3.0`: `ROI 87.26%`
+- supporting read:
+  - `pred6_lane = 4` worsens the branch
+  - `pred1` adds no extra selection value because the branch already collapses to `pred1_lane = 1`
+- current interpretation:
+  - preserve as a recorded exploratory branch
+  - stop pushing it for now
+  - do not change the live bet-line set for this idea
 
 ## 6. Racer Index Position
 

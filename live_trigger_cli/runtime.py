@@ -6,6 +6,7 @@ import os
 import sqlite3
 import sys
 import time
+import traceback
 import ctypes
 import urllib.parse
 import urllib.request
@@ -2161,6 +2162,27 @@ def evaluate_targets(
                         expired_count += 1
                     continue
 
+                profile = profile_map.get(str(target["profile_id"]))
+                if profile is None:
+                    message = "profile not found"
+                    connection.execute(
+                        """
+                        UPDATE target_races
+                        SET status = ?,
+                            last_reason = ?,
+                            updated_at = ?
+                        WHERE id = ?
+                        """,
+                        ("error", message, _format_datetime(now), int(target["id"])),
+                    )
+                    _log_event(
+                        connection,
+                        target_race_id=int(target["id"]),
+                        event_type="profile_missing",
+                        message=message,
+                    )
+                    continue
+
                 if not profile_enabled(settings, str(target["profile_id"]), default_enabled=profile.enabled):
                     if target["status"] != "checked_skip":
                         message = "profile disabled in live_trigger_cli"
@@ -2181,27 +2203,6 @@ def evaluate_targets(
                             message=message,
                         )
                         skip_count += 1
-                    continue
-
-                profile = profile_map.get(str(target["profile_id"]))
-                if profile is None:
-                    message = "profile not found"
-                    connection.execute(
-                        """
-                        UPDATE target_races
-                        SET status = ?,
-                            last_reason = ?,
-                            updated_at = ?
-                        WHERE id = ?
-                        """,
-                        ("error", message, _format_datetime(now), int(target["id"])),
-                    )
-                    _log_event(
-                        connection,
-                        target_race_id=int(target["id"]),
-                        event_type="profile_missing",
-                        message=message,
-                    )
                     continue
 
                 if target["monitoring_started_at"] is None:
@@ -3124,42 +3125,48 @@ def auto_loop(
     last_sync_race_date: str | None = None
     last_sync_monotonic: float | None = None
     try:
-        while True:
-            settings = load_settings(runtime_root)
-            if not settings.get("system_running", False):
-                _log(runtime_root, "system_running=false, exiting loop")
-                break
+        try:
+            while True:
+                settings = load_settings(runtime_root)
+                if not settings.get("system_running", False):
+                    _log(runtime_root, "system_running=false, exiting loop")
+                    break
 
-            now = datetime.now()
-            current_race_date = now.strftime("%Y-%m-%d")
-            sync_interval_seconds = max(30, int(settings.get("sync_interval_seconds", DEFAULT_SETTINGS["sync_interval_seconds"])))
-            should_sync = (
-                last_sync_race_date != current_race_date
-                or last_sync_monotonic is None
-                or (time.monotonic() - last_sync_monotonic) >= sync_interval_seconds
-            )
-            if should_sync:
-                _log(runtime_root, f"sync due: race_date={current_race_date}, interval={sync_interval_seconds}s")
-            cycle_result = run_cycle(runtime_root, race_date=current_race_date, as_of=now, include_sync=should_sync)
-            if should_sync:
-                last_sync_race_date = current_race_date
-                last_sync_monotonic = time.monotonic()
-            cycles += 1
-            _log(runtime_root, f"cycle completed: {json.dumps(cycle_result, ensure_ascii=False)}")
-            if max_cycles is not None and cycles >= max_cycles:
-                _log(runtime_root, f"max_cycles={max_cycles} reached")
-                break
+                now = datetime.now()
+                current_race_date = now.strftime("%Y-%m-%d")
+                sync_interval_seconds = max(30, int(settings.get("sync_interval_seconds", DEFAULT_SETTINGS["sync_interval_seconds"])))
+                should_sync = (
+                    last_sync_race_date != current_race_date
+                    or last_sync_monotonic is None
+                    or (time.monotonic() - last_sync_monotonic) >= sync_interval_seconds
+                )
+                if should_sync:
+                    _log(runtime_root, f"sync due: race_date={current_race_date}, interval={sync_interval_seconds}s")
+                cycle_result = run_cycle(runtime_root, race_date=current_race_date, as_of=now, include_sync=should_sync)
+                if should_sync:
+                    last_sync_race_date = current_race_date
+                    last_sync_monotonic = time.monotonic()
+                cycles += 1
+                _log(runtime_root, f"cycle completed: {json.dumps(cycle_result, ensure_ascii=False)}")
+                if max_cycles is not None and cycles >= max_cycles:
+                    _log(runtime_root, f"max_cycles={max_cycles} reached")
+                    break
 
-            poll_seconds = max(5, int(settings.get("poll_seconds", 30)))
-            _log(runtime_root, f"sleeping {poll_seconds}s until next cycle")
-            remaining = poll_seconds
-            while remaining > 0:
-                chunk = min(5, remaining)
-                time.sleep(chunk)
-                remaining -= chunk
-                if not load_settings(runtime_root).get("system_running", False):
-                    _log(runtime_root, "stop requested while sleeping")
-                    return {"cycles": cycles, "stopped": True}
+                poll_seconds = max(5, int(settings.get("poll_seconds", 30)))
+                _log(runtime_root, f"sleeping {poll_seconds}s until next cycle")
+                remaining = poll_seconds
+                while remaining > 0:
+                    chunk = min(5, remaining)
+                    time.sleep(chunk)
+                    remaining -= chunk
+                    if not load_settings(runtime_root).get("system_running", False):
+                        _log(runtime_root, "stop requested while sleeping")
+                        return {"cycles": cycles, "stopped": True}
+        except Exception as exc:
+            _log(runtime_root, f"auto-loop crashed: {exc.__class__.__name__}: {exc}")
+            for line in traceback.format_exc().strip().splitlines():
+                _log(runtime_root, line)
+            raise
     finally:
         _release_auto_loop_pid(runtime_root)
 

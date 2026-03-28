@@ -11,6 +11,12 @@
 - `GO` のときだけ `BetIntent` を作る
 - `execution_mode` に応じて Air Bet または実ベットを実行する
 
+重要:
+
+- `run_app_ui.cmd` 側で `watchlist` を作っただけでは、`auto_system` の `当日対象` にはまだ出ません
+- `auto_system` は `watchlists/*.csv` を `auto_system/data/system.db` に同期してから当日対象として扱います
+- そのため、当日候補を auto 側へ反映したいときは `システム起動` または `1サイクルだけ実行` を少なくとも 1 回動かしてください
+
 ## 実行モード
 
 重要:
@@ -145,12 +151,14 @@ C:\CODEX_WORK\boat_clone\live_trigger\run_auto_ui.cmd
 ### 常時ループで運用する場合
 
 1. `システム起動` を押します
-2. `当日対象` で状態を確認します
-3. 必要に応じて `ベット実行ログ` と `Session` を確認します
+2. 最初の `sync_watchlists` が走ると、その時点の `watchlist` が `system.db` に取り込まれます
+3. `当日対象` で状態を確認します
+4. 必要に応じて `ベット実行ログ` と `Session` を確認します
 
 ### 1 サイクルだけ実行する場合
 
 - UI の `1サイクルだけ実行`
+- `watchlist` を作った直後に当日対象へ反映したいだけなら、この 1 回実行でも同期されます
 
 または:
 

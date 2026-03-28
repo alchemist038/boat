@@ -181,3 +181,37 @@ $env:BOAT_DATA_ROOT="\\038INS\boat\data"
 ```
 
 You can still override individual paths with `BOAT_RAW_ROOT`, `BOAT_BRONZE_ROOT`, and `BOAT_DB_PATH`.
+
+## Daily Racer-Index Live CSV
+
+The current racer-index live signal is not yet persisted as `daily_pred1_signal` or `daily_pred6` tables in DuckDB.
+Operationally, it is produced as a daily CSV bundle from the shared DB and shared raw cache.
+
+Current flow:
+
+1. shared canonical DB lives at `\\038INS\boat\data\silver\boat_race.duckdb`
+2. target-day raw pages are collected into `\\038INS\boat\data\raw`
+3. `predict_racer_rank_live.py` builds predictions for one target day
+4. outputs are written under `\\038INS\boat\reports\strategies\racer_rank_live_YYYYMMDD\`
+
+Daily output files:
+
+- `predictions.csv`
+- `race_summary.csv`
+- `confidence_tier_stats.csv`
+- `summary.md`
+
+Current live consumption note:
+
+- `live_trigger` currently reads `race_summary.csv`
+- it does not read a persisted `daily_pred1_signal` table from DuckDB yet
+
+Current helper script for daily generation:
+
+- `workspace_codex/scripts/run_racer_rank_live_daily.ps1`
+
+Current schedule on this machine:
+
+- task name: `\BoatRacerIndexLiveCsvDaily`
+- start time: `07:00`
+- intent: wait for prior-day `results` to exist in shared DuckDB, then collect target-day raw pages and generate `racer_rank_live_YYYYMMDD`

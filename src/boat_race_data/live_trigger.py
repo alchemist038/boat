@@ -824,7 +824,25 @@ def _normalize_race_date_token(value: object) -> str:
     return str(value or "").strip().replace("-", "").replace("/", "")
 
 
-@lru_cache(maxsize=32)
+@lru_cache(maxsize=64)
+def _load_daily_pred1_lane_index_csv(path_text: str, mtime_ns: int, file_size: int) -> dict[str, int]:
+    del mtime_ns, file_size
+    path = Path(path_text)
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        pred1_index: dict[str, int] = {}
+        for csv_row in reader:
+            race_id = str(csv_row.get("race_id", "")).strip()
+            pred1_lane = csv_row.get("pred1_lane")
+            if not race_id or pred1_lane in {"", None}:
+                continue
+            try:
+                pred1_index[race_id] = int(float(pred1_lane))
+            except (TypeError, ValueError):
+                continue
+    return pred1_index
+
+
 def _daily_pred1_lane_index(race_date_iso: str) -> dict[str, int]:
     race_date_token = _normalize_race_date_token(race_date_iso)
     if len(race_date_token) != 8:
@@ -835,20 +853,11 @@ def _daily_pred1_lane_index(race_date_iso: str) -> dict[str, int]:
         LOCAL_REPORTS_STRATEGY_ROOT / f"racer_rank_live_{race_date_token}" / "race_summary.csv",
     ]
     for path in candidate_paths:
-        if not path.exists():
+        try:
+            stat = path.stat()
+        except OSError:
             continue
-        with path.open("r", encoding="utf-8-sig", newline="") as handle:
-            reader = csv.DictReader(handle)
-            pred1_index: dict[str, int] = {}
-            for csv_row in reader:
-                race_id = str(csv_row.get("race_id", "")).strip()
-                pred1_lane = csv_row.get("pred1_lane")
-                if not race_id or pred1_lane in {"", None}:
-                    continue
-                try:
-                    pred1_index[race_id] = int(float(pred1_lane))
-                except (TypeError, ValueError):
-                    continue
+        pred1_index = _load_daily_pred1_lane_index_csv(str(path), stat.st_mtime_ns, stat.st_size)
         if pred1_index:
             return pred1_index
     return {}
@@ -879,12 +888,20 @@ def _racer_index_overlay_reason(row: dict[str, object], profile: TriggerProfile)
         return None
 
     pred1_lane = _daily_pred1_lane_index(race_date).get(race_id)
+    defaulted_missing_index = False
     if pred1_lane is None:
-        return None
+        fallback_pred1_lane = config.get("default_pred1_lane_when_missing")
+        try:
+            pred1_lane = int(fallback_pred1_lane)
+        except (TypeError, ValueError):
+            return None
+        defaulted_missing_index = True
 
     row["racer_index_pred1_lane"] = pred1_lane
     row["racer_index_signal_date"] = race_date
     if pred1_lane in excluded_lanes:
+        if defaulted_missing_index:
+            return f"racer_index_pred1_lane={pred1_lane} excluded (defaulted_missing_index)"
         return f"racer_index_pred1_lane={pred1_lane} excluded"
     return None
 

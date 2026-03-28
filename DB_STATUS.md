@@ -7,7 +7,7 @@
 - project summary: [PROJECT_STATUS.md](./PROJECT_STATUS.md)
 - bet / trigger summary: [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
 
-- updated_at: 2026-03-27 08:05 JST
+- updated_at: 2026-03-27 19:01 JST
 - doc_owner_repo_root: `C:\CODEX_WORK\boat_clone`
 - canonical_data_root: `\\038INS\boat\data`
 - canonical_db: `\\038INS\boat\data\silver\boat_race.duckdb`
@@ -266,6 +266,69 @@ Current scheduler settings for the boat task:
 - `StartWhenAvailable = True`
 
 This section should be updated again when the task timing or command is changed.
+
+## 9A. Daily Racer-Index Live CSV Task
+
+As of `2026-03-27`, a separate derived-data task is now implemented for the daily racer-index live CSV bundle.
+
+Purpose:
+
+- this task is not the canonical DB builder
+- it sits after the shared DB / raw pipeline
+- it generates the daily `racer_rank_live_YYYYMMDD` files used by the current live racer-index overlay
+
+Current state confirmed on `MASAO_N8N`:
+
+- task name: `\BoatRacerIndexLiveCsvDaily`
+- start time: `07:00`
+- logon mode: `Interactive only`
+- task command:
+  - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\CODEX_WORK\boat_clone\workspace_codex\scripts\run_racer_rank_live_daily.ps1"`
+
+Implementation files:
+
+- daily wrapper:
+  - `C:\CODEX_WORK\boat_clone\workspace_codex\scripts\run_racer_rank_live_daily.ps1`
+- CLI launcher:
+  - `C:\CODEX_WORK\boat_clone\workspace_codex\scripts\run_boat_race_cli.py`
+- live predictor:
+  - `\\038INS\boat\workspace_codex\scripts\predict_racer_rank_live.py`
+
+Current flow:
+
+1. wait until shared DuckDB `results` has at least the prior-day `race_date`
+2. run `collect-day` against the shared roots:
+   - raw root: `\\038INS\boat\data\raw`
+   - bronze root: `\\038INS\boat\data\bronze`
+   - DB path: `\\038INS\boat\data\silver\boat_race.duckdb`
+3. run `predict_racer_rank_live.py` for the target day
+4. write outputs under:
+   - `\\038INS\boat\reports\strategies\racer_rank_live_YYYYMMDD`
+
+Important operating note:
+
+- the current live overlay consumes `race_summary.csv`
+- it does not read `daily_pred1_signal` or `daily_pred6` from DuckDB yet
+- so the current operational chain is:
+  - shared DB/raw -> daily prediction script -> CSV bundle -> live filter
+
+Confirmed output for `2026-03-27`:
+
+- output dir:
+  - `\\038INS\boat\reports\strategies\racer_rank_live_20260327`
+- files:
+  - `predictions.csv`
+  - `race_summary.csv`
+  - `confidence_tier_stats.csv`
+  - `summary.md`
+- total bundle size:
+  - about `376,584 bytes` (`~368 KB`)
+
+Current interpretation:
+
+- this derived task is light enough to keep daily output history for BT checks and traceability
+- keeping one date folder per day is operationally reasonable
+- if the canonical DB collection timing moves again, adjust this task start time and keep the prior-day results wait gate
 
 ## 10. Active Gap Recovery Jobs
 

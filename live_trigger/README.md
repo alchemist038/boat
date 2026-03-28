@@ -80,6 +80,9 @@ live_trigger\run_auto_ui.cmd
 ## 補足
 
 - batch 抽出は通常 `enabled: true` の profile が対象です
+- `app.py` で `watchlist` を作っただけでは `auto_system` 画面にはまだ出ません
+- `auto_system` は `watchlists/*.csv` を `auto_system/data/system.db` に同期してから当日対象として表示します
+- そのため、当日候補を `auto` 側へ反映したいときは `システム起動` または `1サイクルだけ実行` を少なくとも 1 回動かします
 - `boxes/` は runtime の single source of truth です
 - 新ラインは [live_trigger_fresh_exec/README.md](/c:/CODEX_WORK/boat_clone/live_trigger_fresh_exec/README.md) を参照してください
 - `trigger` は当日 watchlist の元データを作成し、`fresh_exec` はその当日分を取り込んで `beforeinfo` を自動取得し、shared BOX で GO 判定します
@@ -94,3 +97,4 @@ live_trigger\run_auto_ui.cmd
   - [FORWARD_TEST_RESPONSE_RUNBOOK.md](/c:/CODEX_WORK/boat_clone/live_trigger/FORWARD_TEST_RESPONSE_RUNBOOK.md)
   - [SELF_HEALING_AUTO_BET_VISION.md](/c:/CODEX_WORK/boat_clone/live_trigger/SELF_HEALING_AUTO_BET_VISION.md)
   - [IMPROVEMENT_NOTES.md](/c:/CODEX_WORK/boat_clone/live_trigger/IMPROVEMENT_NOTES.md)
+  - [BOX_GO_RUNTIME_CONCEPT.md](/c:/CODEX_WORK/boat_clone/live_trigger/BOX_GO_RUNTIME_CONCEPT.md)

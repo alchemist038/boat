@@ -282,6 +282,12 @@ def test_build_runtime_watchlist_row_supports_c2_all_women_proxy(monkeypatch) ->
             "5173": "2",
         },
     )
+    shared_live_trigger = runtime._load_shared_live_trigger_module()
+    monkeypatch.setattr(
+        shared_live_trigger,
+        "_daily_pred1_lane_index",
+        lambda race_date_iso: {"202603230801": 2},
+    )
 
     race_row = {
         "race_id": "202603230801",
@@ -336,6 +342,56 @@ def test_build_runtime_watchlist_row_filters_c2_when_racer_index_pred1_is_lane1(
         shared_live_trigger,
         "_daily_pred1_lane_index",
         lambda race_date_iso: {"202603230801": 1},
+    )
+
+    race_row = {
+        "race_id": "202603230801",
+        "race_date": "2026-03-23",
+        "stadium_code": "08",
+        "stadium_name": "Tokoname",
+        "race_no": 1,
+        "meeting_title": "Lady Cup",
+        "race_title": "1R",
+        "deadline_time": "10:18",
+    }
+    entry_rows = [
+        {"lane": 1, "racer_id": 4501, "racer_name": "Lane1", "racer_class": "A2", "motor_no": 43, "motor_place_rate": 32.47, "motor_top3_rate": 45.45},
+        {"lane": 2, "racer_id": 4909, "racer_name": "Lane2", "racer_class": "B1"},
+        {"lane": 3, "racer_id": 5324, "racer_name": "Lane3", "racer_class": "B2"},
+        {"lane": 4, "racer_id": 4478, "racer_name": "Lane4", "racer_class": "A2"},
+        {"lane": 5, "racer_id": 5389, "racer_name": "Lane5", "racer_class": "B2"},
+        {"lane": 6, "racer_id": 5173, "racer_name": "Lane6", "racer_class": "B1"},
+    ]
+
+    row = runtime._build_runtime_watchlist_row(race_row, entry_rows, profile)
+
+    assert row is None
+
+
+def test_build_runtime_watchlist_row_filters_c2_when_racer_index_is_missing(monkeypatch) -> None:
+    profile = next(
+        profile
+        for profile in runtime.load_runtime_profiles(include_disabled=True)
+        if profile.profile_id == "c2_provisional_v1"
+    )
+    monkeypatch.setattr(
+        runtime,
+        "_latest_racer_sex_index",
+        lambda: {
+            "4501": "2",
+            "4909": "2",
+            "5324": "2",
+            "4478": "2",
+            "5389": "2",
+            "5173": "2",
+        },
+    )
+
+    shared_live_trigger = runtime._load_shared_live_trigger_module()
+    monkeypatch.setattr(
+        shared_live_trigger,
+        "_daily_pred1_lane_index",
+        lambda race_date_iso: {},
     )
 
     race_row = {
@@ -441,6 +497,17 @@ def test_build_runtime_watchlist_sources_collects_shared_and_local_profiles(
     monkeypatch.setattr(runtime, "BoatRaceClient", FakeClient)
     monkeypatch.setattr(runtime, "_fetch_text_cached", fake_fetch_text_cached)
     monkeypatch.setattr(runtime, "parse_racelist", fake_parse_racelist)
+    shared_live_trigger = runtime._load_shared_live_trigger_module()
+
+    class AlwaysSafeIndex(dict):
+        def get(self, key, default=None):  # type: ignore[override]
+            return 2
+
+    monkeypatch.setattr(
+        shared_live_trigger,
+        "_daily_pred1_lane_index",
+        lambda race_date_iso: AlwaysSafeIndex(),
+    )
 
     source_rows, source_names = runtime._build_runtime_watchlist_sources(
         runtime_root=tmp_path / "runtime",
@@ -768,6 +835,156 @@ def test_evaluate_runtime_row_for_shared_profile_uses_runtime_raw_root(monkeypat
     assert result == {"changed": True, "ready": False}
     assert captured["shared_profile_id"] == "125_broad_four_stadium"
     assert captured["raw_root"] == runtime.raw_root(runtime_root)
+
+
+def test_evaluate_targets_skips_disabled_profile_without_crashing(monkeypatch, tmp_path: Path) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime.initialize_runtime(runtime_root)
+    now = datetime(2026, 3, 27, 9, 30, 0)
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def __enter__(self) -> "FakeClient":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            return False
+
+    monkeypatch.setattr(
+        runtime,
+        "_load_profile_map",
+        lambda runtime_root_arg=runtime.RUNTIME_ROOT: {
+            "disabled_profile": SimpleNamespace(enabled=False),
+        },
+    )
+    monkeypatch.setattr(runtime, "BoatRaceClient", FakeClient)
+
+    with runtime._connect_db(runtime_root) as connection:
+        connection.execute(
+            """
+            INSERT INTO target_races (
+                target_key, race_id, race_date, stadium_code, stadium_name, race_no,
+                profile_id, strategy_id, source_watchlist_file, deadline_at, watch_start_at,
+                imported_at, updated_at, status, row_status, last_reason, payload_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "202603270101::disabled_profile",
+                "202603270101",
+                "2026-03-27",
+                "01",
+                "Dummy",
+                1,
+                "disabled_profile",
+                "dummy",
+                "shared::disabled_profile",
+                "2026-03-27 09:35:00",
+                "2026-03-27 09:25:00",
+                runtime._format_datetime(now),
+                runtime._format_datetime(now),
+                "imported",
+                "waiting_beforeinfo",
+                "",
+                "{}",
+            ),
+        )
+        connection.commit()
+
+    result = runtime.evaluate_targets(runtime_root=runtime_root, race_date="2026-03-27", as_of=now)
+
+    assert result == {
+        "race_date": "2026-03-27",
+        "checked": 0,
+        "go": 0,
+        "skip": 1,
+        "waiting": 0,
+        "expired": 0,
+    }
+
+    with runtime._connect_db(runtime_root) as connection:
+        row = connection.execute(
+            "SELECT status, last_reason, beforeinfo_checked_at FROM target_races WHERE target_key = ?",
+            ("202603270101::disabled_profile",),
+        ).fetchone()
+
+    assert row is not None
+    assert row["status"] == "checked_skip"
+    assert row["last_reason"] == "profile disabled in live_trigger_cli"
+    assert row["beforeinfo_checked_at"] is None
+
+
+def test_evaluate_targets_marks_missing_profile_as_error(monkeypatch, tmp_path: Path) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime.initialize_runtime(runtime_root)
+    now = datetime(2026, 3, 27, 9, 30, 0)
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def __enter__(self) -> "FakeClient":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            return False
+
+    monkeypatch.setattr(runtime, "_load_profile_map", lambda runtime_root_arg=runtime.RUNTIME_ROOT: {})
+    monkeypatch.setattr(runtime, "BoatRaceClient", FakeClient)
+
+    with runtime._connect_db(runtime_root) as connection:
+        connection.execute(
+            """
+            INSERT INTO target_races (
+                target_key, race_id, race_date, stadium_code, stadium_name, race_no,
+                profile_id, strategy_id, source_watchlist_file, deadline_at, watch_start_at,
+                imported_at, updated_at, status, row_status, last_reason, payload_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "202603270102::missing_profile",
+                "202603270102",
+                "2026-03-27",
+                "01",
+                "Dummy",
+                2,
+                "missing_profile",
+                "dummy",
+                "shared::missing_profile",
+                "2026-03-27 09:35:00",
+                "2026-03-27 09:25:00",
+                runtime._format_datetime(now),
+                runtime._format_datetime(now),
+                "imported",
+                "waiting_beforeinfo",
+                "",
+                "{}",
+            ),
+        )
+        connection.commit()
+
+    result = runtime.evaluate_targets(runtime_root=runtime_root, race_date="2026-03-27", as_of=now)
+
+    assert result == {
+        "race_date": "2026-03-27",
+        "checked": 0,
+        "go": 0,
+        "skip": 0,
+        "waiting": 0,
+        "expired": 0,
+    }
+
+    with runtime._connect_db(runtime_root) as connection:
+        row = connection.execute(
+            "SELECT status, last_reason, beforeinfo_checked_at FROM target_races WHERE target_key = ?",
+            ("202603270102::missing_profile",),
+        ).fetchone()
+
+    assert row is not None
+    assert row["status"] == "error"
+    assert row["last_reason"] == "profile not found"
+    assert row["beforeinfo_checked_at"] is None
 
 
 def test_sync_watchlists_withdraws_disabled_profile_targets(monkeypatch, tmp_path: Path) -> None:

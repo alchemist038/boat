@@ -31,6 +31,7 @@
   "racer_index_overlay": {
     "enabled": true,
     "exclude_when_pred1_lane": [1],
+    "default_pred1_lane_when_missing": 1,
     "source_signal": "daily_pred1_signal",
     "window_months": 5
   }

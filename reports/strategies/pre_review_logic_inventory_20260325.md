@@ -89,15 +89,55 @@ Current `H-B` working read:
 - `pred6_lane != 2` is the cleanest current racer-index refinement
 - that refinement also works on `2024`
 - however, the aligned equity shape against the current forward set still has long weak periods
+- fresh `2026-01-01 .. 2026-03-27` rerun is weak even on the best preserved version
+  - `pred6_lane != 2 + final_day_cut`: `ROI 39.31%`
 - so `H-B` should remain:
   - `保留`
-  - `forward check`
+  - `skip for now`
   - not a promotion-first branch
 
 Updated review implication:
 
 - keep `H-B` preserved with `pred6_lane != 2` as the current best version
+- record `final day cut` as the next add-on only if the branch is reopened
 - move the next deep review focus to `H-C`
+
+Current `H-C` working read:
+
+- baseline `H-C` does not survive as a stable global class-only branch
+- the main collapse is concentrated in `2025_h2`
+- `2026_ytd` itself is not weak, so this looks period-fragile rather than permanently dead
+- `lane3=A1` improves the branch directionally
+- the cleanest current small-sample refinement is:
+  - `lane3=A1 & pred1_lane=3`
+- but it should still remain:
+  - `保留`
+  - not promotion-ready
+  - a later-review candidate only
+
+Updated `H-C` implication:
+
+- preserve the branch context
+- keep `lane3=A1 & pred1_lane=3` as the leading refinement candidate
+- if reopened later, start from:
+  - stadium split
+  - then the combined `lane3=A1 & pred1_lane=3` slice
+  - and avoid relying on simple class-only cuts alone
+
+Current closed exploratory note outside the bounded slice:
+
+- [high_hit_candidate1_outer_pressure_review_20260329.md](/c:/CODEX_WORK/boat_clone/reports/strategies/recent_checks/high_hit_candidate1_outer_pressure_review_20260329.md)
+- source:
+  - oldest-6m high-hit Gemini candidate 1
+- strongest preserved read:
+  - `lane5_class = A1`
+  - `lane6_class != A1`
+  - buy `1-2`
+- current interpretation:
+  - record and preserve the slice work
+  - do not keep it in the active re-open queue right now
+  - it is weaker than the current bounded `H-A / H-C / H-B / H-D` queue
+  - treat it as a closed exploratory note, not as a promotion candidate
 
 Reason for top priority:
 

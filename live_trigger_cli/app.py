@@ -12,7 +12,6 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 APP_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = APP_ROOT.parent
@@ -217,31 +216,10 @@ def _notify_error(exc: Exception) -> None:
     st.error(str(exc))
 
 
-def _apply_auto_refresh(enabled: bool, *, interval_seconds: int = AUTO_REFRESH_INTERVAL_SECONDS) -> None:
-    interval_ms = max(1, int(interval_seconds)) * 1000
-    if enabled:
-        script = f"""
-        <script>
-        const parentWindow = window.parent;
-        if (parentWindow.__liveTriggerCliRefreshTimer) {{
-            clearTimeout(parentWindow.__liveTriggerCliRefreshTimer);
-        }}
-        parentWindow.__liveTriggerCliRefreshTimer = setTimeout(() => {{
-            parentWindow.location.reload();
-        }}, {interval_ms});
-        </script>
-        """
-    else:
-        script = """
-        <script>
-        const parentWindow = window.parent;
-        if (parentWindow.__liveTriggerCliRefreshTimer) {
-            clearTimeout(parentWindow.__liveTriggerCliRefreshTimer);
-            parentWindow.__liveTriggerCliRefreshTimer = null;
-        }
-        </script>
-        """
-    components.html(script, height=0)
+def _auto_refresh_run_every(enabled: bool, *, interval_seconds: int = AUTO_REFRESH_INTERVAL_SECONDS) -> str | None:
+    if not enabled:
+        return None
+    return f"{max(1, int(interval_seconds))}s"
 
 
 def _pid_is_running(pid: int | None) -> bool:
@@ -349,6 +327,59 @@ def _tail_log(path: Path, *, lines: int = 80) -> str:
     return "\n".join(content[-lines:])
 
 
+def _format_timestamp(value: datetime | None) -> str:
+    if value is None:
+        return "-"
+    return value.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _loop_health(settings: dict[str, Any]) -> dict[str, Any]:
+    pid = _current_loop_pid()
+    running = pid is not None
+    log_path = runtime.auto_run_log_path()
+    log_updated_at: datetime | None = None
+    if log_path.exists():
+        try:
+            log_updated_at = datetime.fromtimestamp(log_path.stat().st_mtime)
+        except OSError:
+            log_updated_at = None
+
+    log_age_seconds: int | None = None
+    if log_updated_at is not None:
+        log_age_seconds = max(0, int((datetime.now() - log_updated_at).total_seconds()))
+
+    stale_after_seconds = max(90, int(settings.get("poll_seconds", AUTO_REFRESH_INTERVAL_SECONDS)) * 3)
+    status_level = "info"
+    message: str | None = None
+
+    if bool(settings.get("system_running", False)):
+        if not running:
+            status_level = "error"
+            message = "system_running=true but no live auto-loop PID is present. The loop may have stopped unexpectedly."
+        elif log_age_seconds is None:
+            status_level = "warning"
+            message = "system_running=true but auto_run.log timestamp could not be read."
+        elif log_age_seconds > stale_after_seconds:
+            status_level = "warning"
+            message = (
+                f"auto_run.log has been idle for {log_age_seconds}s. "
+                "Please check whether the loop is stalled."
+            )
+    elif running:
+        status_level = "warning"
+        message = f"system_running=false but auto-loop PID `{pid}` is still alive."
+
+    return {
+        "pid": pid,
+        "running": running,
+        "log_updated_at": log_updated_at,
+        "log_age_seconds": log_age_seconds,
+        "stale_after_seconds": stale_after_seconds,
+        "status_level": status_level,
+        "message": message,
+    }
+
+
 def _read_query(query: str, params: tuple[Any, ...] = ()) -> pd.DataFrame:
     if not runtime.db_path().exists():
         return pd.DataFrame()
@@ -387,7 +418,6 @@ def _today_target_profile_frame(race_date: str | None = None) -> pd.DataFrame:
     )
     if frame.empty:
         return frame
-
     pivot = (
         frame.pivot_table(
             index="profile_id",
@@ -491,13 +521,29 @@ def _latest_targets_frame(limit: int = 200) -> pd.DataFrame:
             last_reason,
             updated_at
         FROM target_races
-        ORDER BY updated_at DESC, id DESC
-        LIMIT ?
         """,
-        (limit,),
     )
     if frame.empty:
         return frame
+    frame["_deadline_dt"] = pd.to_datetime(frame["deadline_at"], errors="coerce")
+    frame["_updated_dt"] = pd.to_datetime(frame["updated_at"], errors="coerce")
+    now_ts = pd.Timestamp(datetime.now())
+    future_frame = frame[frame["_deadline_dt"].ge(now_ts)].sort_values(
+        by=["_deadline_dt", "_updated_dt", "race_id", "profile_id"],
+        ascending=[True, False, True, True],
+        na_position="last",
+    )
+    past_frame = frame[frame["_deadline_dt"].lt(now_ts)].sort_values(
+        by=["_deadline_dt", "_updated_dt", "race_id", "profile_id"],
+        ascending=[False, False, True, True],
+        na_position="last",
+    )
+    unknown_frame = frame[frame["_deadline_dt"].isna()].sort_values(
+        by=["_updated_dt", "race_id", "profile_id"],
+        ascending=[False, True, True],
+        na_position="last",
+    )
+    frame = pd.concat([future_frame, past_frame, unknown_frame], ignore_index=True).head(limit).copy()
     frame["場"] = frame["stadium_code"] + " " + frame["stadium_name"].fillna("")
     frame["状態"] = frame["status"].map(_status_text)
     frame["判定"] = frame["row_status"].map(_status_text)
@@ -516,6 +562,155 @@ def _latest_targets_frame(limit: int = 200) -> pd.DataFrame:
             "updated_at",
         ]
     ]
+
+
+def _render_live_header(auto_refresh_enabled: bool) -> None:
+    run_every = _auto_refresh_run_every(auto_refresh_enabled)
+
+    @st.fragment(run_every=run_every)
+    def _fragment() -> None:
+        settings = runtime.load_settings()
+        summary, _ = _load_summary()
+        loop_health = _loop_health(settings)
+        pid = loop_health["pid"]
+        loop_running = bool(loop_health["running"])
+        today_race_date = datetime.now().strftime("%Y-%m-%d")
+        today_target_profile_frame = _today_target_profile_frame(today_race_date)
+        today_target_total = int(today_target_profile_frame["today_targets"].sum()) if not today_target_profile_frame.empty else 0
+
+        top = st.columns(6)
+        top[0].metric("実行モード", EXECUTION_MODE_LABELS.get(settings["execution_mode"], settings["execution_mode"]))
+        top[1].metric("system_running", "ON" if settings["system_running"] else "OFF")
+        top[2].metric("loop PID", str(pid) if loop_running else "-")
+        top[3].metric("today targets", str(today_target_total))
+        top[4].metric("all targets", str(sum(summary.get("targets_by_status", {}).values())))
+        top[5].metric("pending intents", str(summary.get("intents_by_status", {}).get("pending", 0)))
+
+        st.markdown(
+            """
+            <div class="cli-note">
+              shared <code>boxes/watchlists/raw</code> を読み込む新ラインです。
+              <code>settings.json/system.db/auto_run.log</code> はこの新ライン専用です。
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if loop_health["message"]:
+            if loop_health["status_level"] == "error":
+                st.error(loop_health["message"])
+            elif loop_health["status_level"] == "warning":
+                st.warning(loop_health["message"])
+            else:
+                st.info(loop_health["message"])
+
+    _fragment()
+
+
+def _render_overview_live_section(auto_refresh_enabled: bool, *, generation_summary: dict[str, Any]) -> None:
+    run_every = _auto_refresh_run_every(auto_refresh_enabled)
+
+    @st.fragment(run_every=run_every)
+    def _fragment() -> None:
+        settings = runtime.load_settings()
+        summary, summary_warning = _load_summary()
+        loop_health = _loop_health(settings)
+        pid = loop_health["pid"]
+        loop_running = bool(loop_health["running"])
+        today_race_date = datetime.now().strftime("%Y-%m-%d")
+        today_target_profile_frame = _today_target_profile_frame(today_race_date)
+
+        if summary_warning:
+            st.warning(f"概要集計を一部読めませんでした: {summary_warning}")
+        st.info(
+            "\n".join(
+                [
+                    "使い方の最短手順",
+                    "1. 設定で execution_mode と profile の enabled / amount を決める",
+                    "2. 実行で対象日を入れて sync-watchlists を押す",
+                    "3. evaluate-targets で GO 判定と intent を作る",
+                    "4. execute-bets で air / real を実行する。まとめてやるなら run-cycle",
+                    "5. まずは 手動テスト の confirm_only で確認画面まで試す",
+                ]
+            )
+        )
+        col1, col2 = st.columns([1.2, 1.0])
+        with col1:
+            st.subheader("状態サマリー")
+            st.json(summary)
+            st.subheader(f"本日 {today_race_date} のロジック別ターゲット数")
+            if today_target_profile_frame.empty:
+                st.caption("本日の target はまだありません。")
+            else:
+                st.dataframe(today_target_profile_frame, width="stretch", hide_index=True)
+            st.subheader("このラインが読む profile")
+            st.write(
+                {
+                    "shared_profiles": generation_summary["shared_profiles"],
+                    "local_profiles": generation_summary["local_profiles"],
+                    "raw_root": generation_summary["raw_root"],
+                }
+            )
+            st.caption(
+                "sync-watchlists は shared watchlist CSV を読むのではなく、shared BOX と local BOX をもとに "
+                "このライン自身の raw キャッシュへ racelist を集めて候補を生成します。"
+            )
+        with col2:
+            st.subheader("ループ監視")
+            st.write(f"PIDファイル: `{PID_FILE}`")
+            if loop_running:
+                st.success(f"auto-loop は PID `{pid}` で稼働中です。")
+            elif pid is not None:
+                st.warning("PIDファイルは残っていますが、プロセスは動いていません。")
+            else:
+                st.info("auto-loop は稼働していません。")
+
+        st.subheader("最新ターゲット")
+        st.caption("締切順で表示します。これから締切を迎える行を先頭に、過ぎた行は後ろへ並べます。")
+        st.caption(
+            "loop log: "
+            f"{_format_timestamp(loop_health['log_updated_at'])} / stale threshold: {loop_health['stale_after_seconds']}s"
+        )
+        if loop_health["log_age_seconds"] is not None:
+            st.caption(f"log age: {loop_health['log_age_seconds']}s")
+
+        latest_targets = _latest_targets_frame(limit=20)
+        if latest_targets.empty:
+            st.info("まだ target はありません。")
+        else:
+            st.dataframe(latest_targets, width="stretch", hide_index=True)
+
+        st.subheader("ログ末尾")
+        log_text = _tail_log(runtime.auto_run_log_path(), lines=60)
+        if log_text:
+            st.code(log_text, language="text")
+        else:
+            st.caption("まだログはありません。")
+
+    _fragment()
+
+
+def _render_data_targets_section(auto_refresh_enabled: bool) -> None:
+    run_every = _auto_refresh_run_every(auto_refresh_enabled)
+
+    @st.fragment(run_every=run_every)
+    def _fragment() -> None:
+        frame = _latest_targets_frame(limit=5000)
+        today_race_date = datetime.now().strftime("%Y-%m-%d")
+        today_frame = frame[frame["race_date"] == today_race_date]
+        if not today_frame.empty:
+            other_frame = frame[frame["race_date"] != today_race_date].head(200)
+            frame = pd.concat([today_frame, other_frame], ignore_index=True)
+        if frame.empty:
+            st.info("target はまだありません。")
+        else:
+            if not today_frame.empty:
+                st.caption("当日分は一覧から落とさず先頭に固定し、その後ろに他日分を並べます。")
+            else:
+                st.caption("締切順で表示します。")
+            st.dataframe(frame, width="stretch", hide_index=True)
+
+    _fragment()
 
 
 def _latest_intents_frame(limit: int = 200) -> pd.DataFrame:
@@ -735,13 +930,7 @@ def _profile_generation_summary() -> dict[str, Any]:
 
 _clear_pid_if_stale()
 settings = runtime.load_settings()
-summary, summary_warning = _load_summary()
-pid = _current_loop_pid()
-loop_running = pid is not None
 generation_summary = _profile_generation_summary()
-today_race_date = datetime.now().strftime("%Y-%m-%d")
-today_target_profile_frame = _today_target_profile_frame(today_race_date)
-today_target_total = int(today_target_profile_frame["today_targets"].sum()) if not today_target_profile_frame.empty else 0
 
 if "ui_auto_refresh" not in st.session_state:
     st.session_state["ui_auto_refresh"] = False
@@ -750,13 +939,12 @@ refresh_cols = st.columns([1.1, 2.4, 1.5])
 auto_refresh_enabled = refresh_cols[0].toggle(
     "5秒自動更新",
     key="ui_auto_refresh",
-    help="状態表示を5秒ごとに更新します。設定入力や手動テスト中は OFF 推奨です。",
+    help="ライブ表示だけを5秒ごとに小さく更新します。設定入力や手動テスト中は OFF 推奨です。",
 )
 refresh_cols[1].caption(
-    "loop 状態や summary を 5 秒ごとに読み直します。入力中に邪魔なときは OFF にしてください。"
+    "ページ全体を reload せず、状態表示だけを 5 秒ごとに読み直します。"
 )
 refresh_cols[2].caption(f"最終描画: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-_apply_auto_refresh(bool(auto_refresh_enabled))
 
 st.markdown(
     """
@@ -770,87 +958,14 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-top = st.columns(6)
-top[0].metric("実行モード", EXECUTION_MODE_LABELS.get(settings["execution_mode"], settings["execution_mode"]))
-top[1].metric("system_running", "ON" if settings["system_running"] else "OFF")
-top[2].metric("loop PID", str(pid) if loop_running else "-")
-top[3].metric("today targets", str(today_target_total))
-top[4].metric("all targets", str(sum(summary.get("targets_by_status", {}).values())))
-top[5].metric("pending intents", str(summary.get("intents_by_status", {}).get("pending", 0)))
-
-st.markdown(
-    """
-    <div class="cli-note">
-      shared <code>boxes/watchlists/raw</code> を読み込む新ラインです。
-      <code>settings.json/system.db/auto_run.log</code> はこの新ライン専用です。
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+_render_live_header(bool(auto_refresh_enabled))
 
 tab_overview, tab_settings, tab_actions, tab_manual, tab_data = st.tabs(
     ["概要", "設定", "実行", "手動テスト", "データ"]
 )
 
 with tab_overview:
-    if summary_warning:
-        st.warning(f"概要集計を一時的に読めませんでした: {summary_warning}")
-    st.info(
-        "\n".join(
-            [
-                "使い方の最短手順",
-                "1. 設定 で execution_mode と profile の enabled / amount を決める",
-                "2. 実行 で対象日を入れて sync-watchlists を押す",
-                "3. evaluate-targets で GO 判定と intent を作る",
-                "4. execute-bets で air / real を実行する。まとめてやるなら run-cycle",
-                "5. まずは 手動テスト の confirm_only で確認画面まで試す",
-            ]
-        )
-    )
-    col1, col2 = st.columns([1.2, 1.0])
-    with col1:
-        st.subheader("状態サマリー")
-        st.json(summary)
-        st.subheader(f"当日 {today_race_date} のロジック別ターゲット数")
-        if today_target_profile_frame.empty:
-            st.caption("当日の target はまだありません。")
-        else:
-            st.dataframe(today_target_profile_frame, width="stretch", hide_index=True)
-        st.subheader("このラインが生成する profile")
-        st.write(
-            {
-                "shared_profiles": generation_summary["shared_profiles"],
-                "local_profiles": generation_summary["local_profiles"],
-                "raw_root": generation_summary["raw_root"],
-            }
-        )
-        st.caption(
-            "sync-watchlists は shared watchlist CSV を読むのではなく、shared BOX と local BOX をもとに "
-            "このライン自身の raw キャッシュへ racelist を集めて候補を生成します。"
-        )
-    with col2:
-        st.subheader("ループ状態")
-        st.write(f"PIDファイル: `{PID_FILE}`")
-        if loop_running:
-            st.success(f"auto-loop は PID `{pid}` で起動中です。")
-        elif pid is not None:
-            st.warning("PIDファイルは残っていますが、プロセスは動いていません。")
-        else:
-            st.info("auto-loop は起動していません。")
-
-    st.subheader("最新ターゲット")
-    latest_targets = _latest_targets_frame(limit=20)
-    if latest_targets.empty:
-        st.info("まだ target はありません。")
-    else:
-        st.dataframe(latest_targets, width="stretch", hide_index=True)
-
-    st.subheader("ログ末尾")
-    log_text = _tail_log(runtime.auto_run_log_path(), lines=60)
-    if log_text:
-        st.code(log_text, language="text")
-    else:
-        st.caption("まだログはありません。")
+    _render_overview_live_section(bool(auto_refresh_enabled), generation_summary=generation_summary)
 
 with tab_settings:
     st.subheader("基本設定")
@@ -1064,6 +1179,9 @@ with tab_actions:
 
     st.subheader("ループ制御")
     loop_cols = st.columns(3)
+    current_loop_health = _loop_health(runtime.load_settings())
+    current_pid = current_loop_health["pid"]
+    current_loop_running = bool(current_loop_health["running"])
     if loop_cols[0].button("system_running を ON", width="stretch"):
         try:
             _notify_success(runtime.configure_runtime(setting_overrides={"system_running": True}), label="system_running ON")
@@ -1076,8 +1194,8 @@ with tab_actions:
             _notify_error(exc)
     if loop_cols[2].button("auto-loop を起動", width="stretch"):
         try:
-            if loop_running:
-                st.warning(f"auto-loop はすでに PID `{pid}` で起動中です。")
+            if current_loop_running:
+                st.warning(f"auto-loop はすでに PID `{current_pid}` で起動中です。")
             else:
                 runtime.configure_runtime(setting_overrides={"system_running": True})
                 started_pid = _spawn_auto_loop()
@@ -1149,11 +1267,7 @@ with tab_data:
         ["Targets", "Intents", "Executions", "Events", "Session"]
     )
     with subtab1:
-        frame = _latest_targets_frame()
-        if frame.empty:
-            st.info("target はまだありません。")
-        else:
-            st.dataframe(frame, width="stretch", hide_index=True)
+        _render_data_targets_section(bool(auto_refresh_enabled))
     with subtab2:
         frame = _latest_intents_frame()
         if frame.empty:
