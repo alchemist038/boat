@@ -206,12 +206,20 @@ Current live consumption note:
 - `live_trigger` currently reads `race_summary.csv`
 - it does not read a persisted `daily_pred1_signal` table from DuckDB yet
 
-Current helper script for daily generation:
+Current helper scripts for daily generation:
+
+- shared DB recent refresh:
+  - `workspace_codex/scripts/run_shared_recent_collect_daily.ps1`
 
 - `workspace_codex/scripts/run_racer_rank_live_daily.ps1`
 
 Current schedule on this machine:
 
+- task name: `\BoatSharedRecentCollectDaily`
+- start time: `01:00`
+- intent: refresh shared `raw -> bronze -> silver` for the recent overlap window before morning live use
 - task name: `\BoatRacerIndexLiveCsvDaily`
-- start time: `07:00`
-- intent: wait for prior-day `results` to exist in shared DuckDB, then collect target-day raw pages and generate `racer_rank_live_YYYYMMDD`
+- start time: `03:00`
+- intent: after the recent DB refresh, collect target-day raw pages and generate `racer_rank_live_YYYYMMDD`
+- legacy fallback note:
+  - keep the older INS14 boat tasks disabled rather than deleted so they can be re-enabled if the active machine or network path has trouble

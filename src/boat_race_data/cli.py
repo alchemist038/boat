@@ -134,6 +134,10 @@ def _fetch_text_cached(client: BoatRaceClient, url: str, raw_path: Path) -> Fetc
     return client.fetch_text(url, raw_path)
 
 
+def _fetch_text_force(client: BoatRaceClient, url: str, raw_path: Path) -> FetchResult:
+    return client.fetch_text(url, raw_path)
+
+
 def _fetch_binary_cached(client: BoatRaceClient, url: str, raw_path: Path) -> FetchResult:
     if raw_path.exists():
         return _cached_fetch_result(raw_path, url, is_text=False)
@@ -198,13 +202,25 @@ def _collect_day_tables(
                     tables["race_meta"].append(race_meta_row)
                 time.sleep(sleep_seconds)
 
-                odds2_fetch = _fetch_text_cached(
-                    client,
-                    client.build_race_url("odds2t", race_date, stadium_code, race_no),
-                    raw_root / "odds_2t" / race_date / f"{prefix}.html",
+                odds2_url = client.build_race_url("odds2t", race_date, stadium_code, race_no)
+                odds2_raw_path = raw_root / "odds_2t" / race_date / f"{prefix}.html"
+                odds2_fetch = _fetch_text_cached(client, odds2_url, odds2_raw_path)
+                odds2_rows = parse_odds_2t(
+                    odds2_fetch.text or "",
+                    race_date,
+                    stadium_code,
+                    race_no,
+                    odds2_fetch.url,
+                    odds2_fetch.fetched_at,
                 )
-                tables["odds_2t"].extend(
-                    parse_odds_2t(
+                if not odds2_rows:
+                    LOGGER.warning(
+                        "No odds_2t rows parsed for %s %sR; refetching once to refresh cached raw page.",
+                        stadium_code,
+                        race_no,
+                    )
+                    odds2_fetch = _fetch_text_force(client, odds2_url, odds2_raw_path)
+                    odds2_rows = parse_odds_2t(
                         odds2_fetch.text or "",
                         race_date,
                         stadium_code,
@@ -212,7 +228,7 @@ def _collect_day_tables(
                         odds2_fetch.url,
                         odds2_fetch.fetched_at,
                     )
-                )
+                tables["odds_2t"].extend(odds2_rows)
                 time.sleep(sleep_seconds)
 
                 if not skip_odds_3t:

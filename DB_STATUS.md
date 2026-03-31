@@ -279,14 +279,23 @@ Purpose:
 
 Current state confirmed on `MASAO_N8N`:
 
-- task name: `\BoatRacerIndexLiveCsvDaily`
-- start time: `07:00`
-- logon mode: `Interactive only`
-- task command:
-  - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\CODEX_WORK\boat_clone\workspace_codex\scripts\run_racer_rank_live_daily.ps1"`
+- shared DB recent refresh task:
+  - task name: `\BoatSharedRecentCollectDaily`
+  - start time: `01:00`
+  - logon mode: `Interactive only`
+  - task command:
+    - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\CODEX_WORK\boat_clone\workspace_codex\scripts\run_shared_recent_collect_daily.ps1"`
+- derived racer-index task:
+  - task name: `\BoatRacerIndexLiveCsvDaily`
+  - start time: `03:00`
+  - logon mode: `Interactive only`
+  - task command:
+    - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\CODEX_WORK\boat_clone\workspace_codex\scripts\run_racer_rank_live_daily.ps1"`
 
 Implementation files:
 
+- shared recent refresh:
+  - `C:\CODEX_WORK\boat_clone\workspace_codex\scripts\run_shared_recent_collect_daily.ps1`
 - daily wrapper:
   - `C:\CODEX_WORK\boat_clone\workspace_codex\scripts\run_racer_rank_live_daily.ps1`
 - CLI launcher:
@@ -296,13 +305,18 @@ Implementation files:
 
 Current flow:
 
-1. wait until shared DuckDB `results` has at least the prior-day `race_date`
-2. run `collect-day` against the shared roots:
+1. `01:00` task refreshes shared DB recent overlap (`target-2 .. target-1`) against:
    - raw root: `\\038INS\boat\data\raw`
    - bronze root: `\\038INS\boat\data\bronze`
    - DB path: `\\038INS\boat\data\silver\boat_race.duckdb`
-3. run `predict_racer_rank_live.py` for the target day
-4. write outputs under:
+2. racer-index task checks shared DuckDB `results` for at least the prior-day `race_date`
+3. if prior-day `results` are still missing, it backfills the prior day locally on this machine
+4. run `collect-day` against the shared roots for the target day:
+   - raw root: `\\038INS\boat\data\raw`
+   - bronze root: `\\038INS\boat\data\bronze`
+   - DB path: `\\038INS\boat\data\silver\boat_race.duckdb`
+5. run `predict_racer_rank_live.py` for the target day
+6. write outputs under:
    - `\\038INS\boat\reports\strategies\racer_rank_live_YYYYMMDD`
 
 Important operating note:
@@ -311,6 +325,18 @@ Important operating note:
 - it does not read `daily_pred1_signal` or `daily_pred6` from DuckDB yet
 - so the current operational chain is:
   - shared DB/raw -> daily prediction script -> CSV bundle -> live filter
+
+Current ownership note:
+
+- `MASAO_N8N` is now capable of producing both the recent shared DB refresh and the daily racer-index CSV without waiting on the older INS14 morning schedule
+- if the legacy INS14 scheduler is still active, disable it there manually to avoid duplicate writers
+- operational stance:
+  - `MASAO_N8N` is the active morning writer for both the recent shared DB refresh and the derived racer-index CSV
+  - legacy INS14 boat tasks should be kept `disabled`, not deleted, so they can be re-enabled quickly if this machine or the network path becomes unavailable
+- local DB note:
+  - keep `\\038INS\boat\data\silver\boat_race.duckdb` as the canonical DB
+  - a second full local mirror DB on `MASAO_N8N` is not required for normal daily operation and would mostly duplicate storage and refresh time
+  - if a local DB is ever introduced here, treat it as a temporary fallback or debug cache rather than a second canonical source
 
 Confirmed output for `2026-03-27`:
 
@@ -329,6 +355,38 @@ Current interpretation:
 - this derived task is light enough to keep daily output history for BT checks and traceability
 - keeping one date folder per day is operationally reasonable
 - if the canonical DB collection timing moves again, adjust this task start time and keep the prior-day results wait gate
+- morning recovery hardening:
+  - `run_shared_recent_collect_daily.ps1` now clears stale `raw/results/YYYYMMDD` and `bronze/results/YYYYMMDD.csv` before recent overlap refresh
+  - the same script also widens the overlap window backward to `max(results.race_date) + 1` when shared `results` are lagging, so a missed day is pulled back in automatically instead of being skipped
+  - `run_racer_rank_live_daily.ps1` now clears stale prior-day results artifacts before its local backfill `collect-day`, then predicts with the newest available cutoff
+  - `run_racer_rank_live_daily.ps1` now anchors `tune_start` and `profile_start` to the `cutoff` month instead of the `target` month, so month-boundary mornings such as `2026-04-01` do not produce an empty tuning window
+  - `src/boat_race_data/cli.py` now refetches an `odds_2t` page once when the cached raw page parses to zero rows, which protects against the thin/header-only page variant that appeared on `2026-03-31`
+
+Current shared DB check on `2026-04-01` after repair:
+
+- max dates:
+  - `races / entries / beforeinfo_entries / race_meta`: `2026-04-01`
+  - `results / odds_2t / odds_3t`: `2026-03-31`
+- `collection_day_summary`:
+  - `2026-03-30`: `races 168 / entries 1008 / odds_2t 7560 / odds_3t 19680 / results 164`
+  - `2026-03-31`: `races 156 / entries 936 / odds_2t 6885 / odds_3t 18360 / results 153`
+  - `2026-04-01`: `races 108 / entries 648 / beforeinfo 648 / results 0 / odds 0`
+
+`2026-03-31` odds_2t repair note:
+
+- symptom:
+  - shared DB showed `odds_2t max(race_date) = 2026-03-30` while `results` and `odds_3t` had already advanced to `2026-03-31`
+  - `\\038INS\boat\data\bronze\odds_2t\20260331.csv` was header-only
+- root cause:
+  - cached `raw/odds_2t/20260331/*.html` pages included a thin page variant with only the deadline table and no odds matrix
+  - parser therefore returned zero rows and bronze remained empty
+- recovery:
+  - forced fresh re-fetch of all `156` raw `odds_2t` pages for `20260331`
+  - rewrote `\\038INS\boat\data\bronze\odds_2t\20260331.csv`
+  - refreshed shared DuckDB
+- result:
+  - `odds_2t_count = 6885` for `2026-03-31`
+  - this matches `153 races x 45 combinations`, so the 2T layer is back in sync with the available race/results coverage
 
 ## 10. Active Gap Recovery Jobs
 
