@@ -26,6 +26,18 @@ def test_load_runtime_profiles_includes_disabled_shared_h_a_candidate() -> None:
     assert profile_map["h_a_final_day_cut_v1"].enabled is False
 
 
+def test_load_runtime_profiles_includes_disabled_shared_l3_124_candidate() -> None:
+    profiles = runtime.load_runtime_profiles(include_disabled=True)
+    profile_map = {profile.profile_id: profile for profile in profiles}
+
+    assert "l3_weak_124_box_one_a_ex241_v1" in profile_map
+    profile = profile_map["l3_weak_124_box_one_a_ex241_v1"]
+    assert profile.source_kind == "shared"
+    assert profile.enabled is False
+    assert profile.box_id == "l3_124"
+    assert profile.strategy_id == "l3_124"
+
+
 def test_load_runtime_profiles_prefers_shared_over_local_duplicate(tmp_path: Path) -> None:
     runtime_root = tmp_path / "runtime"
     local_profile_path = runtime_root / "boxes" / "4wind" / "profiles" / "base_415.json"
@@ -63,6 +75,11 @@ def test_build_bet_rows_supports_4wind_exacta() -> None:
 def test_profile_enabled_respects_profile_default_when_setting_is_absent() -> None:
     assert runtime.profile_enabled({"active_profiles": {}}, "h_a_final_day_cut_v1", default_enabled=False) is False
     assert runtime.profile_enabled({"active_profiles": {}}, "125_broad_four_stadium", default_enabled=True) is True
+    assert runtime.profile_enabled(
+        {"active_profiles": {}},
+        "l3_weak_124_box_one_a_ex241_v1",
+        default_enabled=False,
+    ) is False
 
 
 def test_decide_4wind_evaluation_ready() -> None:
@@ -230,6 +247,39 @@ def test_build_runtime_watchlist_row_supports_shared_profile() -> None:
     assert row["profile_id"] == "125_broad_four_stadium"
     assert row["strategy_id"] == "125"
     assert row["race_id"] == "202603230112"
+    assert row["status"] == "waiting_beforeinfo"
+
+
+def test_build_runtime_watchlist_row_supports_shared_l3_124_candidate() -> None:
+    profile = next(
+        profile
+        for profile in runtime.load_runtime_profiles(include_disabled=True)
+        if profile.profile_id == "l3_weak_124_box_one_a_ex241_v1"
+    )
+    race_row = {
+        "race_id": "202604020901",
+        "race_date": "2026-04-02",
+        "stadium_code": "09",
+        "stadium_name": "Naruto",
+        "race_no": 1,
+        "meeting_title": "General",
+        "race_title": "Preliminary",
+        "deadline_time": "09:50",
+    }
+    entry_rows = [
+        {"lane": 1, "racer_id": "1001", "racer_name": "Lane1", "racer_class": "B1"},
+        {"lane": 2, "racer_id": "1002", "racer_name": "Lane2", "racer_class": "A2"},
+        {"lane": 3, "racer_id": "1003", "racer_name": "Lane3", "racer_class": "B2"},
+        {"lane": 4, "racer_id": "1004", "racer_name": "Lane4", "racer_class": "B1"},
+        {"lane": 5, "racer_id": "1005", "racer_name": "Lane5", "racer_class": "A1"},
+        {"lane": 6, "racer_id": "1006", "racer_name": "Lane6", "racer_class": "B1"},
+    ]
+
+    row = runtime._build_runtime_watchlist_row(race_row, entry_rows, profile)
+
+    assert row is not None
+    assert row["profile_id"] == "l3_weak_124_box_one_a_ex241_v1"
+    assert row["strategy_id"] == "l3_124"
     assert row["status"] == "waiting_beforeinfo"
 
 
@@ -1168,3 +1218,27 @@ def test_auto_loop_refuses_duplicate_process(monkeypatch, tmp_path: Path) -> Non
         "existing_pid": 4242,
     }
     assert called["run_cycle"] == 0
+
+
+def test_current_auto_loop_pid_repairs_stale_pid_with_discovered_loop(monkeypatch, tmp_path: Path) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime.initialize_runtime(runtime_root)
+    runtime.auto_loop_pid_path(runtime_root).write_text("1234", encoding="utf-8")
+
+    monkeypatch.setattr(runtime, "_pid_looks_like_auto_loop", lambda pid: pid == 5678)
+    monkeypatch.setattr(runtime, "_discover_running_auto_loop_pid", lambda: 5678)
+
+    assert runtime.current_auto_loop_pid(runtime_root) == 5678
+    assert runtime.auto_loop_pid_path(runtime_root).read_text(encoding="utf-8") == "5678"
+
+
+def test_current_auto_loop_pid_clears_stale_pid_when_no_loop_exists(monkeypatch, tmp_path: Path) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime.initialize_runtime(runtime_root)
+    runtime.auto_loop_pid_path(runtime_root).write_text("1234", encoding="utf-8")
+
+    monkeypatch.setattr(runtime, "_pid_looks_like_auto_loop", lambda pid: False)
+    monkeypatch.setattr(runtime, "_discover_running_auto_loop_pid", lambda: None)
+
+    assert runtime.current_auto_loop_pid(runtime_root) is None
+    assert not runtime.auto_loop_pid_path(runtime_root).exists()

@@ -57,6 +57,7 @@ CANONICAL_DUCKDB_PATH = Path(r"\\038INS\boat\data\silver\boat_race.duckdb")
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LOCAL_REPORTS_STRATEGY_ROOT = REPO_ROOT / "reports" / "strategies"
 SHARED_REPORTS_STRATEGY_ROOT = Path(r"\\038INS\boat\reports\strategies")
+A_CLASSES = {"A1", "A2"}
 
 
 @dataclass(slots=True)
@@ -310,6 +311,8 @@ def build_watchlist_row(
     # lane5, lane6 check
     lane5 = _entry_by_lane(entry_rows, 5)
     lane6 = _entry_by_lane(entry_rows, 6)
+    if profile.strategy_id == "l3_124" and not _outer_one_a_only(lane5, lane6):
+        return None
     if lane5 and (lane5.get("racer_class", "") in profile.lane5_class_exclude):
         return None
     if lane6 and profile.lane6_class_include and (lane6.get("racer_class", "") not in profile.lane6_class_include):
@@ -409,6 +412,8 @@ def enrich_watchlist_row_with_beforeinfo(
     row["beforeinfo_fetched_at"] = fetch.fetched_at
     if profile.strategy_id == "h_a":
         return _enrich_h_a_watchlist_row(row, profile, beforeinfo_rows)
+    if profile.strategy_id == "l3_124":
+        return _enrich_l3_124_watchlist_row(row, profile, beforeinfo_rows)
     lane1 = _entry_by_lane(beforeinfo_rows, 1)
     if lane1 is None or lane1.get("exhibition_time") in ("", None):
         row["status"] = "waiting_beforeinfo"
@@ -487,6 +492,39 @@ def _enrich_h_a_watchlist_row(
     return {"changed": True, "ready": matched}
 
 
+def _enrich_l3_124_watchlist_row(
+    row: dict[str, object],
+    profile: TriggerProfile,
+    beforeinfo_rows: list[dict[str, object]],
+) -> dict[str, bool]:
+    del profile
+    candidate_lanes = (1, 2, 3, 4)
+    lane3 = _entry_by_lane(beforeinfo_rows, 3)
+    lane3_exhibition_time = _maybe_float(lane3.get("exhibition_time")) if lane3 is not None else None
+    lane3_start = _maybe_float(lane3.get("start_exhibition_st")) if lane3 is not None else None
+    lane3_exhibition_rank = compute_exhibition_rank(beforeinfo_rows, lane=3, candidate_lanes=candidate_lanes)
+    lane3_start_rank = compute_start_rank(beforeinfo_rows, lane=3, candidate_lanes=candidate_lanes)
+
+    row["lane3_exhibition_time"] = "" if lane3_exhibition_time is None else f"{lane3_exhibition_time:.2f}"
+    row["lane3_start_exhibition_st"] = "" if lane3_start is None else f"{lane3_start:.2f}"
+    row["lane3_exhibition_rank"] = "" if lane3_exhibition_rank is None else lane3_exhibition_rank
+    row["lane3_start_exhibition_rank"] = "" if lane3_start_rank is None else lane3_start_rank
+
+    if lane3_exhibition_rank is None or lane3_start_rank is None:
+        row["status"] = "waiting_beforeinfo"
+        row["final_reason"] = "beforeinfo not ready"
+        return {"changed": True, "ready": False}
+
+    matched = lane3_exhibition_rank == 4 and lane3_start_rank == 4
+    row["status"] = "trigger_ready" if matched else "filtered_out"
+    row["final_reason"] = build_l3_124_reason(
+        lane3_exhibition_rank=lane3_exhibition_rank,
+        lane3_start_rank=lane3_start_rank,
+        matched=matched,
+    )
+    return {"changed": True, "ready": matched}
+
+
 def build_pre_reason(
     lane1: dict[str, object],
     profile: TriggerProfile,
@@ -495,6 +533,8 @@ def build_pre_reason(
 ) -> str:
     if profile.strategy_id == "h_a":
         return "broad_exacta_4_1_candidate"
+    if profile.strategy_id == "l3_124":
+        return "l3_weak_124_box_one_a_candidate"
     parts: list[str] = []
     if proxy_reason:
         parts.append(proxy_reason)
@@ -581,6 +621,29 @@ def build_h_a_reason(
     return ", ".join(part for part in parts if part) or "beforeinfo ready"
 
 
+def build_l3_124_reason(
+    *,
+    lane3_exhibition_rank: int | None,
+    lane3_start_rank: int | None,
+    matched: bool,
+) -> str:
+    parts = [
+        _format_comparison(
+            "lane3_exhibition_rank",
+            None if lane3_exhibition_rank is None else float(lane3_exhibition_rank),
+            4.0,
+            "==" if matched else "!=",
+        ),
+        _format_comparison(
+            "lane3_start_rank",
+            None if lane3_start_rank is None else float(lane3_start_rank),
+            4.0,
+            "==" if matched else "!=",
+        ),
+    ]
+    return ", ".join(part for part in parts if part) or "beforeinfo ready"
+
+
 def compute_watch_start_time(race_date_iso: str, deadline_time: str, watch_minutes_before_deadline: int) -> str:
     if not race_date_iso or not deadline_time:
         return ""
@@ -626,14 +689,41 @@ def compute_start_gap_over_rest(beforeinfo_rows: list[dict[str, object]], lane: 
     return lane_start - other_start
 
 
-def compute_start_rank(beforeinfo_rows: list[dict[str, object]], lane: int) -> int | None:
-    lane_row = _entry_by_lane(beforeinfo_rows, lane)
+def compute_exhibition_rank(
+    beforeinfo_rows: list[dict[str, object]],
+    lane: int,
+    *,
+    candidate_lanes: tuple[int, ...] | None = None,
+) -> int | None:
+    candidate_rows = _rows_for_candidate_lanes(beforeinfo_rows, candidate_lanes)
+    lane_row = _entry_by_lane(candidate_rows, lane)
+    lane_time = _maybe_float(lane_row.get("exhibition_time")) if lane_row is not None else None
+    if lane_time is None:
+        return None
+    valid_times = sorted(
+        value
+        for value in (_maybe_float(item.get("exhibition_time")) for item in candidate_rows)
+        if value is not None
+    )
+    if not valid_times:
+        return None
+    return valid_times.index(lane_time) + 1
+
+
+def compute_start_rank(
+    beforeinfo_rows: list[dict[str, object]],
+    lane: int,
+    *,
+    candidate_lanes: tuple[int, ...] | None = None,
+) -> int | None:
+    candidate_rows = _rows_for_candidate_lanes(beforeinfo_rows, candidate_lanes)
+    lane_row = _entry_by_lane(candidate_rows, lane)
     lane_start = _maybe_float(lane_row.get("start_exhibition_st")) if lane_row is not None else None
     if lane_start is None:
         return None
     valid_starts = sorted(
         value
-        for value in (_maybe_float(item.get("start_exhibition_st")) for item in beforeinfo_rows)
+        for value in (_maybe_float(item.get("start_exhibition_st")) for item in candidate_rows)
         if value is not None
     )
     if not valid_starts:
@@ -765,6 +855,31 @@ def _entry_by_lane(rows: list[dict[str, object]], lane: int) -> dict[str, object
         if int(row.get("lane", 0) or 0) == lane:
             return row
     return None
+
+
+def _rows_for_candidate_lanes(
+    rows: list[dict[str, object]],
+    candidate_lanes: tuple[int, ...] | None,
+) -> list[dict[str, object]]:
+    if candidate_lanes is None:
+        return rows
+    candidate_set = {int(lane) for lane in candidate_lanes}
+    return [row for row in rows if int(row.get("lane", 0) or 0) in candidate_set]
+
+
+def _is_a_class(value: object) -> bool:
+    return str(value or "").strip().upper() in A_CLASSES
+
+
+def _outer_one_a_only(
+    lane5: dict[str, object] | None,
+    lane6: dict[str, object] | None,
+) -> bool:
+    if lane5 is None or lane6 is None:
+        return False
+    lane5_is_a = _is_a_class(lane5.get("racer_class"))
+    lane6_is_a = _is_a_class(lane6.get("racer_class"))
+    return lane5_is_a ^ lane6_is_a
 
 
 @lru_cache(maxsize=1)

@@ -7,6 +7,7 @@ from boat_race_data.live_trigger import (
     TriggerProfile,
     build_watchlist_row,
     compute_best_gap,
+    compute_exhibition_rank,
     compute_lane_gap,
     compute_start_rank,
     compute_start_gap_over_rest,
@@ -143,6 +144,125 @@ def test_compute_start_rank_uses_fastest_start_exhibition_st() -> None:
 
     assert compute_start_rank(rows, lane=1) == 4
     assert compute_start_rank(rows, lane=4) == 1
+
+
+def test_compute_exhibition_rank_can_scope_to_candidate_lanes() -> None:
+    rows = [
+        {"lane": 1, "exhibition_time": 6.78},
+        {"lane": 2, "exhibition_time": 6.79},
+        {"lane": 3, "exhibition_time": 6.83},
+        {"lane": 4, "exhibition_time": 6.80},
+        {"lane": 5, "exhibition_time": 6.76},
+    ]
+
+    assert compute_exhibition_rank(rows, lane=3, candidate_lanes=(1, 2, 3, 4)) == 4
+
+
+def test_l3_124_watchlist_row_requires_exactly_one_outer_a_class() -> None:
+    profile = next(
+        profile
+        for profile in load_trigger_profiles(ROOT / "live_trigger" / "boxes", include_disabled=True)
+        if profile.profile_id == "l3_weak_124_box_one_a_ex241_v1"
+    )
+    race_row = {
+        "race_id": "202604020901",
+        "race_date": "2026-04-02",
+        "stadium_code": "09",
+        "stadium_name": "Test",
+        "meeting_title": "General",
+        "race_title": "Qualifying",
+        "race_no": 1,
+        "deadline_time": "12:30",
+    }
+    base_entries = [
+        {"lane": 1, "racer_id": "1001", "racer_name": "L1", "racer_class": "B1", "motor_no": "11"},
+        {"lane": 2, "racer_id": "1002", "racer_name": "L2", "racer_class": "A2"},
+        {"lane": 3, "racer_id": "1003", "racer_name": "L3", "racer_class": "B1"},
+        {"lane": 4, "racer_id": "1004", "racer_name": "L4", "racer_class": "A2"},
+    ]
+
+    accepted = build_watchlist_row(
+        race_row,
+        base_entries
+        + [
+            {"lane": 5, "racer_id": "1005", "racer_name": "L5", "racer_class": "A2"},
+            {"lane": 6, "racer_id": "1006", "racer_name": "L6", "racer_class": "B1"},
+        ],
+        profile,
+    )
+    rejected = build_watchlist_row(
+        race_row,
+        base_entries
+        + [
+            {"lane": 5, "racer_id": "1005", "racer_name": "L5", "racer_class": "A1"},
+            {"lane": 6, "racer_id": "1006", "racer_name": "L6", "racer_class": "A2"},
+        ],
+        profile,
+    )
+
+    assert accepted is not None
+    assert accepted["pre_reason"] == "l3_weak_124_box_one_a_candidate"
+    assert rejected is None
+
+
+def test_l3_124_profile_becomes_trigger_ready_when_lane3_is_weakest_of_lanes_1_to_4(monkeypatch, tmp_path: Path) -> None:
+    profile = next(
+        profile
+        for profile in load_trigger_profiles(ROOT / "live_trigger" / "boxes", include_disabled=True)
+        if profile.profile_id == "l3_weak_124_box_one_a_ex241_v1"
+    )
+
+    monkeypatch.setattr(
+        sys.modules["boat_race_data.live_trigger"],
+        "_fetch_text_cached",
+        lambda client, url, raw_path, refresh_after_seconds=None: type(
+            "Fetch",
+            (),
+            {
+                "text": "<html></html>",
+                "url": url,
+                "fetched_at": "2026-04-02T10:00:00",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        sys.modules["boat_race_data.live_trigger"],
+        "parse_beforeinfo",
+        lambda *args, **kwargs: [
+            {"lane": 1, "start_exhibition_st": 0.13, "exhibition_time": 6.78},
+            {"lane": 2, "start_exhibition_st": 0.11, "exhibition_time": 6.79},
+            {"lane": 3, "start_exhibition_st": 0.22, "exhibition_time": 6.84},
+            {"lane": 4, "start_exhibition_st": 0.15, "exhibition_time": 6.80},
+            {"lane": 5, "start_exhibition_st": 0.09, "exhibition_time": 6.76},
+            {"lane": 6, "start_exhibition_st": 0.17, "exhibition_time": 6.82},
+        ],
+    )
+
+    row = {
+        "race_id": "202604020901",
+        "race_date": "2026-04-02",
+        "stadium_code": "09",
+        "race_no": 1,
+        "status": "waiting_beforeinfo",
+        "pre_reason": "l3_weak_124_box_one_a_candidate",
+        "final_reason": "",
+    }
+
+    class FakeClient:
+        def build_race_url(self, page: str, race_date: str, stadium_code: str, race_no: int) -> str:
+            return f"{page}:{race_date}:{stadium_code}:{race_no}"
+
+    result = enrich_watchlist_row_with_beforeinfo(
+        row,
+        profile,
+        client=FakeClient(),
+        raw_root=tmp_path,
+    )
+
+    assert result == {"changed": True, "ready": True}
+    assert row["status"] == "trigger_ready"
+    assert "lane3_exhibition_rank=4.000 == 4" in row["final_reason"]
+    assert "lane3_start_rank=4.000 == 4" in row["final_reason"]
 
 
 def test_h_a_profile_becomes_trigger_ready_with_start_rank_and_lane4_gap(monkeypatch, tmp_path: Path) -> None:

@@ -139,6 +139,77 @@ Current closed exploratory note outside the bounded slice:
   - it is weaker than the current bounded `H-A / H-C / H-B / H-D` queue
   - treat it as a closed exploratory note, not as a promotion candidate
 
+Second closed exploratory note outside the bounded slice:
+
+- [high_hit_candidate2_lane2_pressure_review_20260329.md](/c:/CODEX_WORK/boat_clone/reports/strategies/recent_checks/high_hit_candidate2_lane2_pressure_review_20260329.md)
+- source:
+  - oldest-6m high-hit Gemini candidate 2
+- strongest preserved read:
+  - `lane1_national_win_rate < 5.0`
+  - `best_exhibition_lane = 2`
+  - `wind_speed_m = 3-4`
+  - `lane2_start_exhibition_st <= 0.14`
+  - buy `2-1 / 2-3`
+- current interpretation:
+  - exacta looked usable on `2024` and `2025`
+  - but the same branch collapses on `2026-01-01 .. 2026-03-27`
+  - so it should remain:
+    - `菫晉蕗`
+    - preserved only
+    - not a promotion or runtime-adoption candidate
+
+Third exploratory note outside the bounded slice:
+
+- [three_of_four_box_followup_20260402.md](/c:/CODEX_WORK/boat_clone/reports/strategies/recent_checks/three_of_four_box_followup_20260402.md)
+- [three_of_four_box_candidate_c_one_a_watch_20260402.md](/c:/CODEX_WORK/boat_clone/reports/strategies/recent_checks/three_of_four_box_candidate_c_one_a_watch_20260402.md)
+- [l3_weak_124_box_one_a_v1_20260402.md](/c:/CODEX_WORK/boat_clone/reports/strategies/recent_checks/l3_weak_124_box_one_a_v1_20260402.md)
+- [projects/l3_124/README.md](/c:/CODEX_WORK/boat_clone/projects/l3_124/README.md)
+- [README.md](/c:/CODEX_WORK/boat_clone/live_trigger/boxes/l3_124/README.md)
+- source:
+  - `2025-01-01 .. 2025-06-30` direct scan:
+    - remove one lane from `1..4`
+    - buy the remaining three lanes as a `3連単 BOX`
+- strongest preserved reads:
+  - `exclude 1`
+    - `lane1_slowest_exh & lane1_worst_st`
+    - `2-3-4 BOX`
+  - `exclude 3`
+    - `lane3_slowest_exh & lane3_worst_st`
+    - `1-2-4 BOX`
+  - `exclude 2`
+    - `lane2_class_eq_B2 & lane2_worst_st`
+    - `1-3-4 BOX`
+- current interpretation:
+  - the framing is interesting and reusable
+  - `exclude 2` is the most developed cross-period read, and it weakens on `2026`
+  - the strongest current branch is now refined `exclude 3`:
+    - `lane3_slowest_exh & lane3_worst_st`
+    - plus `lane5/lane6 one-A-only`
+    - `2025_h2`: `713 races`, `ROI 116.57%`
+    - `2026_ytd`: `368 races`, `ROI 108.79%`
+  - this branch is not adopted yet, but it is now the first `3-of-4` read worth line consideration
+  - recommended logic id:
+    - `l3_weak_124_box_one_a_v1`
+  - implementation status as of `2026-04-02`:
+    - shared project and box scaffolding now exist
+    - shared runtime support is implemented
+    - forward runtime profile:
+      - `l3_weak_124_box_one_a_ex241_v1`
+    - current runtime state:
+      - `disabled`
+    - current runtime ticket shape:
+      - `5-ticket` slice excluding `2-4-1`
+  - the only current racer-index confirmation that helps there is:
+    - model top-3 = `{1,3,4}`
+  - not:
+    - `pred6_lane = 2`
+  - keep the full area preserved
+  - but no longer treat refined `exclude 3` as a closed dead-end note
+  - reopen this branch in this order:
+    - watch the disabled shared candidate in forward
+    - verify the `ex241` ticket slice operationally
+    - only then add deeper structural refinements
+
 Reason for top priority:
 
 - current trio DD / ROI comparison is anchored on the aligned period `2025-04-01 .. 2026-03-09`

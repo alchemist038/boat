@@ -206,4 +206,14 @@ def build_bet_rows(
             }
         ]
 
+    if normalized_strategy == "l3_124" or normalized_profile.startswith("l3_weak_124_box_one_a"):
+        return [
+            {
+                "bet_type": "trifecta",
+                "combo": combo,
+                "amount": amount,
+            }
+            for combo in ("1-2-4", "1-4-2", "2-1-4", "4-1-2", "4-2-1")
+        ]
+
     return []

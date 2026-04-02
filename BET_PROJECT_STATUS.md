@@ -30,6 +30,26 @@ These three should be treated as the current forward-running trio.
 
 `125_suminoe_main` is not part of the main trio right now.
 
+### Current Disabled Forward Candidate
+
+- `l3_124`
+  - profile:
+    - `l3_weak_124_box_one_a_ex241_v1`
+  - current state:
+    - implemented in shared runtime
+    - disabled by default
+    - not part of the current trio
+  - core read:
+    - `lane3_slowest_exh`
+    - `lane3_worst_st`
+    - exactly one of `lane5/lane6` is `A-class`
+    - runtime uses the `5-ticket` slice excluding `2-4-1`
+  - ownership:
+    - project note:
+      - `projects/l3_124/`
+    - shared box:
+      - `live_trigger/boxes/l3_124/`
+
 ### Waiting Logic
 
 Current main-line waiting policy:
@@ -51,7 +71,7 @@ Current main-line waiting policy:
 - shared bet expansion remains in `live_trigger/auto_system/app/core/bets.py`
 - execution-specific runtime state must not redefine logic truth
 
-- updated_at: 2026-03-26 JST
+- updated_at: 2026-04-03 JST
 - scope:
   - `C:\CODEX_WORK\boat_clone\live_trigger`
   - `C:\CODEX_WORK\boat_clone\live_trigger_cli`

@@ -1,0 +1,25 @@
+{
+  "box_id": "l3_124",
+  "profile_id": "l3_weak_124_box_one_a_ex241_v1",
+  "strategy_id": "l3_124",
+  "display_name": "L3 Weak 124 Box One-A Ex241 V1",
+  "description": "Forward-test candidate for the weak lane-3 branch. Uses the 1-2-4 trifecta family with exactly one A-class on lanes 5/6 and excludes 2-4-1 in the runtime slice.",
+  "accent_color": "#9a6b2f",
+  "enabled": false,
+  "watch_minutes_before_deadline": 10,
+  "stadiums": [],
+  "runtime_evaluator_kind": "shared",
+  "l3_124_filters": {
+    "lane3_exhibition_rank_max_in_lanes_1_to_4": 4,
+    "lane3_start_rank_max_in_lanes_1_to_4": 4,
+    "lane5_lane6_exactly_one_a_class": true
+  },
+  "bet_type": "trifecta",
+  "combos": [
+    "1-2-4",
+    "1-4-2",
+    "2-1-4",
+    "4-1-2",
+    "4-2-1"
+  ]
+}

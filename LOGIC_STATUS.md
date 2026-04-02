@@ -18,11 +18,17 @@ This file is the parent status doc for logic research, adopted forward logic, an
 - [README.md](./reports/strategies/combined/h_b_vs_current_four_2025-04-01_to_2026-03-09_20260327/README.md)
 - [summary.md](./reports/strategies/c2/c2_pred1_non_lane1_overlay_walkforward_2025-04-01_to_2026-03-09_5m_20260325/summary.md)
 - [high_hit_candidate1_outer_pressure_review_20260329.md](./reports/strategies/recent_checks/high_hit_candidate1_outer_pressure_review_20260329.md)
+- [high_hit_candidate2_lane2_pressure_review_20260329.md](./reports/strategies/recent_checks/high_hit_candidate2_lane2_pressure_review_20260329.md)
+- [three_of_four_box_followup_20260402.md](./reports/strategies/recent_checks/three_of_four_box_followup_20260402.md)
+- [three_of_four_box_candidate_c_one_a_watch_20260402.md](./reports/strategies/recent_checks/three_of_four_box_candidate_c_one_a_watch_20260402.md)
+- [l3_weak_124_box_one_a_v1_20260402.md](./reports/strategies/recent_checks/l3_weak_124_box_one_a_v1_20260402.md)
+- [projects/l3_124/README.md](./projects/l3_124/README.md)
+- [README.md](./live_trigger/boxes/l3_124/README.md)
 - [projects/125/README.md](./projects/125/README.md)
 - [projects/4wind/README.md](./projects/4wind/README.md)
 - [live_trigger/PROJECT_RULES.md](./live_trigger/PROJECT_RULES.md)
 
-- updated_at: 2026-03-29 JST
+- updated_at: 2026-04-03 JST
 
 ## 1. Logic Ownership
 
@@ -184,7 +190,7 @@ Current third-pass review result:
     - keep `lane3=A1 & pred1_lane=3` as the leading refinement candidate
     - avoid treating simple class-only cuts as sufficient
 
-Current closed exploratory check:
+Another closed exploratory check:
 
 - note:
   - [high_hit_candidate1_outer_pressure_review_20260329.md](./reports/strategies/recent_checks/high_hit_candidate1_outer_pressure_review_20260329.md)
@@ -208,6 +214,86 @@ Current closed exploratory check:
   - preserve as a recorded exploratory branch
   - stop pushing it for now
   - do not change the live bet-line set for this idea
+
+Current closed exploratory check:
+
+- note:
+  - [high_hit_candidate2_lane2_pressure_review_20260329.md](./reports/strategies/recent_checks/high_hit_candidate2_lane2_pressure_review_20260329.md)
+- source:
+  - oldest-6m high-hit Gemini candidate 2
+  - lane-1 weakness plus lane-2 exhibition-lead structure
+- strongest preserved read:
+  - `lane1_national_win_rate < 5.0`
+  - `best_exhibition_lane = 2`
+  - `wind_speed_m = 3-4`
+  - `lane2_start_exhibition_st <= 0.14`
+  - buy `2-1 / 2-3`
+- cross-year read:
+  - `2024`: `498 races`, `ROI 116.62%`
+  - `2025`: `540 races`, `ROI 107.05%`
+  - `2026-01-01 .. 2026-03-27`: `149 races`, `ROI 72.21%`
+- current interpretation:
+  - preserve as a recorded exploratory branch
+  - exacta is the only useful expression; trifecta does not survive
+  - the branch should remain `hold`, not promotion-ready
+  - do not change the live bet-line set for this idea
+
+Current `3-of-4` exploratory check:
+
+- note:
+  - [three_of_four_box_followup_20260402.md](./reports/strategies/recent_checks/three_of_four_box_followup_20260402.md)
+- source:
+  - direct `2025-01-01 .. 2025-06-30` scan:
+    - remove one lane from `1..4`
+    - buy the remaining three lanes as a `3連単 BOX`
+- strongest preserved reads:
+  - `exclude 1`
+    - `lane1_slowest_exh & lane1_worst_st`
+    - `2-3-4 BOX`
+  - `exclude 3`
+    - `lane3_slowest_exh & lane3_worst_st`
+    - `1-2-4 BOX`
+    - refined line-watch version:
+      - [three_of_four_box_candidate_c_one_a_watch_20260402.md](./reports/strategies/recent_checks/three_of_four_box_candidate_c_one_a_watch_20260402.md)
+      - add `lane5/lane6 one-A-only`
+      - formal candidate memo:
+        - [l3_weak_124_box_one_a_v1_20260402.md](./reports/strategies/recent_checks/l3_weak_124_box_one_a_v1_20260402.md)
+  - `exclude 2`
+    - `lane2_class_eq_B2 & lane2_worst_st`
+    - `1-3-4 BOX`
+- current interpretation:
+  - the frame is useful as a research lens
+  - `exclude 2` survives `2025_h2`, but weakens on `2026`
+  - the strongest current cross-period read is now refined `exclude 3`:
+    - `2025_h2`: `713 races`, `ROI 116.57%`
+    - `2026_ytd`: `368 races`, `ROI 108.79%`
+  - this is the first branch in the `3-of-4` area that now deserves line consideration
+  - recommended working logic id:
+    - `l3_weak_124_box_one_a_v1`
+  - shared forward implementation now exists:
+    - project:
+      - `projects/l3_124/`
+    - shared box:
+      - `live_trigger/boxes/l3_124/`
+    - runtime profile:
+      - `l3_weak_124_box_one_a_ex241_v1`
+    - current state:
+      - implemented in shared runtime
+      - disabled by default
+      - isolated from the current main trio
+    - runtime ticket expression:
+      - `5-ticket` slice excluding `2-4-1`
+  - the best current racer-index read inside that branch is:
+    - keep only races where model top-3 is `{1,3,4}`
+  - not:
+    - `pred6_lane = 2`
+  - preserve all three branches
+  - keep the area outside the active live set for now
+  - but move refined `exclude 3` from pure exploratory status to `watch / possible next-line candidate`
+  - next review should be:
+    - forward stability under the disabled shared candidate
+    - execution realism of the `ex241` 5-ticket slice
+    - whether this branch can stay operationally separate from the current trio
 
 ## 6. Racer Index Position
 
