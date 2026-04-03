@@ -114,6 +114,23 @@ def test_build_bet_rows_supports_l3_124_ex241_candidate() -> None:
     ]
 
 
+def test_build_bet_rows_supports_l1_234_box_candidate() -> None:
+    rows = bets.build_bet_rows(
+        strategy_id="l1_234",
+        profile_id="l1_weak_234_box_v1",
+        amount=100,
+    )
+
+    assert rows == [
+        {"bet_type": "trifecta", "combo": "2-3-4", "amount": 100},
+        {"bet_type": "trifecta", "combo": "2-4-3", "amount": 100},
+        {"bet_type": "trifecta", "combo": "3-2-4", "amount": 100},
+        {"bet_type": "trifecta", "combo": "3-4-2", "amount": 100},
+        {"bet_type": "trifecta", "combo": "4-2-3", "amount": 100},
+        {"bet_type": "trifecta", "combo": "4-3-2", "amount": 100},
+    ]
+
+
 def test_runtime_build_bet_rows_passes_context_to_shared_module_for_l3_124(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
@@ -140,4 +157,33 @@ def test_runtime_build_bet_rows_passes_context_to_shared_module_for_l3_124(monke
         "profile_id": "l3_weak_124_box_one_a_ex241_v1",
         "amount": 100,
         "context": {"race_id": "202604020901"},
+    }
+
+
+def test_runtime_build_bet_rows_passes_context_to_shared_module_for_l1_234(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_build_bet_rows(**kwargs):
+        captured.update(kwargs)
+        return [{"bet_type": "trifecta", "combo": "2-3-4", "amount": 100}]
+
+    monkeypatch.setattr(
+        runtime,
+        "_load_shared_bets_module",
+        lambda: SimpleNamespace(build_bet_rows=fake_build_bet_rows),
+    )
+
+    rows = runtime._build_bet_rows(
+        strategy_id="l1_234",
+        profile_id="l1_weak_234_box_v1",
+        amount=100,
+        context={"race_id": "202604030901"},
+    )
+
+    assert rows == [{"bet_type": "trifecta", "combo": "2-3-4", "amount": 100}]
+    assert captured == {
+        "strategy_id": "l1_234",
+        "profile_id": "l1_weak_234_box_v1",
+        "amount": 100,
+        "context": {"race_id": "202604030901"},
     }

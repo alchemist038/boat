@@ -412,6 +412,8 @@ def enrich_watchlist_row_with_beforeinfo(
     row["beforeinfo_fetched_at"] = fetch.fetched_at
     if profile.strategy_id == "h_a":
         return _enrich_h_a_watchlist_row(row, profile, beforeinfo_rows)
+    if profile.strategy_id == "l1_234":
+        return _enrich_l1_234_watchlist_row(row, profile, beforeinfo_rows)
     if profile.strategy_id == "l3_124":
         return _enrich_l3_124_watchlist_row(row, profile, beforeinfo_rows)
     lane1 = _entry_by_lane(beforeinfo_rows, 1)
@@ -525,6 +527,46 @@ def _enrich_l3_124_watchlist_row(
     return {"changed": True, "ready": matched}
 
 
+def _enrich_l1_234_watchlist_row(
+    row: dict[str, object],
+    profile: TriggerProfile,
+    beforeinfo_rows: list[dict[str, object]],
+) -> dict[str, bool]:
+    candidate_lanes = (1, 2, 3, 4)
+    filters = profile.raw_payload.get("l1_234_filters", {})
+    expected_exhibition_rank = int(filters.get("lane1_exhibition_rank_eq_in_lanes_1_to_4", 4))
+    expected_start_rank = int(filters.get("lane1_start_rank_eq_in_lanes_1_to_4", 4))
+    lane1 = _entry_by_lane(beforeinfo_rows, 1)
+    lane1_exhibition_time = _maybe_float(lane1.get("exhibition_time")) if lane1 is not None else None
+    lane1_start = _maybe_float(lane1.get("start_exhibition_st")) if lane1 is not None else None
+    lane1_exhibition_rank = compute_exhibition_rank(beforeinfo_rows, lane=1, candidate_lanes=candidate_lanes)
+    lane1_start_rank = compute_start_rank(beforeinfo_rows, lane=1, candidate_lanes=candidate_lanes)
+
+    row["lane1_exhibition_time"] = "" if lane1_exhibition_time is None else f"{lane1_exhibition_time:.2f}"
+    row["lane1_start_exhibition_st"] = "" if lane1_start is None else f"{lane1_start:.2f}"
+    row["lane1_exhibition_rank"] = "" if lane1_exhibition_rank is None else lane1_exhibition_rank
+    row["lane1_start_exhibition_rank"] = "" if lane1_start_rank is None else lane1_start_rank
+
+    if lane1_exhibition_rank is None or lane1_start_rank is None:
+        row["status"] = "waiting_beforeinfo"
+        row["final_reason"] = "beforeinfo not ready"
+        return {"changed": True, "ready": False}
+
+    matched = (
+        lane1_exhibition_rank == expected_exhibition_rank
+        and lane1_start_rank == expected_start_rank
+    )
+    row["status"] = "trigger_ready" if matched else "filtered_out"
+    row["final_reason"] = build_l1_234_reason(
+        lane1_exhibition_rank=lane1_exhibition_rank,
+        lane1_start_rank=lane1_start_rank,
+        expected_exhibition_rank=expected_exhibition_rank,
+        expected_start_rank=expected_start_rank,
+        matched=matched,
+    )
+    return {"changed": True, "ready": matched}
+
+
 def build_pre_reason(
     lane1: dict[str, object],
     profile: TriggerProfile,
@@ -533,6 +575,8 @@ def build_pre_reason(
 ) -> str:
     if profile.strategy_id == "h_a":
         return "broad_exacta_4_1_candidate"
+    if profile.strategy_id == "l1_234":
+        return "l1_weak_234_box_candidate"
     if profile.strategy_id == "l3_124":
         return "l3_weak_124_box_one_a_candidate"
     parts: list[str] = []
@@ -638,6 +682,31 @@ def build_l3_124_reason(
             "lane3_start_rank",
             None if lane3_start_rank is None else float(lane3_start_rank),
             4.0,
+            "==" if matched else "!=",
+        ),
+    ]
+    return ", ".join(part for part in parts if part) or "beforeinfo ready"
+
+
+def build_l1_234_reason(
+    *,
+    lane1_exhibition_rank: int | None,
+    lane1_start_rank: int | None,
+    expected_exhibition_rank: int,
+    expected_start_rank: int,
+    matched: bool,
+) -> str:
+    parts = [
+        _format_comparison(
+            "lane1_exhibition_rank",
+            None if lane1_exhibition_rank is None else float(lane1_exhibition_rank),
+            float(expected_exhibition_rank),
+            "==" if matched else "!=",
+        ),
+        _format_comparison(
+            "lane1_start_rank",
+            None if lane1_start_rank is None else float(lane1_start_rank),
+            float(expected_start_rank),
             "==" if matched else "!=",
         ),
     ]

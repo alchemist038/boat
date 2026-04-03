@@ -49,6 +49,22 @@ These three should be treated as the current forward-running trio.
       - `projects/l3_124/`
     - shared box:
       - `live_trigger/boxes/l3_124/`
+- `l1_234`
+  - profile:
+    - `l1_weak_234_box_v1`
+  - current state:
+    - implemented in shared runtime
+    - disabled by default
+    - not part of the current trio
+  - core read:
+    - `lane1_slowest_exh`
+    - `lane1_worst_st`
+    - runtime uses the full `2-3-4` six-ticket trifecta box
+  - ownership:
+    - project note:
+      - `projects/l1_234/`
+    - shared box:
+      - `live_trigger/boxes/l1_234/`
 
 ### Waiting Logic
 

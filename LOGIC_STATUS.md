@@ -22,8 +22,11 @@ This file is the parent status doc for logic research, adopted forward logic, an
 - [three_of_four_box_followup_20260402.md](./reports/strategies/recent_checks/three_of_four_box_followup_20260402.md)
 - [three_of_four_box_candidate_c_one_a_watch_20260402.md](./reports/strategies/recent_checks/three_of_four_box_candidate_c_one_a_watch_20260402.md)
 - [l3_weak_124_box_one_a_v1_20260402.md](./reports/strategies/recent_checks/l3_weak_124_box_one_a_v1_20260402.md)
+- [l1_weak_234_box_v1_20260403.md](./reports/strategies/recent_checks/l1_weak_234_box_v1_20260403.md)
 - [projects/l3_124/README.md](./projects/l3_124/README.md)
 - [README.md](./live_trigger/boxes/l3_124/README.md)
+- [projects/l1_234/README.md](./projects/l1_234/README.md)
+- [README.md](./live_trigger/boxes/l1_234/README.md)
 - [projects/125/README.md](./projects/125/README.md)
 - [projects/4wind/README.md](./projects/4wind/README.md)
 - [live_trigger/PROJECT_RULES.md](./live_trigger/PROJECT_RULES.md)
@@ -267,29 +270,38 @@ Current `3-of-4` exploratory check:
   - the strongest current cross-period read is now refined `exclude 3`:
     - `2025_h2`: `713 races`, `ROI 116.57%`
     - `2026_ytd`: `368 races`, `ROI 108.79%`
+  - `exclude 1` has now also cleared the same cross-period check:
+    - `2024`: `2007 races`, `ROI 176.90%`
+    - `2025_h2`: `952 races`, `ROI 186.96%`
+    - `2026_ytd`: `460 races`, `ROI 167.83%`
   - this is the first branch in the `3-of-4` area that now deserves line consideration
   - recommended working logic id:
     - `l3_weak_124_box_one_a_v1`
+    - `l1_weak_234_box_v1`
   - shared forward implementation now exists:
     - project:
       - `projects/l3_124/`
+      - `projects/l1_234/`
     - shared box:
       - `live_trigger/boxes/l3_124/`
+      - `live_trigger/boxes/l1_234/`
     - runtime profile:
       - `l3_weak_124_box_one_a_ex241_v1`
+      - `l1_weak_234_box_v1`
     - current state:
       - implemented in shared runtime
       - disabled by default
       - isolated from the current main trio
     - runtime ticket expression:
       - `5-ticket` slice excluding `2-4-1`
+      - full `2-3-4` six-ticket box for `l1_234`
   - the best current racer-index read inside that branch is:
     - keep only races where model top-3 is `{1,3,4}`
   - not:
     - `pred6_lane = 2`
   - preserve all three branches
   - keep the area outside the active live set for now
-  - but move refined `exclude 3` from pure exploratory status to `watch / possible next-line candidate`
+  - but move refined `exclude 3` and now-validated `exclude 1` from pure exploratory status to `watch / possible next-line candidate`
   - next review should be:
     - forward stability under the disabled shared candidate
     - execution realism of the `ex241` 5-ticket slice

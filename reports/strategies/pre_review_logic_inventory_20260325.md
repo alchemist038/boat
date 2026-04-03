@@ -163,8 +163,11 @@ Third exploratory note outside the bounded slice:
 - [three_of_four_box_followup_20260402.md](/c:/CODEX_WORK/boat_clone/reports/strategies/recent_checks/three_of_four_box_followup_20260402.md)
 - [three_of_four_box_candidate_c_one_a_watch_20260402.md](/c:/CODEX_WORK/boat_clone/reports/strategies/recent_checks/three_of_four_box_candidate_c_one_a_watch_20260402.md)
 - [l3_weak_124_box_one_a_v1_20260402.md](/c:/CODEX_WORK/boat_clone/reports/strategies/recent_checks/l3_weak_124_box_one_a_v1_20260402.md)
+- [l1_weak_234_box_v1_20260403.md](/c:/CODEX_WORK/boat_clone/reports/strategies/recent_checks/l1_weak_234_box_v1_20260403.md)
 - [projects/l3_124/README.md](/c:/CODEX_WORK/boat_clone/projects/l3_124/README.md)
 - [README.md](/c:/CODEX_WORK/boat_clone/live_trigger/boxes/l3_124/README.md)
+- [projects/l1_234/README.md](/c:/CODEX_WORK/boat_clone/projects/l1_234/README.md)
+- [README.md](/c:/CODEX_WORK/boat_clone/live_trigger/boxes/l1_234/README.md)
 - source:
   - `2025-01-01 .. 2025-06-30` direct scan:
     - remove one lane from `1..4`
@@ -182,19 +185,28 @@ Third exploratory note outside the bounded slice:
 - current interpretation:
   - the framing is interesting and reusable
   - `exclude 2` is the most developed cross-period read, and it weakens on `2026`
+  - `exclude 1` has now cleared the same cross-period check:
+    - `2024`: `2007 races`, `ROI 176.90%`
+    - `2025_h2`: `952 races`, `ROI 186.96%`
+    - `2026_ytd`: `460 races`, `ROI 167.83%`
+    - formal candidate memo:
+      - `l1_weak_234_box_v1`
   - the strongest current branch is now refined `exclude 3`:
     - `lane3_slowest_exh & lane3_worst_st`
     - plus `lane5/lane6 one-A-only`
     - `2025_h2`: `713 races`, `ROI 116.57%`
     - `2026_ytd`: `368 races`, `ROI 108.79%`
   - this branch is not adopted yet, but it is now the first `3-of-4` read worth line consideration
+  - `exclude 1` is now a second worth-line-consideration branch in the same family
   - recommended logic id:
     - `l3_weak_124_box_one_a_v1`
+    - `l1_weak_234_box_v1`
   - implementation status as of `2026-04-02`:
     - shared project and box scaffolding now exist
     - shared runtime support is implemented
     - forward runtime profile:
       - `l3_weak_124_box_one_a_ex241_v1`
+      - `l1_weak_234_box_v1`
     - current runtime state:
       - `disabled`
     - current runtime ticket shape:

@@ -1,0 +1,25 @@
+{
+  "box_id": "l1_234",
+  "profile_id": "l1_weak_234_box_v1",
+  "strategy_id": "l1_234",
+  "display_name": "L1 Weak 234 Box V1",
+  "description": "Forward-test candidate for the weak lane-1 branch. Uses the 2-3-4 trifecta box when lane 1 looks weakest in both exhibition and ST among lanes 1-4.",
+  "accent_color": "#8d3c5c",
+  "enabled": false,
+  "watch_minutes_before_deadline": 10,
+  "stadiums": [],
+  "runtime_evaluator_kind": "shared",
+  "l1_234_filters": {
+    "lane1_exhibition_rank_eq_in_lanes_1_to_4": 4,
+    "lane1_start_rank_eq_in_lanes_1_to_4": 4
+  },
+  "bet_type": "trifecta",
+  "combos": [
+    "2-3-4",
+    "2-4-3",
+    "3-2-4",
+    "3-4-2",
+    "4-2-3",
+    "4-3-2"
+  ]
+}

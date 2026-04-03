@@ -216,4 +216,14 @@ def build_bet_rows(
             for combo in ("1-2-4", "1-4-2", "2-1-4", "4-1-2", "4-2-1")
         ]
 
+    if normalized_strategy == "l1_234" or normalized_profile.startswith("l1_weak_234_box"):
+        return [
+            {
+                "bet_type": "trifecta",
+                "combo": combo,
+                "amount": amount,
+            }
+            for combo in ("2-3-4", "2-4-3", "3-2-4", "3-4-2", "4-2-3", "4-3-2")
+        ]
+
     return []

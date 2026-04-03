@@ -265,6 +265,66 @@ def test_l3_124_profile_becomes_trigger_ready_when_lane3_is_weakest_of_lanes_1_t
     assert "lane3_start_rank=4.000 == 4" in row["final_reason"]
 
 
+def test_l1_234_profile_becomes_trigger_ready_when_lane1_is_weakest_of_lanes_1_to_4(monkeypatch, tmp_path: Path) -> None:
+    profile = next(
+        profile
+        for profile in load_trigger_profiles(ROOT / "live_trigger" / "boxes", include_disabled=True)
+        if profile.profile_id == "l1_weak_234_box_v1"
+    )
+
+    monkeypatch.setattr(
+        sys.modules["boat_race_data.live_trigger"],
+        "_fetch_text_cached",
+        lambda client, url, raw_path, refresh_after_seconds=None: type(
+            "Fetch",
+            (),
+            {
+                "text": "<html></html>",
+                "url": url,
+                "fetched_at": "2026-04-03T10:00:00",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        sys.modules["boat_race_data.live_trigger"],
+        "parse_beforeinfo",
+        lambda *args, **kwargs: [
+            {"lane": 1, "start_exhibition_st": 0.22, "exhibition_time": 6.84},
+            {"lane": 2, "start_exhibition_st": 0.11, "exhibition_time": 6.79},
+            {"lane": 3, "start_exhibition_st": 0.15, "exhibition_time": 6.80},
+            {"lane": 4, "start_exhibition_st": 0.13, "exhibition_time": 6.81},
+            {"lane": 5, "start_exhibition_st": 0.09, "exhibition_time": 6.76},
+            {"lane": 6, "start_exhibition_st": 0.17, "exhibition_time": 6.82},
+        ],
+    )
+
+    row = {
+        "race_id": "202604030901",
+        "race_date": "2026-04-03",
+        "stadium_code": "09",
+        "race_no": 1,
+        "status": "waiting_beforeinfo",
+        "pre_reason": "l1_weak_234_box_candidate",
+        "final_reason": "",
+    }
+
+    class FakeClient:
+        def build_race_url(self, page: str, race_date: str, stadium_code: str, race_no: int) -> str:
+            return f"{page}:{race_date}:{stadium_code}:{race_no}"
+
+    result = enrich_watchlist_row_with_beforeinfo(
+        row,
+        profile,
+        client=FakeClient(),
+        raw_root=tmp_path,
+    )
+
+    assert result == {"changed": True, "ready": True}
+    assert row["status"] == "trigger_ready"
+    assert "lane1_exhibition_rank=4.000 == 4" in row["final_reason"]
+    assert "lane1_start_rank=4.000 == 4" in row["final_reason"]
+
+
 def test_h_a_profile_becomes_trigger_ready_with_start_rank_and_lane4_gap(monkeypatch, tmp_path: Path) -> None:
     profile = next(
         profile
