@@ -232,13 +232,25 @@ def _collect_day_tables(
                 time.sleep(sleep_seconds)
 
                 if not skip_odds_3t:
-                    odds3_fetch = _fetch_text_cached(
-                        client,
-                        client.build_race_url("odds3t", race_date, stadium_code, race_no),
-                        raw_root / "odds_3t" / race_date / f"{prefix}.html",
+                    odds3_url = client.build_race_url("odds3t", race_date, stadium_code, race_no)
+                    odds3_raw_path = raw_root / "odds_3t" / race_date / f"{prefix}.html"
+                    odds3_fetch = _fetch_text_cached(client, odds3_url, odds3_raw_path)
+                    odds3_rows = parse_odds_3t(
+                        odds3_fetch.text or "",
+                        race_date,
+                        stadium_code,
+                        race_no,
+                        odds3_fetch.url,
+                        odds3_fetch.fetched_at,
                     )
-                    tables["odds_3t"].extend(
-                        parse_odds_3t(
+                    if not odds3_rows:
+                        LOGGER.warning(
+                            "No odds_3t rows parsed for %s %sR; refetching once to refresh cached raw page.",
+                            stadium_code,
+                            race_no,
+                        )
+                        odds3_fetch = _fetch_text_force(client, odds3_url, odds3_raw_path)
+                        odds3_rows = parse_odds_3t(
                             odds3_fetch.text or "",
                             race_date,
                             stadium_code,
@@ -246,7 +258,7 @@ def _collect_day_tables(
                             odds3_fetch.url,
                             odds3_fetch.fetched_at,
                         )
-                    )
+                    tables["odds_3t"].extend(odds3_rows)
                     time.sleep(sleep_seconds)
 
                 beforeinfo_fetch = _fetch_text_cached(
@@ -266,11 +278,9 @@ def _collect_day_tables(
                 )
                 time.sleep(sleep_seconds)
 
-                result_fetch = _fetch_text_cached(
-                    client,
-                    client.build_race_url("result", race_date, stadium_code, race_no),
-                    raw_root / "results" / race_date / f"{prefix}.html",
-                )
+                result_url = client.build_race_url("result", race_date, stadium_code, race_no)
+                result_raw_path = raw_root / "results" / race_date / f"{prefix}.html"
+                result_fetch = _fetch_text_cached(client, result_url, result_raw_path)
                 result_row = parse_result(
                     result_fetch.text or "",
                     race_date,
@@ -279,6 +289,21 @@ def _collect_day_tables(
                     result_fetch.url,
                     result_fetch.fetched_at,
                 )
+                if result_row is None:
+                    LOGGER.warning(
+                        "No result row parsed for %s %sR; refetching once to refresh cached raw page.",
+                        stadium_code,
+                        race_no,
+                    )
+                    result_fetch = _fetch_text_force(client, result_url, result_raw_path)
+                    result_row = parse_result(
+                        result_fetch.text or "",
+                        race_date,
+                        stadium_code,
+                        race_no,
+                        result_fetch.url,
+                        result_fetch.fetched_at,
+                    )
                 if result_row:
                     tables["results"].append(result_row)
                 time.sleep(sleep_seconds)
