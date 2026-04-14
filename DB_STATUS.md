@@ -7,7 +7,7 @@
 - project summary: [PROJECT_STATUS.md](./PROJECT_STATUS.md)
 - bet / trigger summary: [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
 
-- updated_at: 2026-04-14 05:56 JST
+- updated_at: 2026-04-15 05:56 JST
 - doc_owner_repo_root: `C:\CODEX_WORK\boat_clone`
 - canonical_data_root: `\\038INS\boat\data`
 - canonical_db: `\\038INS\boat\data\silver\boat_race.duckdb`
@@ -25,16 +25,17 @@
 
 ## 0. 2026-04-14 Shared Repair And Current State
 
-Shared canonical DB was rechecked and repaired again on `2026-04-14`.
+Shared canonical DB was rechecked and repaired again on `2026-04-14` and `2026-04-15`.
 
 Key outcome:
 
 - canonical shared DB is now current through:
-  - `races / entries / beforeinfo_entries / race_meta`: `2026-04-14`
-  - `results / odds_2t / odds_3t`: `2026-04-13`
+  - `races / entries / beforeinfo_entries / race_meta`: `2026-04-15`
+  - `results / odds_2t / odds_3t`: `2026-04-14`
 - `2026-04-12` was successfully repaired end-to-end after a stale cached raw-page issue
 - `2026-04-13` is now complete in `collection_day_summary`
-- `2026-04-14` has same-day `races / entries / beforeinfo_entries`, while `results / odds` are still naturally zero
+- `2026-03-27` `odds_3t` has now been repaired
+- `2026-04-15` has same-day `races / entries / beforeinfo_entries`, while `results / odds` are still naturally zero
 
 Root cause of the `2026-04-12` repair:
 
@@ -51,9 +52,10 @@ Code-side mitigation now in place:
 Current live interpretation:
 
 - shared canonical DB is operationally healthy for current-day and prior-day work
-- the biggest recent repair is complete (`2026-04-12`)
-- the most visible remaining historical odds issue is:
-  - `2026-03-27`: `odds_3t_count = 0`, bronze `odds_3t/20260327.csv` still header-only
+- the biggest recent repairs are complete:
+  - `2026-04-12`
+  - `2026-03-27 odds_3t`
+- the prior headline issue `2026-03-27 odds_3t = 0` is no longer open
 
 ## 0A. 2026-03-27 Overnight Gap Recovery Refresh
 
@@ -98,41 +100,41 @@ The same principle applies to scheduled collection:
 
 Actual measurement from `\\038INS\boat\data\silver\boat_race.duckdb`:
 
-- `races`: `173,088` rows, `2023-03-11..2026-04-14`, `1131` distinct race days
-- `entries`: `1,038,528` rows, `2023-03-11..2026-04-14`, `1131` days
-- `results`: `170,628` rows, `2023-03-11..2026-04-13`, `1130` days
-- `beforeinfo_entries`: `1,012,369` rows, `2023-03-11..2026-04-14`, `1131` days
-- `race_meta`: `173,088` rows, `2023-03-11..2026-04-14`, `1131` days
+- `races`: `173,220` rows, `2023-03-11..2026-04-15`, `1132` distinct race days
+- `entries`: `1,039,320` rows, `2023-03-11..2026-04-15`, `1132` days
+- `results`: `170,772` rows, `2023-03-11..2026-04-14`, `1131` days
+- `beforeinfo_entries`: `1,013,161` rows, `2023-03-11..2026-04-15`, `1132` days
+- `race_meta`: `173,220` rows, `2023-03-11..2026-04-15`, `1132` days
 - `racer_stats_term`: `1,625` rows
-- `odds_2t`: `2,557,395` rows, `2025-04-01..2026-04-13`, `378` distinct days
-- `odds_3t`: `6,810,720` rows, `2025-04-01..2026-04-13`, `377` distinct days
+- `odds_2t`: `2,563,875` rows, `2025-04-01..2026-04-14`, `379` distinct days
+- `odds_3t`: `6,828,000` rows, `2025-04-01..2026-04-14`, `378` distinct days
 
 Distinct day ranges actually present in silver:
 
-- `odds_2t`: `2025-04-01..2026-04-13`
-- `odds_3t`: `2025-04-01..2026-04-13`
+- `odds_2t`: `2025-04-01..2026-04-14`
+- `odds_3t`: `2025-04-01..2026-04-14`
 
 Recent daily view from `collection_day_summary`:
 
-- `2026-04-11`: `race_count=120`, `odds_2t_count=5400`, `odds_3t_count=14400`
 - `2026-04-12`: `race_count=132`, `odds_2t_count=5940`, `odds_3t_count=15840`
 - `2026-04-13`: `race_count=132`, `odds_2t_count=5940`, `odds_3t_count=15840`
-- `2026-04-14`: `race_count=144`, `odds_2t_count=0`, `odds_3t_count=0`
+- `2026-04-14`: `race_count=144`, `odds_2t_count=6480`, `odds_3t_count=17280`
+- `2026-04-15`: `race_count=132`, `odds_2t_count=0`, `odds_3t_count=0`
 
 ## 3. Current Shared Bronze Odds Status
 
 Actual non-empty file coverage under `\\038INS\boat\data\bronze`:
 
 - `odds_2t`
-  - files total: `379`
-  - non-empty files: `378`
+  - files total: `380`
+  - non-empty files: `379`
   - header-only files: `1`
-  - non-empty ranges: `2025-04-01..2026-04-13`
+  - non-empty ranges: `2025-04-01..2026-04-14`
 - `odds_3t`
-  - files total: `379`
-  - non-empty files: `377`
+  - files total: `380`
+  - non-empty files: `378`
   - header-only files: `2`
-  - non-empty ranges: `2025-04-01..2026-04-13`
+  - non-empty ranges: `2025-04-01..2026-04-14`
 
 Important observation:
 
@@ -140,9 +142,9 @@ Important observation:
 - the previous `header-only` `odds_3t` winter block has been replaced with real bronze data
 - bronze-level contiguous gaps are no longer the main issue
 - current header-only files are:
-  - `odds_2t/20260414.csv` (same-day natural placeholder)
-  - `odds_3t/20260414.csv` (same-day natural placeholder)
-  - `odds_3t/20260327.csv` (remaining historical repair target)
+  - `odds_2t/20260415.csv` (same-day natural placeholder)
+  - `odds_3t/20260415.csv` (same-day natural placeholder)
+  - `odds_3t/20260327.csv` is no longer header-only
 
 ## 4. Validation Inputs Status
 
@@ -165,20 +167,21 @@ These are the main non-odds tables used in validation and strategy research.
 
 ### Shared Silver
 
-- `results`: `170,628` rows, `2023-03-11..2026-04-13`, `1130` days
-- `beforeinfo_entries`: `1,012,369` rows, `2023-03-11..2026-04-14`, `1131` days
-- `race_meta`: `173,088` rows, `2023-03-11..2026-04-14`, `1131` days
+- `results`: `170,772` rows, `2023-03-11..2026-04-14`, `1131` days
+- `beforeinfo_entries`: `1,013,161` rows, `2023-03-11..2026-04-15`, `1132` days
+- `race_meta`: `173,220` rows, `2023-03-11..2026-04-15`, `1132` days
 
 Recent daily view from `collection_day_summary`:
 
 - `2026-04-12`: `result_count=132`, `beforeinfo_entry_count=792`, `race_meta_count=132`
 - `2026-04-13`: `result_count=132`, `beforeinfo_entry_count=792`, `race_meta_count=132`
-- `2026-04-14`: `result_count=0`, `beforeinfo_entry_count=864`, `race_meta_count=144`
+- `2026-04-14`: `result_count=144`, `beforeinfo_entry_count=864`, `race_meta_count=144`
+- `2026-04-15`: `result_count=0`, `beforeinfo_entry_count=792`, `race_meta_count=132`
 
 Interpretation:
 
-- the validation inputs are continuous through `2026-04-14` at bronze level
-- silver `results` are continuous through `2026-04-13`
+- the validation inputs are continuous through `2026-04-15` at bronze level
+- silver `results` are continuous through `2026-04-14`
 - current gaps are concentrated in the odds layer, not in `beforeinfo_entries / race_meta`
 - this means fixed-rule BT and context analysis have a much better base than odds-based EV analysis
 
