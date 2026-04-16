@@ -129,6 +129,26 @@ Current main-line waiting policy:
 - the overview tab also shows:
   - per-profile target counts for the current `race_date`
 
+### Real-trade performance reporting
+
+- `live_trigger_cli` real-trade performance can now be regenerated from:
+  - `workspace_codex/scripts/report_live_trigger_cli_real_trade_performance.py`
+- the report joins:
+  - `live_trigger_cli/data/system.db`
+  - canonical `results` in `\\038INS\boat\data\silver\boat_race.duckdb`
+- the generated report keeps:
+  - `sample_races`
+  - `submitted_bet_rows`
+  - `winning_races`
+  - `winning_bet_rows`
+  - `race_hit_rate`
+  - `bet_row_hit_rate`
+  - `stake / return / pnl / ROI`
+  - `daily_equity`
+  - `unsettled_sample_races`
+- current output root:
+  - `reports/live_trade/`
+
 ### Logic review note
 
 - `H-A` work remains on the logic side only

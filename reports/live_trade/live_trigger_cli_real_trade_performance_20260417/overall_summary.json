@@ -1,0 +1,16 @@
+{
+  "submitted_bet_rows_settled": 760,
+  "sample_races_settled": 146,
+  "winning_bet_rows": 14,
+  "winning_races": 14,
+  "bet_row_hit_rate_pct": 1.84,
+  "race_hit_rate_pct": 9.59,
+  "stake_yen": 87400,
+  "return_yen": 53740,
+  "pnl_yen": -33660,
+  "roi_pct": 61.49,
+  "max_drawdown_yen": 36060,
+  "max_drawdown_from": null,
+  "max_drawdown_to": "2026-04-14",
+  "unsettled_sample_races": 12
+}
