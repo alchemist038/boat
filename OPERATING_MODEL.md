@@ -12,14 +12,17 @@ This file defines the current ownership model for code, docs, data, logic, and r
 - [RACER_INDEX_STATUS.md](./RACER_INDEX_STATUS.md)
 - [live_trigger/PROJECT_RULES.md](./live_trigger/PROJECT_RULES.md)
 
-- updated_at: 2026-03-24 JST
+- updated_at: 2026-04-27 JST
 
 ## 1. Non-Negotiable Owners
 
-- Canonical shared data root:
-  - `\\038INS\boat\data`
-- Canonical shared DuckDB:
-  - `\\038INS\boat\data\silver\boat_race.duckdb`
+- Canonical operational data root on this machine:
+  - `C:\boat\data`
+- Canonical operational DuckDB on this machine:
+  - `C:\boat\data\silver\boat_race.duckdb`
+- Legacy rollback / fallback share:
+  - `\\038INS\boat`
+  - optional rollback copy only, no longer an intended code default
 - Main bet line:
   - `live_trigger_cli`
 - Logic source of truth:
@@ -33,18 +36,20 @@ This file defines the current ownership model for code, docs, data, logic, and r
 
 ### `i5`
 
-- historical DB recovery
-- odds gap collection in isolated local worker trees
+- operational canonical `data/` and `reports/` root
+- main daily DB refresh and racer-index generation
+- current and recent collection
+- historical DB recovery when needed
+- odds gap collection in isolated local worker trees when needed
 - `live_trigger_cli` construction and forward operation
 - execution-line UX and notification improvements
 
 ### `ins14`
 
-- current and recent collection
-- final shared DB integration
-- shared bronze import and final `refresh-silver`
-- logic scan and racer-index work
-- shared operational docs and runtime verification
+- legacy shared-root host while rollback remains available
+- optional backup / reference copy
+- no longer the intended primary writer for the main daily path after the
+  `2026-04-27` `C:\boat` cutover
 
 ## 3. Ownership Boundaries
 
@@ -52,13 +57,23 @@ This file defines the current ownership model for code, docs, data, logic, and r
 
 - Primary editing base:
   - `C:\CODEX_WORK\boat_clone`
+- Archived local cleanup bundles:
+  - `C:\CODEX_WORK\archive\boat_clone_workspace_cleanup_20260427`
+- Archived historical worker trees:
+  - `C:\CODEX_WORK\archive\worker_trees_20260427\boat_a`
+  - `C:\CODEX_WORK\archive\worker_trees_20260427\boat_b`
 - Share role:
-  - deployment copy and operational reference under `\\038INS\boat\`
+  - deployment copy and rollback reference under `\\038INS\boat\`
+- Active execution copy:
+  - `C:\boat`
 
 ### Shared Data
 
-- Always treat `\\038INS\boat\data` as the operational system of record.
-- Do not try to mirror local `data/` into the shared root.
+- Treat `C:\boat\data` as the operational system of record on this machine.
+- Treat `\\038INS\boat\data` as fallback / rollback data only while the
+  optional rollback copy is retained.
+- Do not rely on `\\038INS\boat` as an implicit runtime default anymore.
+- Do not casually mirror workspace-local experimental `data/` into either root.
 
 ### Runtime State
 
@@ -76,6 +91,13 @@ These are not source and should not be merged blindly across machines:
 - `*.log`
 - `*.pid`
 - screenshots / HTML captures / session-state files
+
+Current main-line runtime state owner on this machine:
+
+- `C:\boat\live_trigger_cli\data`
+- `C:\boat\live_trigger_cli\raw`
+- `C:\boat\live_trigger_fresh_exec\auto_system\data`
+- optional legacy fallback runtime under `C:\boat\live_trigger\auto_system\data`
 
 ## 4. Bet Line Structure
 
@@ -112,14 +134,17 @@ This waiting logic belongs to the bet line, not to the logic source of truth.
 
 ## 6. Sync Policy
 
-- Prefer allowlist-based sync from `boat_clone` to `\\038INS\boat`.
+- Prefer allowlist-based sync from `boat_clone` to `C:\boat`.
+- If the legacy share still needs a reference copy, sync selected files from the
+  repo or from `C:\boat` outward deliberately.
 - Never do a repo-wide mirror sync.
-- Always exclude runtime-generated state and shared canonical data.
+- Always exclude runtime-generated state when syncing back into the Git
+  workspace.
 - When docs disagree between local and share, reconcile them in the local repo first, then promote the merged version outward.
 
 ## 7. Current Main Direction
 
-- Keep the DB safe by preserving the shared canonical root.
+- Keep the DB safe by using `C:\boat\data` as the local canonical root on `i5`.
 - Keep the CLI line safe by treating `live_trigger_cli` as the main operating line.
 - Keep logic safe by preserving the shared source-of-truth boundaries.
 - Keep racer-index under logic, not as a separate top-level operating line.

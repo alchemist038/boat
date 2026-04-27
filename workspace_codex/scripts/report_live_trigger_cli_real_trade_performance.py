@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import re
 import sqlite3
 from collections import defaultdict
@@ -12,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
+from runtime_paths import default_results_db_path
 
 import sys
 
@@ -23,9 +25,26 @@ if str(BETS_CORE_DIR) not in sys.path:
 from bets import _expand_trifecta_combo, _lane_class_map_for_race, _lane_class_map_from_context
 
 
-DEFAULT_SYSTEM_DB = REPO_ROOT / "live_trigger_cli" / "data" / "system.db"
-DEFAULT_RESULTS_DB = Path(r"\\038INS\boat\data\silver\boat_race.duckdb")
+def _default_runtime_root() -> Path:
+    explicit = os.environ.get("BOAT_ACTIVE_RUNTIME_ROOT")
+    if explicit:
+        return Path(explicit)
+    c_boat_runtime = Path(r"C:\boat")
+    if (c_boat_runtime / "live_trigger_cli" / "data" / "system.db").exists():
+        return c_boat_runtime
+    return REPO_ROOT
+
+
+DEFAULT_RUNTIME_ROOT = _default_runtime_root()
+DEFAULT_SYSTEM_DB = DEFAULT_RUNTIME_ROOT / "live_trigger_cli" / "data" / "system.db"
 DEFAULT_REPORT_ROOT = REPO_ROOT / "reports" / "live_trade"
+
+
+def _default_results_db() -> Path:
+    return default_results_db_path()
+
+
+DEFAULT_RESULTS_DB = _default_results_db()
 
 
 @dataclass

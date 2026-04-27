@@ -353,3 +353,22 @@ def test_daily_pred1_lane_index_reloads_when_csv_appears(monkeypatch, tmp_path: 
     time.sleep(0.01)
 
     assert live_trigger._daily_pred1_lane_index("2026-03-28") == {"202603280101": 1}
+
+
+def test_daily_pred1_lane_index_prefers_local_fallback(monkeypatch, tmp_path: Path) -> None:
+    import boat_race_data.live_trigger as live_trigger
+
+    shared_root = tmp_path / "shared_reports"
+    local_root = tmp_path / "local_reports"
+    monkeypatch.setattr(live_trigger, "SHARED_REPORTS_STRATEGY_ROOT", shared_root)
+    monkeypatch.setattr(live_trigger, "LOCAL_REPORTS_STRATEGY_ROOT", local_root)
+    live_trigger._load_daily_pred1_lane_index_csv.cache_clear()
+
+    shared_dir = shared_root / "racer_rank_live_20260328"
+    local_dir = local_root / "racer_rank_live_20260328"
+    shared_dir.mkdir(parents=True)
+    local_dir.mkdir(parents=True)
+    (shared_dir / "race_summary.csv").write_text("race_id,pred1_lane\n202603280101,1\n", encoding="utf-8")
+    (local_dir / "race_summary.csv").write_text("race_id,pred1_lane\n202603280101,2\n", encoding="utf-8")
+
+    assert live_trigger._daily_pred1_lane_index("2026-03-28") == {"202603280101": 2}

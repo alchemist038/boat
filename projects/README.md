@@ -1,13 +1,24 @@
-# Projects Layout
+# Projects Shelf
 
-Project-specific working notes live here.
+This folder is the concept shelf for logic assets.
 
-Runtime single source of truth for adopted strategy conditions is `live_trigger/boxes/`.
-Shared ownership rules are documented in `live_trigger/PROJECT_RULES.md`.
+Each project folder should explain:
 
-- `125/`
-  - status notebook and other project-level notes for the 125 strategy
-- `c2/`
-  - status notebook and related notes for the C2 strategy
-- `4wind/`
-  - promoted project notes for the refined 4wind strategy
+- what the logic idea is
+- why it mattered
+- whether it is exploratory, dormant, candidate, forward, or adopted
+- where the evidence lives
+- where the runtime profile lives if one exists
+
+Recommended contents per project:
+
+- `README.md`
+- `logic_considerations.md` when needed
+- status memo or review note
+- links to `workspace_codex/analysis/<name>/`
+- links to `reports/strategies/<name>/`
+
+Use `projects/` even when the logic is not on the current auto line.
+
+That keeps valuable concept assets reachable without pretending they are part of
+the live forward set.

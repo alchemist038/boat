@@ -6,13 +6,94 @@
 - operating model: [OPERATING_MODEL.md](./OPERATING_MODEL.md)
 - main trigger overview: [live_trigger/README.md](./live_trigger/README.md)
 - main CLI line: [live_trigger_cli/README.md](./live_trigger_cli/README.md)
+- current forward performance: [README.md](./reports/live_trade/live_trigger_cli_forward_logic_performance_latest/README.md)
 - portable trigger bundle: [live_trigger/PORTABLE_BUNDLE.md](./live_trigger/PORTABLE_BUNDLE.md)
 - next runtime concept: [live_trigger/BOX_GO_RUNTIME_CONCEPT.md](./live_trigger/BOX_GO_RUNTIME_CONCEPT.md)
 - fresh exec overview: [live_trigger_fresh_exec/README.md](./live_trigger_fresh_exec/README.md)
 - fresh execution flow: [live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md](./live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md)
 - shared runtime rules: [live_trigger/PROJECT_RULES.md](./live_trigger/PROJECT_RULES.md)
 
-## 2026-03-24 Current Bet Line Direction
+## 2026-04-27 C:\boat Self-Contained Runtime Cutover
+
+The main bet line is now running from the `C:\boat` tree on this machine.
+
+- runtime / execution base:
+  - `C:\boat`
+- Git / research workspace:
+  - `C:\CODEX_WORK\boat_clone`
+- canonical data root:
+  - `C:\boat\data`
+- canonical DuckDB:
+  - `C:\boat\data\silver\boat_race.duckdb`
+- canonical reports root:
+  - `C:\boat\reports\strategies`
+- runtime-hot state:
+  - `C:\boat\live_trigger_cli\data`
+  - `C:\boat\live_trigger_cli\raw`
+  - `C:\boat\live_trigger_fresh_exec\auto_system\data`
+- legacy rollback / fallback share:
+  - `\\038INS\boat`
+
+Operational status:
+
+- `live_trigger_cli` loop was restarted from `C:\boat` on
+  `2026-04-27 22:24:22 JST`
+- the restarted loop completed its first full cycle at
+  `2026-04-27 22:24:50 JST`
+- `auto_run.log` continued advancing after restart
+- UI server on port `8502` was restarted from `C:\boat`
+- daily DB refresh and racer-index task actions now point to `C:\boat`
+- `C:\boat\.venv` was created and populated for runtime launch
+
+Important scope boundary:
+
+- this cutover now includes runtime-hot state for the current main line
+- `C:\CODEX_WORK\boat_clone` remains the edit/test/research worktree
+- `C:\boat` is the active execution copy
+
+Practical read:
+
+- the main operating line no longer depends on `C:\CODEX_WORK\boat_clone` for
+  its live runtime state on this machine
+- the share remains a rollback path, not the intended live writer root
+- if `C:\boat` is moved to another machine, `setup_runtime.cmd` plus the task
+  registration script are the intended bootstrap path
+
+## 2026-04-27 Auto-Loop PID Note
+
+Observed on this machine:
+
+- the UI and the bet-line loop are separate by design
+- one logical `auto-loop` can appear as two Windows processes
+  - launcher PID from `C:\CODEX_WORK\boat_clone\.venv\Scripts\python.exe`
+  - actual worker PID from the base Python interpreter
+- this was reproduced outside the bet line with a plain
+  `C:\CODEX_WORK\boat_clone\.venv\Scripts\python.exe -c ...` launch, so it is
+  not evidence that `live_trigger_cli` intentionally forks a second loop
+
+Current practical read:
+
+- this is mainly a PID-display / monitoring ambiguity
+- it is not current evidence of duplicate bet execution
+- stopping via `system_running=false` remains the intended control path
+- the active worker should be judged by `auto_run.log` freshness and the
+  `auto-loop started on PID ...` line, not by the launcher PID alone
+
+Specific 2026-04-27 confirmation:
+
+- `auto_loop.pid` pointed to launcher PID `1308`
+- `auto_run.log` recorded `auto-loop started on PID 7372`
+- the latest `GO` for `202604271506` was actually submitted successfully at
+  `2026-04-27 17:38:30 JST`
+- therefore the parent/child PID view was not the cause of that case
+
+Follow-up candidate:
+
+- refine PID discovery in `live_trigger_cli/runtime.py` and UI display in
+  `live_trigger_cli/app.py` so the worker PID is preferred over the launcher PID
+  when both command lines look like `auto-loop`
+
+## 2026-04-20 Current Bet Line Direction
 
 ### Main Line
 
@@ -20,51 +101,40 @@
 - `live_trigger` remains the shared logic owner and portable backup line.
 - `live_trigger_fresh_exec` remains the fresh execution engine.
 
-### Current Main Forward Set
+### Current Active Forward Set
 
-- `4wind`
-- `c2`
 - `125_broad_four_stadium`
+- `4wind_base_415`
+- `c2_provisional_v1`
+- `h_a_final_day_cut_v1`
+- `l3_weak_124_box_one_a_ex241_v1`
+- `l1_weak_234_box_v1`
 
-These three should be treated as the current forward-running trio.
+These six should now be treated as the current forward-running set in `live_trigger_cli`.
 
-`125_suminoe_main` is not part of the main trio right now.
+`125_suminoe_main` remains valid, but it is not part of the active set in the current runtime settings.
 
-### Current Disabled Forward Candidate
+### Current Forward Tracking
 
-- `l3_124`
-  - profile:
-    - `l3_weak_124_box_one_a_ex241_v1`
-  - current state:
-    - implemented in shared runtime
-    - disabled by default
-    - not part of the current trio
-  - core read:
-    - `lane3_slowest_exh`
-    - `lane3_worst_st`
-    - exactly one of `lane5/lane6` is `A-class`
-    - runtime uses the `5-ticket` slice excluding `2-4-1`
-  - ownership:
-    - project note:
-      - `projects/l3_124/`
-    - shared box:
-      - `live_trigger/boxes/l3_124/`
-- `l1_234`
-  - profile:
-    - `l1_weak_234_box_v1`
-  - current state:
-    - implemented in shared runtime
-    - disabled by default
-    - not part of the current trio
-  - core read:
-    - `lane1_slowest_exh`
-    - `lane1_worst_st`
-    - runtime uses the full `2-3-4` six-ticket trifecta box
-  - ownership:
-    - project note:
-      - `projects/l1_234/`
-    - shared box:
-      - `live_trigger/boxes/l1_234/`
+- current daily report:
+  - [README.md](./reports/live_trade/live_trigger_cli_forward_logic_performance_latest/README.md)
+- refresh command:
+  - `.\.venv\Scripts\python.exe workspace_codex\scripts\report_live_trigger_cli_forward_logic_performance.py`
+- current cutoff:
+  - `2026-04-19`
+- current active-set snapshot:
+  - `190` sample races
+  - `18` hit races
+  - race hit rate `9.47%`
+  - flat ROI `70.77%`
+- current leaders on the logic side:
+  - `l3_124`: `51 races`, `17.65%` hit rate, flat ROI `110.71%`
+  - `l1_234`: `62 races`, `9.68%` hit rate, flat ROI `96.26%`
+
+### Active Set Notes
+
+- `H-A`, `l3_124`, and `l1_234` are now active forward-test lines, not dormant candidates.
+- older trio-only notes in this file are historical references from the `2026-03-24 .. 2026-03-26` state and should not be treated as the current operating read.
 
 ### Waiting Logic
 
@@ -87,7 +157,7 @@ Current main-line waiting policy:
 - shared bet expansion remains in `live_trigger/auto_system/app/core/bets.py`
 - execution-specific runtime state must not redefine logic truth
 
-- updated_at: 2026-04-03 JST
+- updated_at: 2026-04-20 JST
 - scope:
   - `C:\CODEX_WORK\boat_clone\live_trigger`
   - `C:\CODEX_WORK\boat_clone\live_trigger_cli`
@@ -133,29 +203,28 @@ Current main-line waiting policy:
 
 - `live_trigger_cli` real-trade performance can now be regenerated from:
   - `workspace_codex/scripts/report_live_trigger_cli_real_trade_performance.py`
+- current forward-logic performance can now be regenerated from:
+  - `workspace_codex/scripts/report_live_trigger_cli_forward_logic_performance.py`
 - the report joins:
   - `live_trigger_cli/data/system.db`
-  - canonical `results` in `\\038INS\boat\data\silver\boat_race.duckdb`
+  - canonical `results` in `C:\boat\data\silver\boat_race.duckdb`
 - the generated report keeps:
   - `sample_races`
-  - `submitted_bet_rows`
-  - `winning_races`
-  - `winning_bet_rows`
   - `race_hit_rate`
-  - `bet_row_hit_rate`
-  - `stake / return / pnl / ROI`
-  - `daily_equity`
+  - `avg_tickets_per_race`
+  - `flat_stake / flat_return / flat_pnl / flat_roi`
+  - `daily_logic_equity`
+  - `logic_summary.csv`
   - `unsettled_sample_races`
 - current output root:
   - `reports/live_trade/`
 
 ### Logic review note
 
-- `H-A` work remains on the logic side only
-- it is recorded under:
-  - `LOGIC_STATUS.md`
-  - `pre_review_logic_inventory_20260325.md`
-- it is not part of the current live trio and does not change the main line yet
+- `H-A`, `l3_124`, and `l1_234` now sit inside the current live forward set through `live_trigger_cli/data/settings.json`
+- the current point-in-time operational read should come from:
+  - [README.md](./reports/live_trade/live_trigger_cli_forward_logic_performance_latest/README.md)
+- older trio-only wording in this file should be read as historical context, not as the current active-set definition
 
 ## 2026-03-26 Loop Stability Read And Next Runtime Direction
 

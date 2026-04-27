@@ -7,10 +7,10 @@
 - project summary: [PROJECT_STATUS.md](./PROJECT_STATUS.md)
 - bet / trigger summary: [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
 
-- updated_at: 2026-04-15 05:56 JST
+- updated_at: 2026-04-27 21:35 JST
 - doc_owner_repo_root: `C:\CODEX_WORK\boat_clone`
-- canonical_data_root: `\\038INS\boat\data`
-- canonical_db: `\\038INS\boat\data\silver\boat_race.duckdb`
+- canonical_data_root: `C:\boat\data`
+- canonical_db: `C:\boat\data\silver\boat_race.duckdb`
 - basis:
   - root markdown reviewed:
     - `README.md`
@@ -21,15 +21,110 @@
     - `TO_INS14_FROM_ME.md`
     - `FROM_I5_TO_ME.md`
     - `FROM_INS14_TO_ME.md`
-  - live measurement on shared `bronze/`, `silver/`, and `copy_inbox/`
+  - live measurement on local `C:\boat\data`, current loop logs, and current
+    scheduled-task bindings
 
-## 0. 2026-04-14 Shared Repair And Current State
+## 0. 2026-04-27 Local Canonical Cutover On I5
+
+The operational data/report root on this machine was cut over to `C:\boat` on
+`2026-04-27`.
+
+Current read:
+
+- canonical operational data root:
+  - `C:\boat\data`
+- canonical operational DB:
+  - `C:\boat\data\silver\boat_race.duckdb`
+- canonical reports root:
+  - `C:\boat\reports\strategies`
+- repo workspace remains:
+  - `C:\CODEX_WORK\boat_clone`
+- legacy rollback / fallback share remains:
+  - `\\038INS\boat`
+
+What was verified at cutover:
+
+- `C:\boat` initial copy reached `201,476 files / 16.092 GiB`
+- `C:\boat\data\silver\boat_race.duckdb` opens normally
+- local copied DB max dates:
+  - `races / entries / beforeinfo_entries / race_meta / results / odds_2t / odds_3t`
+    all through `2026-04-26`
+- `collection_day_summary` on local DB:
+  - `2026-04-26`: `race_count=180`, `entry_count=1080`,
+    `beforeinfo_entry_count=1080`, `race_meta_count=180`, `result_count=180`,
+    `odds_2t_count=8100`, `odds_3t_count=21600`
+- local racer-index output present:
+  - `C:\boat\reports\strategies\racer_rank_live_20260422 .. 20260427`
+- local runtime state now present:
+  - `C:\boat\live_trigger_cli\data`
+  - `C:\boat\live_trigger_cli\raw`
+  - `C:\boat\live_trigger_fresh_exec\auto_system\data`
+  - `C:\boat\live_trigger\auto_system\data`
+- local runtime Python now present:
+  - `C:\boat\.venv\Scripts\python.exe`
+
+Code / task path state after cutover:
+
+- code defaults now prefer `C:\boat` when that root exists
+- `BoatSharedRecentCollectDaily` action now points to
+  `C:\boat\workspace_codex\scripts\run_shared_recent_collect_daily.ps1`
+- `BoatRacerIndexLiveCsvDaily` action now points to
+  `C:\boat\workspace_codex\scripts\run_racer_rank_live_daily.ps1`
+- `live_trigger_cli` loop was restarted on `2026-04-27 22:24:22 JST` from
+  `C:\boat`
+
+Important boundary:
+
+- the canonical move now applies to `data/`, `reports/`, and the current main
+  runtime state
+- the repo workspace still owns source editing and exploratory work
+
+Interpretation:
+
+- the main NAS dependency has been removed from this machine's daily operating
+  path
+- the main runtime dependency on `C:\CODEX_WORK\boat_clone` has also been
+  removed from the live line
+- `\\038INS\boat` should now be treated as rollback/fallback, not the intended
+  primary writer root
+
+## 0. 2026-04-23 H-A Forward/BT Beforeinfo Repair
+
+During the H-A forward-vs-BT alignment check, the shared DuckDB had many
+`beforeinfo_entries.start_exhibition_st` gaps inside the current forward period
+`2026-03-28..2026-04-22`. Race rows existed, but many ST values were stale/null,
+so direct BT replay from shared DB undercounted H-A candidates.
+
+Repair performed:
+
+- backup created: `\\038INS\boat\data\silver\boat_race.duckdb.bak_20260423_ha_beforeinfo_repair`
+- reparsed merged local live raw beforeinfo folders:
+  - `live_trigger_cli/raw/beforeinfo/YYYY-MM-DD`
+  - `live_trigger_cli/raw/beforeinfo/YYYYMMDD`
+- replaced only race_ids that had local raw beforeinfo
+- parsed/replaced: `2964` races, `17784` rows
+- selected repaired race_ids ST non-null count:
+  - before: `4268`
+  - after: `17675`
+- duplicate `(race_id, lane)` rows after repair: `0`
+
+H-A alignment result after repair:
+
+- forward submitted: `59` races, `1` hit, `1.69%`, flat ROI `17.97%`
+- repaired DuckDB BT: `61` races, `1` hit, `1.64%`, flat ROI `17.38%`
+- differences were operational, not logic drift:
+  - `202604211807`: expired / window closed
+  - `202604221405`: insufficient funds
+
+Detailed audit: `reports/live_trade/h_a_forward_bt_alignment_latest/README.md`
+
+## 0B. 2026-04-14 Shared Repair And Current State
 
 Shared canonical DB was rechecked and repaired again on `2026-04-14` and `2026-04-15`.
 
 Key outcome:
 
-- canonical shared DB is now current through:
+- canonical DB is now current through:
   - `races / entries / beforeinfo_entries / race_meta`: `2026-04-15`
   - `results / odds_2t / odds_3t`: `2026-04-14`
 - `2026-04-12` was successfully repaired end-to-end after a stale cached raw-page issue
@@ -249,7 +344,7 @@ Interpretation:
 
 The project documents and the live measurements now line up to the following interpretation:
 
-- the canonical operational truth remains the shared root `\\038INS\boat\data`
+- the canonical operational truth is now `C:\boat\data`
 - shared bronze has now been updated with the overnight summer/winter odds recovery payloads
 - canonical silver has been rebuilt from that corrected bronze
 - the main DB is now materially cleaner and more complete than before
@@ -338,30 +433,35 @@ Implementation files:
 - CLI launcher:
   - `C:\CODEX_WORK\boat_clone\workspace_codex\scripts\run_boat_race_cli.py`
 - live predictor:
-  - `\\038INS\boat\workspace_codex\scripts\predict_racer_rank_live.py`
+  - `C:\boat\workspace_codex\scripts\predict_racer_rank_live.py`
 
 Current flow:
 
-1. `01:00` task refreshes shared DB recent overlap (`target-2 .. target-1`) against:
-   - raw root: `\\038INS\boat\data\raw`
-   - bronze root: `\\038INS\boat\data\bronze`
-   - DB path: `\\038INS\boat\data\silver\boat_race.duckdb`
-2. racer-index task checks shared DuckDB `results` for at least the prior-day `race_date`
+1. `01:00` task refreshes the canonical DB recent overlap (`target-2 .. target-1`) against:
+   - raw root: `C:\boat\data\raw`
+   - bronze root: `C:\boat\data\bronze`
+   - DB path: `C:\boat\data\silver\boat_race.duckdb`
+2. racer-index task checks canonical DuckDB `results` for at least the prior-day `race_date`
 3. if prior-day `results` are still missing, it backfills the prior day locally on this machine
-4. run `collect-day` against the shared roots for the target day:
-   - raw root: `\\038INS\boat\data\raw`
-   - bronze root: `\\038INS\boat\data\bronze`
-   - DB path: `\\038INS\boat\data\silver\boat_race.duckdb`
+4. run `collect-day` against the canonical roots for the target day:
+   - raw root: `C:\boat\data\raw`
+   - bronze root: `C:\boat\data\bronze`
+   - DB path: `C:\boat\data\silver\boat_race.duckdb`
 5. run `predict_racer_rank_live.py` for the target day
 6. write outputs under:
-   - `\\038INS\boat\reports\strategies\racer_rank_live_YYYYMMDD`
+   - `C:\boat\reports\strategies\racer_rank_live_YYYYMMDD`
+7. mirror the same output to the local fallback:
+   - `C:\CODEX_WORK\boat_clone\reports\strategies\racer_rank_live_YYYYMMDD`
 
 Important operating note:
 
 - the current live overlay consumes `race_summary.csv`
 - it does not read `daily_pred1_signal` or `daily_pred6` from DuckDB yet
 - so the current operational chain is:
-  - shared DB/raw -> daily prediction script -> CSV bundle -> live filter
+  - shared DB/raw -> daily prediction script -> shared CSV bundle -> local CSV mirror -> live filter
+- as of `2026-04-22`, live filtering reads the local CSV mirror first, then falls back to the shared CSV path
+- as of `2026-04-22`, the recent shared DB refresh clears stale raw/bronze `results`, `beforeinfo`, and odds artifacts for refreshed dates before recollecting
+  - this prevents an early-morning blank `beforeinfo` cache from surviving into settled prior-day DB rows
 
 Current ownership note:
 
@@ -371,9 +471,9 @@ Current ownership note:
   - `MASAO_N8N` is the active morning writer for both the recent shared DB refresh and the derived racer-index CSV
   - legacy INS14 boat tasks should be kept `disabled`, not deleted, so they can be re-enabled quickly if this machine or the network path becomes unavailable
 - local DB note:
-  - keep `\\038INS\boat\data\silver\boat_race.duckdb` as the canonical DB
-  - a second full local mirror DB on `MASAO_N8N` is not required for normal daily operation and would mostly duplicate storage and refresh time
-  - if a local DB is ever introduced here, treat it as a temporary fallback or debug cache rather than a second canonical source
+  - keep `C:\boat\data\silver\boat_race.duckdb` as the canonical DB
+  - `\\038INS\boat` is optional rollback / reference only
+  - if another full mirror DB is ever introduced here, treat it as a temporary fallback or debug cache rather than a second canonical source
 
 Confirmed output for `2026-03-27`:
 
@@ -393,9 +493,9 @@ Current interpretation:
 - keeping one date folder per day is operationally reasonable
 - if the canonical DB collection timing moves again, adjust this task start time and keep the prior-day results wait gate
 - morning recovery hardening:
-  - `run_shared_recent_collect_daily.ps1` now clears stale `raw/results/YYYYMMDD` and `bronze/results/YYYYMMDD.csv` before recent overlap refresh
+  - `run_shared_recent_collect_daily.ps1` now clears stale raw/bronze `results`, `beforeinfo`, `odds_2t`, and active `odds_3t` artifacts before recent overlap refresh
   - the same script also widens the overlap window backward to `max(results.race_date) + 1` when shared `results` are lagging, so a missed day is pulled back in automatically instead of being skipped
-  - `run_racer_rank_live_daily.ps1` now clears stale prior-day results artifacts before its local backfill `collect-day`, then predicts with the newest available cutoff
+  - `run_racer_rank_live_daily.ps1` now clears stale prior-day `results`, `beforeinfo`, and `odds_2t` artifacts before its local backfill `collect-day`, then predicts with the newest available cutoff
   - `run_racer_rank_live_daily.ps1` now anchors `tune_start` and `profile_start` to the `cutoff` month instead of the `target` month, so month-boundary mornings such as `2026-04-01` do not produce an empty tuning window
   - `src/boat_race_data/cli.py` now refetches an `odds_2t` page once when the cached raw page parses to zero rows, which protects against the thin/header-only page variant that appeared on `2026-03-31`
 
@@ -449,7 +549,7 @@ Current active jobs:
 Operational rules for this recovery run:
 
 - collection stays in machine-local `data/raw`, `data/bronze`, and `data/silver`
-- shared `\\038INS\boat\data` is not the write target during the collection phase
+- `\\038INS\boat\data` is not the write target during the collection phase
 - after local verification, the needed `raw/` and `bronze/` odds files should be copied into `copy_inbox`, then imported into shared bronze, then followed by one final shared `refresh-silver`
 - active job detail is tracked in:
   - `workspace_codex/coordination/jobs/active/20260322_boat_a_odds_gap_20250821_20250908.md`

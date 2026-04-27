@@ -461,6 +461,8 @@ class FreshTeleboatExecutor:
                 self.page,
                 vote_password=self._ensure_credentials(require_vote_password=True).vote_password,
                 total_amount=LEGACY._current_confirmation_total_amount(self.page),
+                data_dir=self._data_dir,
+                debug_prefix=f"{target.race_id}_fresh_confirm_prefill",
             )
             details["confirmation_total_amount"] = total_amount
             self._sync_trace_details(details)
@@ -645,6 +647,8 @@ class FreshTeleboatExecutor:
                             page,
                             vote_password=self._ensure_credentials(require_vote_password=True).vote_password,
                             total_amount=LEGACY._current_confirmation_total_amount(page),
+                            data_dir=data_dir,
+                            debug_prefix=f"{debug_prefix}_approved",
                         )
                         LEGACY._wait_for_submit_outcome(
                             page,
@@ -901,6 +905,8 @@ class FreshTeleboatExecutor:
                 page,
                 vote_password=self._ensure_credentials(require_vote_password=True).vote_password,
                 total_amount=LEGACY._current_confirmation_total_amount(page),
+                data_dir=self._data_dir,
+                debug_prefix=f"{target.race_id}_fresh_assist",
             )
             details["confirmation_total_amount"] = confirmation_total_amount
             deadline_at = self._target_deadline_at(target)
@@ -962,6 +968,8 @@ class FreshTeleboatExecutor:
             page,
             vote_password=self._ensure_credentials(require_vote_password=True).vote_password,
             total_amount=LEGACY._current_confirmation_total_amount(page),
+            data_dir=self._data_dir,
+            debug_prefix=f"{target.race_id}_fresh_armed",
         )
         self._record_step(FlowStepType.WAIT_RESULT)
         LEGACY._wait_for_submit_outcome(

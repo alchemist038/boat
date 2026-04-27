@@ -1,9 +1,0 @@
-*
-!.gitignore
-!README.md
-!collect/
-collect/**
-!collect/.gitkeep
-!move/
-move/**
-!move/.gitkeep

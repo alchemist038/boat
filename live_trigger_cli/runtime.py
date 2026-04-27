@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import sqlite3
+import subprocess
 import sys
 import time
 import traceback
@@ -24,7 +25,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from boat_race_data.client import BoatRaceClient, FetchResult
-from boat_race_data.constants import STADIUMS
+from boat_race_data.constants import STADIUMS, get_default_db_path
 from boat_race_data.live_trigger import (
     build_watchlist_row,
     compute_watch_start_time,
@@ -43,7 +44,7 @@ SHARED_LIVE_TRIGGER_ROOT = REPO_ROOT / "live_trigger"
 SHARED_BOX_ROOT = SHARED_LIVE_TRIGGER_ROOT / "boxes"
 SHARED_BETS_PATH = SHARED_LIVE_TRIGGER_ROOT / "auto_system" / "app" / "core" / "bets.py"
 FRESH_AUTO_SYSTEM_ROOT = REPO_ROOT / "live_trigger_fresh_exec" / "auto_system"
-CANONICAL_DUCKDB_PATH = Path(r"\\038INS\boat\data\silver\boat_race.duckdb")
+CANONICAL_DUCKDB_PATH = Path(get_default_db_path())
 LOCAL_SOURCE_PREFIX = "local::"
 SHARED_SOURCE_PREFIX = "shared::"
 
@@ -1195,6 +1196,105 @@ def _read_auto_loop_pid(runtime_root: Path = RUNTIME_ROOT) -> int | None:
         return None
 
 
+def _pid_command_line(pid: int | None) -> str:
+    if pid is None or pid <= 0 or not _pid_is_running(pid):
+        return ""
+    if os.name == "nt":
+        command = (
+            "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; "
+            f"$p = Get-CimInstance Win32_Process -Filter \"ProcessId = {int(pid)}\" "
+            "| Select-Object -ExpandProperty CommandLine; "
+            "if ($p) { Write-Output $p }"
+        )
+        try:
+            result = subprocess.run(
+                ["powershell.exe", "-NoProfile", "-Command", command],
+                capture_output=True,
+                text=True,
+                timeout=3,
+                check=False,
+            )
+        except Exception:  # noqa: BLE001
+            return ""
+        return (result.stdout or "").strip()
+    try:
+        result = subprocess.run(
+            ["ps", "-p", str(int(pid)), "-o", "command="],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except Exception:  # noqa: BLE001
+        return ""
+    return (result.stdout or "").strip()
+
+
+def _command_line_looks_like_auto_loop(command_line: str) -> bool:
+    normalized = str(command_line or "").strip().lower()
+    if not normalized:
+        return False
+    return "live_trigger_cli" in normalized and "auto-loop" in normalized
+
+
+def _pid_looks_like_auto_loop(pid: int | None) -> bool:
+    return _command_line_looks_like_auto_loop(_pid_command_line(pid))
+
+
+def _discover_running_auto_loop_pid() -> int | None:
+    if os.name != "nt":
+        return None
+    command = (
+        "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; "
+        "Get-CimInstance Win32_Process "
+        "| Where-Object { "
+        "($_.Name -in @('python.exe', 'pythonw.exe')) "
+        "-and $_.CommandLine "
+        "-and $_.CommandLine -like '*live_trigger_cli*auto-loop*' "
+        "} "
+        "| Sort-Object ProcessId -Descending "
+        "| Select-Object -ExpandProperty ProcessId"
+    )
+    try:
+        result = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-Command", command],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    for line in reversed((result.stdout or "").splitlines()):
+        text = line.strip()
+        if not text:
+            continue
+        try:
+            pid = int(text)
+        except ValueError:
+            continue
+        if _pid_looks_like_auto_loop(pid):
+            return pid
+    return None
+
+
+def current_auto_loop_pid(runtime_root: Path = RUNTIME_ROOT) -> int | None:
+    pid_path = auto_loop_pid_path(runtime_root)
+    recorded_pid = _read_auto_loop_pid(runtime_root)
+    if _pid_looks_like_auto_loop(recorded_pid):
+        return recorded_pid
+
+    discovered_pid = _discover_running_auto_loop_pid()
+    if discovered_pid is not None:
+        pid_path.parent.mkdir(parents=True, exist_ok=True)
+        pid_path.write_text(str(discovered_pid), encoding="utf-8")
+        return discovered_pid
+
+    if recorded_pid is not None:
+        pid_path.unlink(missing_ok=True)
+    return None
+
+
 def _claim_auto_loop_pid(runtime_root: Path = RUNTIME_ROOT) -> int | None:
     pid_path = auto_loop_pid_path(runtime_root)
     pid_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1203,10 +1303,10 @@ def _claim_auto_loop_pid(runtime_root: Path = RUNTIME_ROOT) -> int | None:
         try:
             descriptor = os.open(pid_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError:
-            existing_pid = _read_auto_loop_pid(runtime_root)
+            existing_pid = current_auto_loop_pid(runtime_root)
             if existing_pid == current_pid:
                 return None
-            if existing_pid is not None and _pid_is_running(existing_pid):
+            if existing_pid is not None:
                 return existing_pid
             pid_path.unlink(missing_ok=True)
             continue
@@ -1774,6 +1874,8 @@ def _target_key(row: dict[str, object]) -> str:
 
 
 def _preserve_evaluated_payload(existing_target: sqlite3.Row, row: dict[str, object]) -> dict[str, object]:
+    if existing_target["row_status"] == "watchlist_removed":
+        return dict(row)
     if existing_target["beforeinfo_checked_at"] is None and existing_target["status"] in EARLY_TARGET_STATUSES:
         return dict(row)
 
@@ -1787,10 +1889,11 @@ def _preserve_evaluated_payload(existing_target: sqlite3.Row, row: dict[str, obj
         if key in existing_payload and existing_payload[key] not in {"", None}:
             merged[key] = existing_payload[key]
 
-    if existing_target["row_status"] and existing_target["row_status"] not in {"", "waiting_beforeinfo"}:
+    existing_row_status = str(existing_target["row_status"] or "")
+    if existing_row_status and existing_row_status not in {"", "waiting_beforeinfo", "watchlist_removed"}:
         merged["status"] = existing_target["row_status"]
-    if existing_target["last_reason"]:
-        if existing_target["row_status"] == "trigger_ready":
+    if existing_target["last_reason"] and existing_row_status != "watchlist_removed":
+        if existing_row_status == "trigger_ready":
             merged["final_reason"] = existing_target["last_reason"]
         elif not merged.get("final_reason"):
             merged["final_reason"] = existing_target["last_reason"]
@@ -1882,9 +1985,14 @@ def sync_watchlists(runtime_root: Path = RUNTIME_ROOT, *, race_date: str | None 
                 continue
 
             merged_row = _preserve_evaluated_payload(existing_target, row)
+            restored_from_watchlist = (
+                str(existing_target["status"] or "") == "withdrawn"
+                and str(existing_target["row_status"] or "") == "watchlist_removed"
+            )
             last_reason = existing_target["last_reason"]
-            if existing_target["status"] in EARLY_TARGET_STATUSES:
+            if restored_from_watchlist or existing_target["status"] in EARLY_TARGET_STATUSES:
                 last_reason = str(merged_row.get("final_reason") or merged_row.get("pre_reason") or "")
+            status = "imported" if restored_from_watchlist else str(existing_target["status"])
 
             connection.execute(
                 """
@@ -1900,6 +2008,7 @@ def sync_watchlists(runtime_root: Path = RUNTIME_ROOT, *, race_date: str | None 
                     deadline_at = ?,
                     watch_start_at = ?,
                     updated_at = ?,
+                    status = ?,
                     row_status = ?,
                     last_reason = ?,
                     payload_json = ?
@@ -1917,12 +2026,20 @@ def sync_watchlists(runtime_root: Path = RUNTIME_ROOT, *, race_date: str | None 
                     _format_datetime(deadline_at),
                     _format_datetime(watch_start_at),
                     _format_datetime(now),
+                    status,
                     str(merged_row.get("status", "")),
                     last_reason,
                     _json_dumps(merged_row),
                     int(existing_target["id"]),
                 ),
             )
+            if restored_from_watchlist:
+                _log_event(
+                    connection,
+                    target_race_id=int(existing_target["id"]),
+                    event_type="target_restored",
+                    message="restored to current watchlist",
+                )
             updated += 1
 
         if source_names:
@@ -3073,9 +3190,22 @@ def run_cycle(
     if include_sync:
         _log(runtime_root, f"cycle phase start: sync race_date={effective_race_date}")
         sync_started_at = time.perf_counter()
-        sync_result = sync_watchlists(runtime_root, race_date=effective_race_date)
-        sync_seconds = round(time.perf_counter() - sync_started_at, 2)
-        _log(runtime_root, f"cycle phase done: sync {sync_seconds:.2f}s")
+        try:
+            sync_result = sync_watchlists(runtime_root, race_date=effective_race_date)
+        except Exception as exc:  # noqa: BLE001
+            sync_seconds = round(time.perf_counter() - sync_started_at, 2)
+            _log(runtime_root, f"cycle phase failed: sync {sync_seconds:.2f}s {exc.__class__.__name__}: {exc}")
+            for line in traceback.format_exc().strip().splitlines():
+                _log(runtime_root, line)
+            sync_result = {
+                "race_date": effective_race_date,
+                "failed": True,
+                "error_type": exc.__class__.__name__,
+                "error": str(exc),
+            }
+        else:
+            sync_seconds = round(time.perf_counter() - sync_started_at, 2)
+            _log(runtime_root, f"cycle phase done: sync {sync_seconds:.2f}s")
     else:
         sync_seconds = 0.0
         sync_result = {
@@ -3125,6 +3255,7 @@ def auto_loop(
     last_sync_race_date: str | None = None
     last_sync_monotonic: float | None = None
     try:
+        _log(runtime_root, f"auto-loop started on PID {os.getpid()}")
         try:
             while True:
                 settings = load_settings(runtime_root)
@@ -3144,8 +3275,12 @@ def auto_loop(
                     _log(runtime_root, f"sync due: race_date={current_race_date}, interval={sync_interval_seconds}s")
                 cycle_result = run_cycle(runtime_root, race_date=current_race_date, as_of=now, include_sync=should_sync)
                 if should_sync:
-                    last_sync_race_date = current_race_date
-                    last_sync_monotonic = time.monotonic()
+                    sync_result = cycle_result.get("sync")
+                    if isinstance(sync_result, dict) and sync_result.get("failed"):
+                        _log(runtime_root, "sync failed; will retry on next cycle")
+                    else:
+                        last_sync_race_date = current_race_date
+                        last_sync_monotonic = time.monotonic()
                 cycles += 1
                 _log(runtime_root, f"cycle completed: {json.dumps(cycle_result, ensure_ascii=False)}")
                 if max_cycles is not None and cycles >= max_cycles:
@@ -3168,6 +3303,7 @@ def auto_loop(
                 _log(runtime_root, line)
             raise
     finally:
+        _log(runtime_root, f"auto-loop releasing PID {os.getpid()}")
         _release_auto_loop_pid(runtime_root)
 
     return {"cycles": cycles, "stopped": False}

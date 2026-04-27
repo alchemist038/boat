@@ -1,9 +1,14 @@
 @echo off
 pushd "%~dp0"
 chcp 65001 > nul
-if exist ".\.venv\Scripts\python.exe" (
-  call .\.venv\Scripts\python.exe forward_test_snapshot.py %*
+set "ROOT_PYTHON=%~dp0..\.venv\Scripts\python.exe"
+if exist "%ROOT_PYTHON%" (
+  call "%ROOT_PYTHON%" forward_test_snapshot.py %*
 ) else (
-  python forward_test_snapshot.py %*
+  if exist ".\.venv\Scripts\python.exe" (
+    call .\.venv\Scripts\python.exe forward_test_snapshot.py %*
+  ) else (
+    python forward_test_snapshot.py %*
+  )
 )
 popd

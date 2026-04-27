@@ -6,10 +6,10 @@ from pathlib import Path
 import duckdb
 import matplotlib.pyplot as plt
 import pandas as pd
+from runtime_paths import REPO_ROOT, default_results_db_path
 
-
-ROOT = Path(r"C:\CODEX_WORK\boat_clone")
-DB_PATH = Path(r"\\038INS\boat\data\silver\boat_race.duckdb")
+ROOT = REPO_ROOT
+DB_PATH = default_results_db_path()
 START_DATE = "2025-04-01"
 END_DATE = "2026-03-09"
 

@@ -20,6 +20,34 @@ function Resolve-TargetDate {
     return [datetime]::Parse($InputDate).Date
 }
 
+function Get-CanonicalRoot {
+    param([string]$RepoRoot = "")
+    if (-not [string]::IsNullOrWhiteSpace($env:BOAT_CANONICAL_ROOT)) {
+        return $env:BOAT_CANONICAL_ROOT
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:BOAT_DATA_ROOT)) {
+        $dataRoot = $env:BOAT_DATA_ROOT
+        if ((Split-Path -Leaf $dataRoot).ToLowerInvariant() -eq "data") {
+            return (Split-Path -Parent $dataRoot)
+        }
+        return $dataRoot
+    }
+    if (-not [string]::IsNullOrWhiteSpace($RepoRoot)) {
+        $repoDb = Join-Path $RepoRoot "data\silver\boat_race.duckdb"
+        if (Test-Path $repoDb) {
+            return $RepoRoot
+        }
+    }
+    $localCanonicalRoot = "C:\boat"
+    if (Test-Path (Join-Path $localCanonicalRoot "data\silver\boat_race.duckdb")) {
+        return $localCanonicalRoot
+    }
+    if (-not [string]::IsNullOrWhiteSpace($RepoRoot)) {
+        return $RepoRoot
+    }
+    return (Get-Location).Path
+}
+
 function Get-ResultsMaxRaceDate {
     param(
         [string]$PythonPath,
@@ -39,28 +67,45 @@ print(value)
     return [string]($value | Select-Object -Last 1)
 }
 
-function Clear-ResultsArtifacts {
+function Clear-RefreshArtifacts {
     param(
         [string]$SharedRoot,
-        [string[]]$DateCompacts
+        [string[]]$DateCompacts,
+        [bool]$IncludeOdds3T
     )
     foreach ($dateCompact in $DateCompacts) {
-        $rawResultsDir = Join-Path $SharedRoot ("raw\\results\\{0}" -f $dateCompact)
-        $bronzeResultsCsv = Join-Path $SharedRoot ("bronze\\results\\{0}.csv" -f $dateCompact)
-        if (Test-Path $rawResultsDir) {
-            Remove-Item -LiteralPath $rawResultsDir -Recurse -Force
-            Write-Step "cleared raw results cache for $dateCompact"
+        $rawTables = @("results", "beforeinfo", "odds_2t")
+        $bronzeTables = @("results", "beforeinfo_entries", "odds_2t")
+        if ($IncludeOdds3T) {
+            $rawTables += "odds_3t"
+            $bronzeTables += "odds_3t"
         }
-        if (Test-Path $bronzeResultsCsv) {
-            Remove-Item -LiteralPath $bronzeResultsCsv -Force
-            Write-Step "cleared bronze results csv for $dateCompact"
+
+        foreach ($table in $rawTables) {
+            $rawDir = Join-Path $SharedRoot ("raw\\{0}\\{1}" -f $table, $dateCompact)
+            if (Test-Path $rawDir) {
+                Remove-Item -LiteralPath $rawDir -Recurse -Force
+                Write-Step "cleared raw $table cache for $dateCompact"
+            }
+        }
+        foreach ($table in $bronzeTables) {
+            $bronzeCsv = Join-Path $SharedRoot ("bronze\\{0}\\{1}.csv" -f $table, $dateCompact)
+            if (Test-Path $bronzeCsv) {
+                Remove-Item -LiteralPath $bronzeCsv -Force
+                Write-Step "cleared bronze $table csv for $dateCompact"
+            }
         }
     }
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $pythonExe = Join-Path $repoRoot ".venv\Scripts\python.exe"
-$sharedRoot = "\\038INS\boat\data"
+$canonicalRoot = Get-CanonicalRoot -RepoRoot $repoRoot
+$sharedRoot = if (-not [string]::IsNullOrWhiteSpace($env:BOAT_DATA_ROOT)) {
+    $env:BOAT_DATA_ROOT
+} else {
+    Join-Path $canonicalRoot "data"
+}
 $rawRoot = Join-Path $sharedRoot "raw"
 $bronzeRoot = Join-Path $sharedRoot "bronze"
 $dbPath = Join-Path $sharedRoot "silver\boat_race.duckdb"
@@ -113,7 +158,7 @@ try {
         $datesToReset += $cursor.ToString("yyyyMMdd")
         $cursor = $cursor.AddDays(1)
     }
-    Clear-ResultsArtifacts -SharedRoot $sharedRoot -DateCompacts $datesToReset
+    Clear-RefreshArtifacts -SharedRoot $sharedRoot -DateCompacts $datesToReset -IncludeOdds3T:(-not $SkipOdds3T.IsPresent)
     Push-Location $repoRoot
     try {
         & $pythonExe @args

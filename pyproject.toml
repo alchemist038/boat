@@ -21,6 +21,11 @@ dev = [
 app = [
   "streamlit>=1.55.0",
 ]
+runtime = [
+  "pandas>=2.2.0",
+  "playwright>=1.54.0",
+  "python-dotenv>=1.1.0",
+]
 
 [project.scripts]
 boat-data = "boat_race_data.cli:main"

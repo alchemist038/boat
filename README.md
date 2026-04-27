@@ -170,29 +170,30 @@ Example:
 .\.venv\Scripts\python -m boat_race_data collect-mbrace-range --start-date 20251201 --end-date 20260310 --refresh-every-days 20 --sleep-seconds 0.5 --skip-term-stats
 ```
 
-## Canonical Shared Data Root
+## Canonical Data Root
 
-To treat a shared location as the canonical `raw -> bronze -> silver` root, set `BOAT_DATA_ROOT` before running the CLI. This keeps the repo portable while letting one machine write directly to a network share such as `\\038INS\boat\data`.
+The current operational canonical `raw -> bronze -> silver` root is `C:\boat\data`.
+For portable runs, point the CLI at the active root with `BOAT_DATA_ROOT`.
 
 ```powershell
-$env:BOAT_DATA_ROOT="\\038INS\boat\data"
+$env:BOAT_DATA_ROOT="C:\boat\data"
 .\.venv\Scripts\python -m boat_race_data refresh-silver
 .\.venv\Scripts\python -m boat_race_data collect-range --start-date 20260314 --end-date 20260319 --refresh-every-days 1 --resume-existing-days --sleep-seconds 0.5
 ```
 
-You can still override individual paths with `BOAT_RAW_ROOT`, `BOAT_BRONZE_ROOT`, and `BOAT_DB_PATH`.
+You can still override individual paths with `BOAT_RAW_ROOT`, `BOAT_BRONZE_ROOT`, and `BOAT_DB_PATH`. A network share such as `\\038INS\boat\data` is now optional fallback / rollback context, not the intended default.
 
 ## Daily Racer-Index Live CSV
 
 The current racer-index live signal is not yet persisted as `daily_pred1_signal` or `daily_pred6` tables in DuckDB.
-Operationally, it is produced as a daily CSV bundle from the shared DB and shared raw cache.
+Operationally, it is produced as a daily CSV bundle from the canonical DB and raw cache under `C:\boat`.
 
 Current flow:
 
-1. shared canonical DB lives at `\\038INS\boat\data\silver\boat_race.duckdb`
-2. target-day raw pages are collected into `\\038INS\boat\data\raw`
+1. canonical DB lives at `C:\boat\data\silver\boat_race.duckdb`
+2. target-day raw pages are collected into `C:\boat\data\raw`
 3. `predict_racer_rank_live.py` builds predictions for one target day
-4. outputs are written under `\\038INS\boat\reports\strategies\racer_rank_live_YYYYMMDD\`
+4. outputs are written under `C:\boat\reports\strategies\racer_rank_live_YYYYMMDD\`
 
 Daily output files:
 

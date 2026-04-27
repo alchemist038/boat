@@ -84,6 +84,6 @@ http://localhost:8502
 - 主系実行ライン: `live_trigger_cli`
 - ロジック正本: `live_trigger/boxes`
 - 買い目展開の正本: `live_trigger/auto_system/app/core/bets.py`
-- canonical DB: `\\038INS\boat\data`
+- canonical DB: `C:\boat\data`
 
 戦略を変更する場合は、まず shared box を更新し、その後に CLI ラインがそれを消費する形を守ります。

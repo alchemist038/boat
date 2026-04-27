@@ -6,6 +6,7 @@ This file is the parent status doc for logic research, adopted forward logic, an
 
 - [PROJECT_STATUS.md](./PROJECT_STATUS.md)
 - [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
+- [README.md](./reports/live_trade/live_trigger_cli_forward_logic_performance_latest/README.md)
 - [R_CONCEPT.md](./R_CONCEPT.md)
 - [RACER_INDEX_STATUS.md](./RACER_INDEX_STATUS.md)
 - [main_forward_trio_snapshot_20260325.md](./reports/strategies/combined/main_forward_trio_snapshot_20260325.md)
@@ -28,10 +29,47 @@ This file is the parent status doc for logic research, adopted forward logic, an
 - [projects/l1_234/README.md](./projects/l1_234/README.md)
 - [README.md](./live_trigger/boxes/l1_234/README.md)
 - [projects/125/README.md](./projects/125/README.md)
+- [projects/discovery/README.md](./projects/discovery/README.md)
 - [projects/4wind/README.md](./projects/4wind/README.md)
+- [LOGIC_ASSET_MODEL.md](./LOGIC_ASSET_MODEL.md)
+- [projects/README.md](./projects/README.md)
+- [workspace_codex/analysis/README.md](./workspace_codex/analysis/README.md)
 - [live_trigger/PROJECT_RULES.md](./live_trigger/PROJECT_RULES.md)
 
-- updated_at: 2026-04-03 JST
+- updated_at: 2026-04-27 JST
+
+## 0. Logic Asset Storage Rule
+
+The active auto line is only the forward operating subset.
+
+But the repo also contains important non-forward logic assets:
+
+- dormant logic concepts
+- candidate filters
+- cross-project structural reads
+- zero-base discovery outputs
+- walk-forward and comparison evidence
+
+Use this storage model:
+
+- `projects/`
+  - concept ownership shelf
+- `workspace_codex/analysis/`
+  - raw exploration shelf
+- `reports/strategies/`
+  - curated summary archive
+- `live_trigger/boxes/`
+  - runtime logic shelf only after forward/adoption
+
+Reference:
+
+- [LOGIC_ASSET_MODEL.md](./LOGIC_ASSET_MODEL.md)
+
+Practical rule:
+
+- not on auto does not mean disposable
+- if a concept is worth remembering, it should at least have a `projects/`
+  home and a pointer to its evidence
 
 ## 1. Logic Ownership
 
@@ -46,12 +84,31 @@ Current adopted shared boxes:
 - `live_trigger/boxes/125/`
 - `live_trigger/boxes/c2/`
 - `live_trigger/boxes/4wind/`
+- `live_trigger/boxes/h_a/`
+- `live_trigger/boxes/l3_124/`
+- `live_trigger/boxes/l1_234/`
 
-## 2. Current Main Forward Set
+## 2. Current Active Forward Set
 
-These are the three active forward logic tracks.
+These are the six active forward logic tracks currently enabled in `live_trigger_cli/data/settings.json`.
 
-Cross-trio DD / ROI snapshot:
+Current daily forward report:
+
+- [README.md](./reports/live_trade/live_trigger_cli_forward_logic_performance_latest/README.md)
+
+Current point-in-time snapshot from the daily report (`2026-04-19` cutoff):
+
+- active set overall:
+  - `190 races`
+  - `18 hit races`
+  - race hit rate `9.47%`
+  - flat ROI `70.77%`
+- strongest current read:
+  - `l3_124`: flat ROI `110.71%`
+- next strongest current read:
+  - `l1_234`: flat ROI `96.26%`
+
+Historical trio DD / ROI snapshot:
 
 - [main_forward_trio_snapshot_20260325.md](./reports/strategies/combined/main_forward_trio_snapshot_20260325.md)
 
@@ -88,9 +145,43 @@ Cross-trio DD / ROI snapshot:
   - `lane5 != B2`
   - `lane6 = B2`
 
+### `h_a_final_day_cut_v1`
+
+- target idea:
+  - exacta `4-1`
+- current structural gate:
+  - `lane1_st_top3`
+  - `lane4_ahead_lane1_005`
+  - final meeting day excluded
+- current shared runtime profile lives in:
+  - `live_trigger/boxes/h_a/profiles/final_day_cut_v1.json`
+
+### `l3_weak_124_box_one_a_ex241_v1`
+
+- target idea:
+  - weak lane-3 path into `1-2-4` box
+- current structural gate:
+  - `lane3_slowest_exh`
+  - `lane3_worst_st`
+  - exactly one of `lane5/lane6` is `A-class`
+  - runtime uses the `5-ticket` slice excluding `2-4-1`
+- current shared runtime profile lives in:
+  - `live_trigger/boxes/l3_124/profiles/l3_weak_124_box_one_a_ex241_v1.json`
+
+### `l1_weak_234_box_v1`
+
+- target idea:
+  - weak lane-1 path into `2-3-4` box
+- current structural gate:
+  - `lane1_slowest_exh`
+  - `lane1_worst_st`
+  - runtime uses the full `2-3-4` six-ticket trifecta box
+- current shared runtime profile lives in:
+  - `live_trigger/boxes/l1_234/profiles/l1_weak_234_box_v1.json`
+
 ## 3. Common Adopted Filters
 
-These should now be treated as adopted shared reads across the current forward set.
+These should now be treated as adopted shared reads across the current active forward set.
 
 - exclude final meeting day
 - keep logic point-in-time
@@ -100,14 +191,14 @@ These should now be treated as adopted shared reads across the current forward s
 
 - `125_suminoe_main`
   - valid profile
-  - not part of the current main forward trio
+  - not part of the current active six-logic forward set
 - universal `pred6` overlay
   - not adopted yet
   - remains conditional / project-specific
 
 ## 5. Pre-Review / 検討前 Inventory
 
-For dormant logic that should remain reachable but is not part of the current forward trio, use:
+For dormant logic that should remain reachable but is not part of the current active six-logic forward set, use:
 
 - [pre_review_logic_inventory_20260325.md](./reports/strategies/pre_review_logic_inventory_20260325.md)
 
@@ -120,16 +211,17 @@ Current review priority there is:
 
 Why the bounded slice is first:
 
-- the current trio DD / ROI comparison is anchored on `2025-04-01 .. 2026-03-09`
+- the historical trio DD / ROI comparison is anchored on `2025-04-01 .. 2026-03-09`
 - `125` has a recorded BT max-DD interval of `2025-03-11 -> 2025-06-16`
-- so the bounded exacta slice `2025-04-01 .. 2025-06-16` overlaps the early stress regime that already matters for the current main set
+- so the bounded exacta slice `2025-04-01 .. 2025-06-16` overlaps the early stress regime that already mattered for the then-current trio benchmark
 - this makes it the best current `検討前` review zone
 
 Current first-pass review result:
 
 - `H-A` has now been re-checked on `2024`, `2025`, and `2026_ytd` under official-settle proxy
 - shared runtime ownership now exists at [final_day_cut_v1.json](/c:/CODEX_WORK/boat_clone/live_trigger/boxes/h_a/profiles/final_day_cut_v1.json)
-  - keep it `disabled` until stake sizing and runtime adoption are explicitly approved
+  - historical note:
+    - this profile started as a disabled candidate in shared runtime, but it is part of the current active six-logic forward set
 - note:
   - [h_a_yearly_comparison_2024_2026ytd_20260325.md](./reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_a_yearly_comparison_2024_2026ytd_20260325.md)
   - [h_a_final_day_cut_2024_2026ytd_20260325.md](./reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/h_a_final_day_cut_2024_2026ytd_20260325.md)
@@ -140,7 +232,7 @@ Current first-pass review result:
   - `final day cut` is the current best first refinement candidate
   - `lane4_class != B1` improves DD, but is too strong as a universal cut
   - first racer-index head-confirmation check (`pred1 = lane4`) is now recorded, but sample is still too small for adoption
-  - H-A is now also plotted against the current main forward trio:
+  - H-A is now also plotted against the then-current main forward trio:
     - [README.md](./reports/strategies/combined/h_a_vs_main_forward_trio_2025-04-01_to_2026-03-09_20260326/README.md)
   - next review order is:
     - keep `final day cut` as the first refined baseline
@@ -290,8 +382,8 @@ Current `3-of-4` exploratory check:
       - `l1_weak_234_box_v1`
     - current state:
       - implemented in shared runtime
-      - disabled by default
-      - isolated from the current main trio
+      - originally disabled by default in shared runtime
+      - now active in the current six-logic forward set
     - runtime ticket expression:
       - `5-ticket` slice excluding `2-4-1`
       - full `2-3-4` six-ticket box for `l1_234`
@@ -303,9 +395,9 @@ Current `3-of-4` exploratory check:
   - keep the area outside the active live set for now
   - but move refined `exclude 3` and now-validated `exclude 1` from pure exploratory status to `watch / possible next-line candidate`
   - next review should be:
-    - forward stability under the disabled shared candidate
+    - forward stability under the current active six-logic set
     - execution realism of the `ex241` 5-ticket slice
-    - whether this branch can stay operationally separate from the current trio
+    - whether this branch remains operationally clean inside the current set
 
 ## 6. Racer Index Position
 
@@ -332,7 +424,7 @@ Current racer-index status lives in:
 
 ## 7. Forward Discipline
 
-For the current main trio:
+For the current active six-logic forward set:
 
 - keep forward operation on `live_trigger_cli`
 - keep logic ownership under the shared source
@@ -354,9 +446,9 @@ Current recommendation:
 
 Reason:
 
-- `4wind` is now part of the main forward trio
+- `4wind` is now part of the historical trio benchmark and remains part of the current six-logic forward set
 - the project rule is still "shared logic source, local execution line"
-- keeping `4wind` under shared boxes keeps the main trio under one logic owner
+- keeping `4wind` under shared boxes keeps the current active set under one logic owner
 
 What this does not mean:
 

@@ -10,7 +10,7 @@ import time
 from typing import Any
 
 from boat_race_data.client import BoatRaceClient, FetchResult
-from boat_race_data.constants import STADIUMS
+from boat_race_data.constants import STADIUMS, get_default_db_path, get_default_reports_root
 from boat_race_data.parsers import parse_beforeinfo, parse_racelist, parse_result
 from boat_race_data.utils import ensure_dir
 
@@ -53,10 +53,10 @@ WATCHLIST_COLUMNS = [
     "beforeinfo_fetched_at",
 ]
 
-CANONICAL_DUCKDB_PATH = Path(r"\\038INS\boat\data\silver\boat_race.duckdb")
+CANONICAL_DUCKDB_PATH = Path(get_default_db_path())
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LOCAL_REPORTS_STRATEGY_ROOT = REPO_ROOT / "reports" / "strategies"
-SHARED_REPORTS_STRATEGY_ROOT = Path(r"\\038INS\boat\reports\strategies")
+SHARED_REPORTS_STRATEGY_ROOT = Path(get_default_reports_root())
 
 
 @dataclass(slots=True)
@@ -564,18 +564,24 @@ def build_h_a_reason(
     lane4_gap_min: float,
     matched: bool,
 ) -> str:
+    rank_operator = "<="
+    if not matched and (lane1_rank is None or lane1_rank > lane1_rank_max):
+        rank_operator = ">"
+    gap_operator = ">="
+    if not matched and (lane4_gap is None or lane4_gap < lane4_gap_min):
+        gap_operator = "<"
     parts = [
         _format_comparison(
             "lane1_start_rank",
             None if lane1_rank is None else float(lane1_rank),
             float(lane1_rank_max),
-            "<=" if matched else ">",
+            rank_operator,
         ),
         _format_comparison(
             "lane4_ahead_lane1_start_gap",
             lane4_gap,
             lane4_gap_min,
-            ">=" if matched else "<",
+            gap_operator,
         ),
     ]
     return ", ".join(part for part in parts if part) or "beforeinfo ready"
@@ -837,8 +843,8 @@ def _daily_pred1_lane_index(race_date_iso: str) -> dict[str, int]:
         return {}
 
     candidate_paths = [
-        SHARED_REPORTS_STRATEGY_ROOT / f"racer_rank_live_{race_date_token}" / "race_summary.csv",
         LOCAL_REPORTS_STRATEGY_ROOT / f"racer_rank_live_{race_date_token}" / "race_summary.csv",
+        SHARED_REPORTS_STRATEGY_ROOT / f"racer_rank_live_{race_date_token}" / "race_summary.csv",
     ]
     for path in candidate_paths:
         if not path.exists():

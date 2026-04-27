@@ -68,6 +68,19 @@ VOTE_SUCCESS_SELECTORS = (
     'text="次の場で投票する"',
 )
 
+VOTE_PASSWORD_SELECTORS = (
+    "#pass",
+    "input[name='betPassword']",
+    "input[title='謚慕･ｨ逕ｨ繝代せ繝ｯ繝ｼ繝・]",
+    "input[aria-label='謚慕･ｨ逕ｨ繝代せ繝ｯ繝ｼ繝・]",
+    "input[name*='vote']",
+    "input[name*='password']",
+    "input[type='password']",
+)
+
+VOTE_PASSWORD_RETRY_WAIT_MS = 10_000
+VOTE_PASSWORD_RETRY_ATTEMPTS = 3
+
 SESSION_READY_SELECTORS = (
     'text="マイページ"',
     'text="照会"',
@@ -696,6 +709,58 @@ def _save_debug_artifacts(page: Page, *, prefix: str, data_dir: Path) -> tuple[s
         str(screenshot_path) if screenshot_path is not None else None,
         str(html_path) if html_path is not None else None,
     )
+
+
+def _current_page_url(page: Page) -> str:
+    try:
+        return page.url or ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _fill_confirmation_vote_password(
+    page: Page,
+    *,
+    vote_password: str,
+    data_dir: Path | None = None,
+    debug_prefix: str | None = None,
+    retry_wait_ms: int = VOTE_PASSWORD_RETRY_WAIT_MS,
+    retry_attempts: int = VOTE_PASSWORD_RETRY_ATTEMPTS,
+) -> None:
+    for attempt in range(retry_attempts + 1):
+        _raise_if_session_timeout(page)
+        try:
+            _fill_first(
+                page,
+                list(VOTE_PASSWORD_SELECTORS),
+                vote_password,
+                description="投票用パスワード",
+            )
+            return
+        except TeleboatError as exc:
+            if str(exc) != "投票用パスワード の入力欄が見つかりません":
+                raise
+            if attempt >= retry_attempts:
+                screenshot_path = None
+                html_path = None
+                if data_dir is not None and debug_prefix:
+                    screenshot_path, html_path = _save_debug_artifacts(
+                        page,
+                        prefix=f"{debug_prefix}_vote_password_missing",
+                        data_dir=data_dir,
+                    )
+                raise TeleboatExecutionError(
+                    str(exc),
+                    screenshot_path=screenshot_path,
+                    html_path=html_path,
+                    details={
+                        "current_url": _current_page_url(page),
+                        "retry_attempts": retry_attempts,
+                        "retry_wait_ms": retry_wait_ms,
+                    },
+                ) from exc
+            page.wait_for_timeout(retry_wait_ms)
+            _settle(page, milliseconds=500)
 
 
 def _normalize_visible_text(text: str | None) -> str:
@@ -1905,11 +1970,20 @@ def _open_confirmation(page: Page, *, data_dir: Path, debug_prefix: str) -> None
     )
 
 
-def _submit_vote(page: Page, *, vote_password: str, total_amount: int | None = None) -> list[str]:
+def _submit_vote(
+    page: Page,
+    *,
+    vote_password: str,
+    total_amount: int | None = None,
+    data_dir: Path | None = None,
+    debug_prefix: str | None = None,
+) -> list[str]:
     _prefill_confirmation_inputs(
         page,
         vote_password=vote_password,
         total_amount=total_amount,
+        data_dir=data_dir,
+        debug_prefix=debug_prefix,
     )
 
     dialog_seen: list[str] = []
@@ -1948,7 +2022,14 @@ def _submit_vote(page: Page, *, vote_password: str, total_amount: int | None = N
     return dialog_seen
 
 
-def _prefill_confirmation_inputs(page: Page, *, vote_password: str, total_amount: int | None = None) -> int:
+def _prefill_confirmation_inputs(
+    page: Page,
+    *,
+    vote_password: str,
+    total_amount: int | None = None,
+    data_dir: Path | None = None,
+    debug_prefix: str | None = None,
+) -> int:
     confirmation_total_amount = int(total_amount) if total_amount is not None else _current_confirmation_total_amount(page)
     if confirmation_total_amount > 0:
         _fill_first(
@@ -1963,19 +2044,11 @@ def _prefill_confirmation_inputs(page: Page, *, vote_password: str, total_amount
             description="確認画面の購入金額",
         )
 
-    _fill_first(
+    _fill_confirmation_vote_password(
         page,
-        [
-            "#pass",
-            "input[name='betPassword']",
-            "input[title='投票用パスワード']",
-            "input[aria-label='投票用パスワード']",
-            "input[name*='vote']",
-            "input[name*='password']",
-            "input[type='password']",
-        ],
-        vote_password,
-        description="投票用パスワード",
+        vote_password=vote_password,
+        data_dir=data_dir,
+        debug_prefix=debug_prefix,
     )
     return confirmation_total_amount
 
@@ -2540,6 +2613,8 @@ class TeleboatClient:
             self.page,
             vote_password=self._credentials.vote_password,
             total_amount=_current_confirmation_total_amount(self.page),
+            data_dir=self._data_dir,
+            debug_prefix=f"{target.race_id}_confirm_prefill",
         )
         return TeleboatResult(
             execution_status="prepared_confirmation_prefilled",
@@ -2567,6 +2642,8 @@ class TeleboatClient:
                 page,
                 vote_password=self._credentials.vote_password,
                 total_amount=_current_confirmation_total_amount(page),
+                data_dir=self._data_dir,
+                debug_prefix=f"{target.race_id}_assist",
             )
             screenshot_path, html_path = _save_debug_artifacts(
                 page,
@@ -2598,6 +2675,8 @@ class TeleboatClient:
             page,
             vote_password=self._credentials.vote_password,
             total_amount=_current_confirmation_total_amount(page),
+            data_dir=self._data_dir,
+            debug_prefix=f"{target.race_id}_armed",
         )
         _wait_for_submit_outcome(
             page,

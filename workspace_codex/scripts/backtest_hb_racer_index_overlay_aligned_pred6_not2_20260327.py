@@ -10,11 +10,11 @@ from pathlib import Path
 
 import duckdb
 import pandas as pd
+from runtime_paths import REPO_ROOT, default_results_db_path, default_workspace_script_path
 
-
-ROOT = Path(r"C:\CODEX_WORK\boat_clone")
-DB_PATH = Path(os.environ.get("BOAT_DB_PATH", r"\\038INS\boat\data\silver\boat_race.duckdb"))
-BASE100_SCRIPT_PATH = Path(r"\\038INS\boat\workspace_codex\scripts\evaluate_base100_lane_multiplier_20260324.py")
+ROOT = REPO_ROOT
+DB_PATH = default_results_db_path()
+BASE100_SCRIPT_PATH = default_workspace_script_path("evaluate_base100_lane_multiplier_20260324.py")
 
 PROFILE_MONTHS = 5
 EVAL_START = date.fromisoformat("2025-04-01")

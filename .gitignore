@@ -20,6 +20,14 @@ data/raw/**
 data/bronze/**
 data/silver/**
 reports/data_quality/**
+reports/live_trade/live_trigger_cli_forward_logic_performance_latest/*.csv
+reports/live_trade/live_trigger_cli_forward_logic_performance_latest/*.json
+reports/strategies/racer_rank_live_20*/
+reports/strategies/c2/c2_pred1_non_lane1_overlay_walkforward_2025-04-01_to_2026-03-09_5m_20260325/*.csv
+reports/strategies/c2/c2_pred1_non_lane1_overlay_walkforward_2025-04-01_to_2026-03-09_5m_20260325/*.json
+reports/strategies/zero_base_period_2025-01-01_to_2025-06-30_h_b_racer_index_overlay_5m_20260326/*.csv
+reports/strategies/zero_base_period_2025-03-11_to_2025-06-16_20260324/*.csv
+reports/strategies/zero_base_period_2025-04-01_to_2026-03-09_h_b_racer_index_overlay_pred6_not2_5m_20260327/*.csv
 reports/logs/**
 GPT/output/**
 workspace_codex/analysis/**

@@ -1,12 +1,31 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import os
 from pathlib import Path
 from typing import Any, Mapping
 
 LANES = ("1", "2", "3", "4", "5", "6")
 ALL_TOKENS = {"ALL", "*", "全", "全通り"}
-CANONICAL_DUCKDB_PATH = Path(r"\\038INS\boat\data\silver\boat_race.duckdb")
+PACKAGE_CANONICAL_DUCKDB_PATH = Path(__file__).resolve().parents[5] / "data" / "silver" / "boat_race.duckdb"
+LOCAL_CANONICAL_DUCKDB_PATH = Path(r"C:\boat\data\silver\boat_race.duckdb")
+
+
+def _canonical_duckdb_path() -> Path:
+    db_path = os.environ.get("BOAT_DB_PATH")
+    if db_path:
+        return Path(db_path)
+    data_root = os.environ.get("BOAT_DATA_ROOT")
+    if data_root:
+        return Path(data_root) / "silver" / "boat_race.duckdb"
+    if PACKAGE_CANONICAL_DUCKDB_PATH.exists():
+        return PACKAGE_CANONICAL_DUCKDB_PATH
+    if LOCAL_CANONICAL_DUCKDB_PATH.exists():
+        return LOCAL_CANONICAL_DUCKDB_PATH
+    return PACKAGE_CANONICAL_DUCKDB_PATH
+
+
+CANONICAL_DUCKDB_PATH = _canonical_duckdb_path()
 
 
 def _combo_parts(combo: str) -> list[str]:

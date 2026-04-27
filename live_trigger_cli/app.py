@@ -5,7 +5,6 @@ import sqlite3
 import subprocess
 import sys
 import time
-import ctypes
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -221,103 +220,16 @@ def _auto_refresh_run_every(enabled: bool, *, interval_seconds: int = AUTO_REFRE
         return None
     return f"{max(1, int(interval_seconds))}s"
 
-
-def _pid_is_running(pid: int | None) -> bool:
-    if pid is None or pid <= 0:
-        return False
-    if os.name == "nt":
-        process_query_limited_information = 0x1000
-        still_active = 259
-        handle = ctypes.windll.kernel32.OpenProcess(process_query_limited_information, False, pid)
-        if not handle:
-            return False
-        try:
-            exit_code = ctypes.c_ulong()
-            if not ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
-                return False
-            return exit_code.value == still_active
-        finally:
-            ctypes.windll.kernel32.CloseHandle(handle)
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    return True
-
-
-def _read_pid() -> int | None:
-    if not PID_FILE.exists():
-        return None
-    try:
-        return int(PID_FILE.read_text(encoding="utf-8").strip())
-    except ValueError:
-        return None
-
-
 def _write_pid(pid: int) -> None:
     PID_FILE.write_text(str(pid), encoding="utf-8")
 
 
-def _discover_auto_loop_pid() -> int | None:
-    if os.name != "nt":
-        return None
-    try:
-        result = subprocess.run(
-            [
-                "powershell.exe",
-                "-NoProfile",
-                "-Command",
-                (
-                    "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; "
-                    "$p = Get-CimInstance Win32_Process "
-                    "| Where-Object { $_.Name -eq 'python.exe' -and $_.CommandLine -like '*-m live_trigger_cli auto-loop*' } "
-                    "| Sort-Object ProcessId -Descending "
-                    "| Select-Object -First 1 -ExpandProperty ProcessId; "
-                    "if ($p) { Write-Output $p }"
-                ),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=3,
-            check=False,
-        )
-    except Exception:  # noqa: BLE001
-        return None
-    stdout = (result.stdout or "").strip()
-    if not stdout:
-        return None
-    try:
-        pid = int(stdout.splitlines()[-1].strip())
-    except ValueError:
-        return None
-    return pid if _pid_is_running(pid) else None
-
-
 def _current_loop_pid() -> int | None:
-    pid = _read_pid()
-    if _pid_is_running(pid):
-        return pid
-    discovered_pid = _discover_auto_loop_pid()
-    if discovered_pid is not None:
-        try:
-            _write_pid(discovered_pid)
-        except OSError:
-            pass
-        return discovered_pid
-    return None
+    return runtime.current_auto_loop_pid()
 
 
 def _clear_pid_if_stale() -> None:
-    pid = _read_pid()
-    if pid is None:
-        return
-    if _pid_is_running(pid):
-        return
-    discovered_pid = _discover_auto_loop_pid()
-    if discovered_pid is not None:
-        _write_pid(discovered_pid)
-        return
-    PID_FILE.unlink(missing_ok=True)
+    runtime.current_auto_loop_pid()
 
 
 def _tail_log(path: Path, *, lines: int = 80) -> str:
@@ -448,6 +360,35 @@ def _today_target_profile_frame(race_date: str | None = None) -> pd.DataFrame:
     return pivot[ordered_columns].sort_values(by=["today_targets", "profile_id"], ascending=[False, True])
 
 
+def _today_execution_summary(race_date: str | None = None) -> dict[str, int]:
+    target_race_date = race_date or datetime.now().strftime("%Y-%m-%d")
+    target_frame = _read_query(
+        """
+        SELECT
+            SUM(CASE WHEN status = 'real_bet_placed' THEN 1 ELSE 0 END) AS real_bet_races,
+            SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END) AS expired_targets
+        FROM target_races
+        WHERE race_date = ?
+        """,
+        (target_race_date,),
+    )
+    intents_frame = _read_query(
+        """
+        SELECT COUNT(*) AS executed_bets
+        FROM bet_intents
+        JOIN target_races ON target_races.id = bet_intents.target_race_id
+        WHERE target_races.race_date = ?
+          AND bet_intents.status = 'executed'
+        """,
+        (target_race_date,),
+    )
+    return {
+        "real_bet_races": int(target_frame.iloc[0]["real_bet_races"] or 0) if not target_frame.empty else 0,
+        "expired_targets": int(target_frame.iloc[0]["expired_targets"] or 0) if not target_frame.empty else 0,
+        "executed_bets": int(intents_frame.iloc[0]["executed_bets"] or 0) if not intents_frame.empty else 0,
+    }
+
+
 def _status_text(value: Any) -> str:
     text = str(value or "")
     return STATUS_LABELS.get(text, text)
@@ -576,6 +517,7 @@ def _render_live_header(auto_refresh_enabled: bool) -> None:
         loop_running = bool(loop_health["running"])
         today_race_date = datetime.now().strftime("%Y-%m-%d")
         today_target_profile_frame = _today_target_profile_frame(today_race_date)
+        today_execution_summary = _today_execution_summary(today_race_date)
         today_target_total = int(today_target_profile_frame["today_targets"].sum()) if not today_target_profile_frame.empty else 0
 
         top = st.columns(6)
@@ -585,6 +527,11 @@ def _render_live_header(auto_refresh_enabled: bool) -> None:
         top[3].metric("today targets", str(today_target_total))
         top[4].metric("all targets", str(sum(summary.get("targets_by_status", {}).values())))
         top[5].metric("pending intents", str(summary.get("intents_by_status", {}).get("pending", 0)))
+
+        lower = st.columns(3)
+        lower[0].metric("today bet races", str(today_execution_summary["real_bet_races"]))
+        lower[1].metric("today bets", str(today_execution_summary["executed_bets"]))
+        lower[2].metric("today expired", str(today_execution_summary["expired_targets"]))
 
         st.markdown(
             """
@@ -869,22 +816,26 @@ def _spawn_auto_loop() -> int:
         if value
     )
     process = subprocess.Popen(
-        [os.environ.get("COMSPEC", "cmd.exe"), "/c", sys.executable, "-m", "live_trigger_cli", "auto-loop"],
+        [sys.executable, "-m", "live_trigger_cli", "auto-loop"],
         cwd=str(REPO_ROOT),
         close_fds=True,
         creationflags=creationflags,
         env=env,
+        stdin=subprocess.DEVNULL,
     )
-    deadline = time.time() + 3.0
+    deadline = time.time() + 10.0
     while time.time() < deadline:
         running_pid = _current_loop_pid()
         if running_pid is not None:
             return int(running_pid)
+        if runtime._pid_looks_like_auto_loop(process.pid):
+            return int(process.pid)
         if process.poll() is not None:
             break
         time.sleep(0.1)
-    _write_pid(process.pid)
-    return int(process.pid)
+    if process.poll() is not None:
+        raise RuntimeError("auto-loop failed to stay alive during startup. Check auto_run.log for details.")
+    raise RuntimeError("auto-loop did not register a live PID during startup. Check auto_run.log for details.")
 
 
 def _save_profile_table(edited: pd.DataFrame, current_settings: dict[str, Any]) -> dict[str, Any]:
@@ -1199,11 +1150,15 @@ with tab_actions:
             else:
                 runtime.configure_runtime(setting_overrides={"system_running": True})
                 started_pid = _spawn_auto_loop()
-                st.success(f"auto-loop を PID `{started_pid}` で起動しました。")
+                st.success(f"auto-loop を PID `{started_pid}` で表示コンソール起動しました。")
         except Exception as exc:  # noqa: BLE001
             _notify_error(exc)
 
-    st.caption("注意: auto-loop はこの新ライン専用です。既存ラインの loop や DB には触れません。")
+    st.caption(
+        "注意: auto-loop は表示コンソール付きで起動します。"
+        " 閉じると loop も止まります。"
+        " この新ライン専用で、既存ラインの loop や DB には触れません。"
+    )
 
 with tab_manual:
     st.subheader("Teleboat 手動テスト")

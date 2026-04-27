@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 from boat_race_data.live_trigger import (
     TriggerProfile,
+    build_h_a_reason,
     build_watchlist_row,
     compute_best_gap,
     compute_exhibition_rank,
@@ -19,6 +20,19 @@ from boat_race_data.live_trigger import (
 
 def test_compute_watch_start_time_subtracts_minutes() -> None:
     assert compute_watch_start_time("2026-03-15", "14:25", 25) == "2026-03-15 14:00"
+
+
+def test_build_h_a_reason_marks_only_failed_conditions() -> None:
+    reason = build_h_a_reason(
+        lane1_rank=2,
+        lane1_rank_max=3,
+        lane4_gap=-0.14,
+        lane4_gap_min=0.05,
+        matched=False,
+    )
+
+    assert "lane1_start_rank=2.000 <= 3" in reason
+    assert "lane4_ahead_lane1_start_gap=-0.140 < 0.05" in reason
 
 
 def test_build_watchlist_row_applies_pre_filters() -> None:

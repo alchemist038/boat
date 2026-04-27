@@ -3,7 +3,7 @@
 This is the single-file bootstrap note for joining the project from `ins14`.
 Read this first when you want to rejoin quickly without reconstructing the whole repo.
 
-- updated_at: 2026-03-25 JST
+- updated_at: 2026-04-20 JST
 - primary editing base: `C:\CODEX_WORK\boat_clone`
 - operational share root: `\\038INS\boat\`
 
@@ -47,17 +47,27 @@ Do not casually move work across this boundary.
 
 ## 3. Main Forward Set
 
-Treat these three as the active forward logic set:
+Treat these six as the active forward logic set:
 
+- `125_broad_four_stadium`
 - `4wind_base_415`
 - `c2_provisional_v1`
-- `125_broad_four_stadium`
+- `h_a_final_day_cut_v1`
+- `l3_weak_124_box_one_a_ex241_v1`
+- `l1_weak_234_box_v1`
 
 Shared owner locations:
 
+- `live_trigger/boxes/125/`
 - `live_trigger/boxes/4wind/`
 - `live_trigger/boxes/c2/`
-- `live_trigger/boxes/125/`
+- `live_trigger/boxes/h_a/`
+- `live_trigger/boxes/l3_124/`
+- `live_trigger/boxes/l1_234/`
+
+Daily point-in-time forward report:
+
+- [README.md](./reports/live_trade/live_trigger_cli_forward_logic_performance_latest/README.md)
 
 ## 4. Bet-Line Structure
 

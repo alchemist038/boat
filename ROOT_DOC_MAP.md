@@ -26,10 +26,12 @@ If you are bootstrapping work on `i5`, start with:
    - [LOGIC_STATUS.md](./LOGIC_STATUS.md)
    - [RACER_INDEX_STATUS.md](./RACER_INDEX_STATUS.md)
 5. If machine coordination matters, read:
-   - [TO_I5_FROM_ME.md](./TO_I5_FROM_ME.md)
-   - [FROM_I5_TO_ME.md](./FROM_I5_TO_ME.md)
-   - [TO_INS14_FROM_ME.md](./TO_INS14_FROM_ME.md)
-   - [FROM_INS14_TO_ME.md](./FROM_INS14_TO_ME.md)
+  - [TO_I5_FROM_ME.md](./TO_I5_FROM_ME.md)
+  - [FROM_I5_TO_ME.md](./FROM_I5_TO_ME.md)
+  - [TO_INS14_FROM_ME.md](./TO_INS14_FROM_ME.md)
+  - [FROM_INS14_TO_ME.md](./FROM_INS14_TO_ME.md)
+6. If you need retired snapshots or temporary bundles that were moved out of the repo:
+   - [boat_clone_workspace_cleanup_20260427](</C:/CODEX_WORK/archive/boat_clone_workspace_cleanup_20260427>)
 
 ## Which Root File Owns What
 
@@ -43,6 +45,16 @@ If you are bootstrapping work on `i5`, start with:
   - single-file bootstrap for joining the project from `ins14`
 - [I5_START.md](./I5_START.md)
   - single-file bootstrap for joining the project from `i5`
+- [C_BOAT_CANONICAL_PLAN.md](./C_BOAT_CANONICAL_PLAN.md)
+  - staged integration plan for moving the canonical operational root to `C:\boat`
+- [PORTABLE_RUNTIME.md](./PORTABLE_RUNTIME.md)
+  - how to bootstrap and carry the self-contained `C:\boat` execution root
+- [boat_clone_workspace_cleanup_20260427](</C:/CODEX_WORK/archive/boat_clone_workspace_cleanup_20260427>)
+  - archive root for retired temporary runtimes, smoke outputs, and old share staging bundles
+- [worker_trees_20260427](</C:/CODEX_WORK/archive/worker_trees_20260427>)
+  - archived `boat_a` / `boat_b` worker trees kept only as historical recovery evidence
+- [LOGIC_ASSET_MODEL.md](./LOGIC_ASSET_MODEL.md)
+  - storage model for non-forward logic concepts, raw analysis, and promoted summaries
 - [PROJECT_STATUS.md](./PROJECT_STATUS.md)
   - high-level project state across data, strategy research, and incoming work
 - [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
@@ -65,19 +77,27 @@ Open these when the task is about collection, missing dates, shared data, or ref
 - [README.md](./README.md)
 - [DB_STATUS.md](./DB_STATUS.md)
 - [FROM_I5_TO_ME.md](./FROM_I5_TO_ME.md)
+- [C_BOAT_CANONICAL_PLAN.md](./C_BOAT_CANONICAL_PLAN.md)
+- [PORTABLE_RUNTIME.md](./PORTABLE_RUNTIME.md)
 - [run_daily_recent_collect.ps1](./run_daily_recent_collect.ps1)
+- [boat_clone_workspace_cleanup_20260427](</C:/CODEX_WORK/archive/boat_clone_workspace_cleanup_20260427>)
 
 ## Logic Research Route
 
 Open these when the task is about logic evaluation, adopted filters, forward candidates, and racer-index work.
 
 - [LOGIC_STATUS.md](./LOGIC_STATUS.md)
+- [README.md](./reports/live_trade/live_trigger_cli_forward_logic_performance_latest/README.md)
+- [LOGIC_ASSET_MODEL.md](./LOGIC_ASSET_MODEL.md)
+- [projects/README.md](./projects/README.md)
+- [workspace_codex/analysis/README.md](./workspace_codex/analysis/README.md)
 - [RACER_INDEX_STATUS.md](./RACER_INDEX_STATUS.md)
 - [racer_index/README.md](./racer_index/README.md)
 - [racer_index/OPERATIONS.md](./racer_index/OPERATIONS.md)
 - [racer_index/SCHEMA.md](./racer_index/SCHEMA.md)
 - [PROJECT_STATUS.md](./PROJECT_STATUS.md)
 - [projects/125/README.md](./projects/125/README.md)
+- [projects/discovery/README.md](./projects/discovery/README.md)
 - [projects/c2/status_notebooklm_20260313.txt](./projects/c2/status_notebooklm_20260313.txt)
 - [projects/4wind/README.md](./projects/4wind/README.md)
 - [R_CONCEPT.md](./R_CONCEPT.md)
@@ -89,7 +109,9 @@ Open these when the task is about logic evaluation, adopted filters, forward can
 Open these when the task is about the current main bet line.
 
 - [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
+- [README.md](./reports/live_trade/live_trigger_cli_forward_logic_performance_latest/README.md)
 - [OPERATING_MODEL.md](./OPERATING_MODEL.md)
+- [PORTABLE_RUNTIME.md](./PORTABLE_RUNTIME.md)
 - [live_trigger_cli/README.md](./live_trigger_cli/README.md)
 - [live_trigger_cli_split/README.md](./live_trigger_cli_split/README.md)
 - [live_trigger/PROJECT_RULES.md](./live_trigger/PROJECT_RULES.md)
@@ -120,10 +142,12 @@ Open these when the task depends on another machine, handoff, or shared ownershi
 
 - [INS14_START.md](./INS14_START.md)
 - [I5_START.md](./I5_START.md)
+- [C_BOAT_CANONICAL_PLAN.md](./C_BOAT_CANONICAL_PLAN.md)
 - [TO_I5_FROM_ME.md](./TO_I5_FROM_ME.md)
 - [FROM_I5_TO_ME.md](./FROM_I5_TO_ME.md)
 - [TO_INS14_FROM_ME.md](./TO_INS14_FROM_ME.md)
 - [FROM_INS14_TO_ME.md](./FROM_INS14_TO_ME.md)
+- [boat_clone_workspace_cleanup_20260427](</C:/CODEX_WORK/archive/boat_clone_workspace_cleanup_20260427>)
 
 ## Update Rules
 
@@ -143,6 +167,7 @@ When work changes, update the root-level document that owns the summary, then up
 - Strategy adoption or research conclusion changes:
   - update [PROJECT_STATUS.md](./PROJECT_STATUS.md)
   - update [LOGIC_STATUS.md](./LOGIC_STATUS.md)
+  - update [LOGIC_ASSET_MODEL.md](./LOGIC_ASSET_MODEL.md) if the shelf model changed
   - update the relevant project or report README
 - Racer-index / logic substrate changes:
   - update [RACER_INDEX_STATUS.md](./RACER_INDEX_STATUS.md)

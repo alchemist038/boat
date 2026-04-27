@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -1241,6 +1242,147 @@ def test_sync_watchlists_withdraws_disabled_profile_targets(monkeypatch, tmp_pat
     ]
 
 
+def test_sync_watchlists_restores_watchlist_removed_target_when_source_reappears(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime.initialize_runtime(runtime_root)
+
+    profile = next(
+        item
+        for item in runtime.load_runtime_profiles(include_disabled=True)
+        if item.profile_id == "c2_provisional_v1"
+    )
+
+    source_row = {
+        "box_id": "c2",
+        "profile_id": "c2_provisional_v1",
+        "strategy_id": "c2",
+        "race_id": "202603232401",
+        "race_date": "2026-03-23",
+        "stadium_code": "24",
+        "stadium_name": "Dummy",
+        "race_no": 1,
+        "meeting_title": "一般",
+        "race_title": "Test Race",
+        "deadline_time": "15:20",
+        "watch_start_time": "2026-03-23 14:55:00",
+        "status": "waiting_beforeinfo",
+        "pre_reason": "women6_proxy, class=B1",
+        "final_reason": "",
+        "racer_index_pred1_lane": 2,
+        "racer_index_signal_date": "2026-03-23",
+    }
+
+    monkeypatch.setattr(runtime, "load_runtime_profiles", lambda *args, **kwargs: [profile])
+    monkeypatch.setattr(
+        runtime,
+        "_build_runtime_watchlist_sources",
+        lambda *args, **kwargs: ([("shared::c2_provisional_v1", source_row)], ["shared::c2_provisional_v1"]),
+    )
+
+    with runtime._connect_db(runtime_root) as connection:
+        now = datetime(2026, 3, 23, 6, 0, 0)
+        connection.execute(
+            """
+            INSERT INTO target_races (
+                target_key, race_id, race_date, stadium_code, stadium_name, race_no,
+                profile_id, strategy_id, source_watchlist_file, deadline_at, watch_start_at,
+                imported_at, updated_at, status, row_status, last_reason, payload_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "202603232401::c2_provisional_v1",
+                "202603232401",
+                "2026-03-23",
+                "24",
+                "Dummy",
+                1,
+                "c2_provisional_v1",
+                "c2",
+                "shared::c2_provisional_v1",
+                "2026-03-23 15:20:00",
+                "2026-03-23 14:55:00",
+                runtime._format_datetime(now),
+                runtime._format_datetime(now),
+                "withdrawn",
+                "watchlist_removed",
+                "removed from current watchlist",
+                json.dumps(
+                    {
+                        "status": "watchlist_removed",
+                        "final_reason": "removed from current watchlist",
+                        "racer_index_pred1_lane": 2,
+                    }
+                ),
+            ),
+        )
+        connection.commit()
+
+    result = runtime.sync_watchlists(runtime_root=runtime_root, race_date="2026-03-23")
+
+    assert result["updated"] == 1
+    assert result["withdrawn"] == 0
+
+    with runtime._connect_db(runtime_root) as connection:
+        row = connection.execute(
+            """
+            SELECT status, row_status, last_reason, payload_json
+            FROM target_races
+            WHERE target_key = '202603232401::c2_provisional_v1'
+            """
+        ).fetchone()
+
+    assert row is not None
+    assert row["status"] == "imported"
+    assert row["row_status"] == "waiting_beforeinfo"
+    assert row["last_reason"] == "women6_proxy, class=B1"
+    payload = json.loads(row["payload_json"] or "{}")
+    assert payload["status"] == "waiting_beforeinfo"
+    assert payload["final_reason"] == ""
+    assert payload["racer_index_pred1_lane"] == 2
+
+
+def test_run_cycle_continues_when_sync_fails(monkeypatch, tmp_path: Path) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime.initialize_runtime(runtime_root)
+    calls: list[str] = []
+
+    def fake_sync_watchlists(*args: object, **kwargs: object) -> dict[str, object]:
+        calls.append("sync")
+        raise RuntimeError("temporary dns failure")
+
+    def fake_evaluate_targets(*args: object, **kwargs: object) -> dict[str, object]:
+        calls.append("evaluate")
+        return {"checked": 0, "go": 0, "skip": 0, "waiting": 0, "expired": 0}
+
+    def fake_execute_bets(*args: object, **kwargs: object) -> dict[str, object]:
+        calls.append("execute")
+        return {"processed": 0, "skipped": 0, "errors": 0, "halted": False}
+
+    monkeypatch.setattr(runtime, "sync_watchlists", fake_sync_watchlists)
+    monkeypatch.setattr(runtime, "evaluate_targets", fake_evaluate_targets)
+    monkeypatch.setattr(runtime, "execute_bets", fake_execute_bets)
+
+    result = runtime.run_cycle(
+        runtime_root=runtime_root,
+        race_date="2026-04-21",
+        as_of=datetime(2026, 4, 21, 6, 17, 0),
+        include_sync=True,
+    )
+
+    assert calls == ["sync", "evaluate", "execute"]
+    assert result["sync"]["failed"] is True
+    assert result["sync"]["error_type"] == "RuntimeError"
+    assert result["sync"]["error"] == "temporary dns failure"
+    assert result["execute"]["errors"] == 0
+
+    log_text = (runtime_root / "data" / "auto_run.log").read_text(encoding="utf-8")
+    assert "cycle phase failed: sync" in log_text
+    assert "RuntimeError: temporary dns failure" in log_text
+
+
 def test_auto_loop_refuses_duplicate_process(monkeypatch, tmp_path: Path) -> None:
     runtime_root = tmp_path / "runtime"
     runtime.initialize_runtime(runtime_root)
@@ -1268,6 +1410,30 @@ def test_auto_loop_refuses_duplicate_process(monkeypatch, tmp_path: Path) -> Non
         "existing_pid": 4242,
     }
     assert called["run_cycle"] == 0
+
+
+def test_auto_loop_retries_sync_after_failed_cycle(monkeypatch, tmp_path: Path) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime.initialize_runtime(runtime_root)
+    runtime.save_settings(runtime_root, {"system_running": True, "poll_seconds": 5, "sync_interval_seconds": 300})
+
+    include_sync_values: list[bool] = []
+
+    def fake_run_cycle(*args: object, **kwargs: object) -> dict[str, object]:
+        include_sync_values.append(bool(kwargs["include_sync"]))
+        if len(include_sync_values) == 1:
+            return {"sync": {"failed": True}}
+        return {"sync": {"failed": False}}
+
+    monkeypatch.setattr(runtime, "_claim_auto_loop_pid", lambda *args, **kwargs: None)
+    monkeypatch.setattr(runtime, "_release_auto_loop_pid", lambda *args, **kwargs: None)
+    monkeypatch.setattr(runtime, "run_cycle", fake_run_cycle)
+    monkeypatch.setattr(runtime.time, "sleep", lambda seconds: None)
+
+    result = runtime.auto_loop(runtime_root=runtime_root, max_cycles=2)
+
+    assert result["cycles"] == 2
+    assert include_sync_values == [True, True]
 
 
 def test_current_auto_loop_pid_repairs_stale_pid_with_discovered_loop(monkeypatch, tmp_path: Path) -> None:

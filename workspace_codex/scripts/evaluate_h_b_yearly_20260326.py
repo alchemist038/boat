@@ -7,11 +7,12 @@ from pathlib import Path
 import duckdb
 
 from boat_race_data.gpt_export import FEATURES_QUERY
+from runtime_paths import REPO_ROOT, default_results_db_path
 
 
-DB_PATH = Path(r"\\038INS\boat\data\silver\boat_race.duckdb")
+DB_PATH = default_results_db_path()
 OUTPUT_DIR = Path(
-    r"C:\CODEX_WORK\boat_clone\reports\strategies\zero_base_period_2025-03-11_to_2025-06-16_20260324"
+    REPO_ROOT / "reports" / "strategies" / "zero_base_period_2025-03-11_to_2025-06-16_20260324"
 )
 STAKE_YEN = 100
 

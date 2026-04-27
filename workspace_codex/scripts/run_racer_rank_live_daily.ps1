@@ -22,6 +22,34 @@ function Resolve-TargetDate {
     return [datetime]::Parse($InputDate).Date
 }
 
+function Get-CanonicalRoot {
+    param([string]$RepoRoot = "")
+    if (-not [string]::IsNullOrWhiteSpace($env:BOAT_CANONICAL_ROOT)) {
+        return $env:BOAT_CANONICAL_ROOT
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:BOAT_DATA_ROOT)) {
+        $dataRoot = $env:BOAT_DATA_ROOT
+        if ((Split-Path -Leaf $dataRoot).ToLowerInvariant() -eq "data") {
+            return (Split-Path -Parent $dataRoot)
+        }
+        return $dataRoot
+    }
+    if (-not [string]::IsNullOrWhiteSpace($RepoRoot)) {
+        $repoDb = Join-Path $RepoRoot "data\silver\boat_race.duckdb"
+        if (Test-Path $repoDb) {
+            return $RepoRoot
+        }
+    }
+    $localCanonicalRoot = "C:\boat"
+    if (Test-Path (Join-Path $localCanonicalRoot "data\silver\boat_race.duckdb")) {
+        return $localCanonicalRoot
+    }
+    if (-not [string]::IsNullOrWhiteSpace($RepoRoot)) {
+        return $RepoRoot
+    }
+    return (Get-Location).Path
+}
+
 function Get-ResultsMaxRaceDate {
     param(
         [string]$PythonPath,
@@ -83,15 +111,19 @@ function Clear-ResultsArtifacts {
         [string]$SharedDataRoot,
         [string]$DateCompact
     )
-    $rawResultsDir = Join-Path $SharedDataRoot ("raw\\results\\{0}" -f $DateCompact)
-    $bronzeResultsCsv = Join-Path $SharedDataRoot ("bronze\\results\\{0}.csv" -f $DateCompact)
-    if (Test-Path $rawResultsDir) {
-        Remove-Item -LiteralPath $rawResultsDir -Recurse -Force
-        Write-Step "cleared raw results cache for $DateCompact"
+    foreach ($table in @("results", "beforeinfo", "odds_2t")) {
+        $rawDir = Join-Path $SharedDataRoot ("raw\\{0}\\{1}" -f $table, $DateCompact)
+        if (Test-Path $rawDir) {
+            Remove-Item -LiteralPath $rawDir -Recurse -Force
+            Write-Step "cleared raw $table cache for $DateCompact"
+        }
     }
-    if (Test-Path $bronzeResultsCsv) {
-        Remove-Item -LiteralPath $bronzeResultsCsv -Force
-        Write-Step "cleared bronze results csv for $DateCompact"
+    foreach ($table in @("results", "beforeinfo_entries", "odds_2t")) {
+        $bronzeCsv = Join-Path $SharedDataRoot ("bronze\\{0}\\{1}.csv" -f $table, $DateCompact)
+        if (Test-Path $bronzeCsv) {
+            Remove-Item -LiteralPath $bronzeCsv -Force
+            Write-Step "cleared bronze $table csv for $DateCompact"
+        }
     }
 }
 
@@ -117,6 +149,29 @@ function Invoke-CollectDay {
     }
 }
 
+function Sync-LocalRacerRankOutput {
+    param(
+        [string]$SourceDir,
+        [string]$DestinationDir
+    )
+    if (-not (Test-Path $SourceDir)) {
+        throw "racer-index output not found: $SourceDir"
+    }
+    $resolvedSource = [System.IO.Path]::GetFullPath($SourceDir)
+    $resolvedDestination = [System.IO.Path]::GetFullPath($DestinationDir)
+    if ($resolvedSource -eq $resolvedDestination) {
+        Write-Step "local fallback mirror skipped because source and destination are identical: $resolvedDestination"
+        return
+    }
+    $destinationParent = Split-Path -Parent $DestinationDir
+    New-Item -ItemType Directory -Path $destinationParent -Force | Out-Null
+    if (Test-Path $DestinationDir) {
+        Remove-Item -LiteralPath $DestinationDir -Recurse -Force
+    }
+    Copy-Item -LiteralPath $SourceDir -Destination $DestinationDir -Recurse -Force
+    Write-Step "mirrored racer-index output to local fallback: $DestinationDir"
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $pythonPath = Join-Path $repoRoot ".venv\Scripts\python.exe"
 $cliLauncherPath = Join-Path $repoRoot "workspace_codex\scripts\run_boat_race_cli.py"
@@ -137,13 +192,31 @@ $cutoffMonthStart = Get-Date -Year $cutoffDate.Year -Month $cutoffDate.Month -Da
 $tuneStartIso = $cutoffMonthStart.ToString("yyyy-MM-dd")
 $profileStartIso = $cutoffMonthStart.AddMonths(-13).ToString("yyyy-MM-dd")
 
-$sharedDataRoot = "\\038INS\boat\data"
-$sharedReportsRoot = "\\038INS\boat\reports\strategies"
+$canonicalRoot = Get-CanonicalRoot -RepoRoot $repoRoot
+$sharedDataRoot = if (-not [string]::IsNullOrWhiteSpace($env:BOAT_DATA_ROOT)) {
+    $env:BOAT_DATA_ROOT
+} else {
+    Join-Path $canonicalRoot "data"
+}
+$sharedReportsRoot = if (-not [string]::IsNullOrWhiteSpace($env:BOAT_REPORTS_ROOT)) {
+    $env:BOAT_REPORTS_ROOT
+} else {
+    Join-Path $canonicalRoot "reports\strategies"
+}
+$localReportsRoot = Join-Path $repoRoot "reports\strategies"
 $rawRoot = Join-Path $sharedDataRoot "raw"
 $bronzeRoot = Join-Path $sharedDataRoot "bronze"
 $dbPath = Join-Path $sharedDataRoot "silver\boat_race.duckdb"
 $outputDir = Join-Path $sharedReportsRoot "racer_rank_live_$targetCompact"
-$predictScript = "\\038INS\boat\workspace_codex\scripts\predict_racer_rank_live.py"
+$localOutputDir = Join-Path $localReportsRoot "racer_rank_live_$targetCompact"
+$predictScript = if (-not [string]::IsNullOrWhiteSpace($env:BOAT_PREDICT_SCRIPT_PATH)) {
+    $env:BOAT_PREDICT_SCRIPT_PATH
+} else {
+    Join-Path $canonicalRoot "workspace_codex\scripts\predict_racer_rank_live.py"
+}
+if (-not (Test-Path $predictScript)) {
+    throw "predict script not found: $predictScript"
+}
 
 $logDir = Join-Path $repoRoot "live_trigger_cli\data\logs"
 $logPath = Join-Path $logDir "racer_rank_live_daily.log"
@@ -210,6 +283,7 @@ try {
             throw "predict_racer_rank_live failed with exit code $LASTEXITCODE"
         }
         Write-Step "predict_racer_rank_live completed"
+        Sync-LocalRacerRankOutput -SourceDir $outputDir -DestinationDir $localOutputDir
     }
 
     Write-Step "done output_dir=$outputDir"

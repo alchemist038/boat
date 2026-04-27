@@ -5,11 +5,11 @@ from pathlib import Path
 
 import duckdb
 import pandas as pd
+from runtime_paths import REPO_ROOT, default_reports_root, default_results_db_path
 
-
-ROOT = Path(r"C:\CODEX_WORK\boat_clone")
-DB_PATH = Path(r"\\038INS\boat\data\silver\boat_race.duckdb")
-PRED_DIR = Path(r"\\038INS\boat\reports\strategies\racer_finish_score_feb_candidate_march_forward_20260324")
+ROOT = REPO_ROOT
+DB_PATH = default_results_db_path()
+PRED_DIR = default_reports_root() / "racer_finish_score_feb_candidate_march_forward_20260324"
 OUTPUT_DIR = (
     ROOT
     / "reports"

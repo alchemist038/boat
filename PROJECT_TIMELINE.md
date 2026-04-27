@@ -48,6 +48,21 @@ This file records the major steps in the project's recent evolution so the path 
   - completion callback after submit
 - racer-index work on `ins14` was recognized as a logic substrate, not a separate operating line
 
+## 2026-04-20
+
+- current operational forward set was corrected from the old trio view to the six live profiles actually enabled in `live_trigger_cli`
+- active set now reads:
+  - `125_broad_four_stadium`
+  - `4wind_base_415`
+  - `c2_provisional_v1`
+  - `h_a_final_day_cut_v1`
+  - `l3_weak_124_box_one_a_ex241_v1`
+  - `l1_weak_234_box_v1`
+- daily point-in-time forward tracking was formalized under:
+  - `reports/live_trade/live_trigger_cli_forward_logic_performance_latest/`
+- a reusable refresh script was added:
+  - `workspace_codex/scripts/report_live_trigger_cli_forward_logic_performance.py`
+
 ## Current Read
 
 - DB safety is the top non-negotiable.

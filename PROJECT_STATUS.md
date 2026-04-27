@@ -7,17 +7,18 @@
 - shared DB detail: [DB_STATUS.md](./DB_STATUS.md)
 - bet / trigger detail: [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
 - logic detail: [LOGIC_STATUS.md](./LOGIC_STATUS.md)
+- current forward performance: [README.md](./reports/live_trade/live_trigger_cli_forward_logic_performance_latest/README.md)
 - racer-index detail: [RACER_INDEX_STATUS.md](./RACER_INDEX_STATUS.md)
 - project path: [PROJECT_TIMELINE.md](./PROJECT_TIMELINE.md)
 - portable trigger bundle: [live_trigger/PORTABLE_BUNDLE.md](./live_trigger/PORTABLE_BUNDLE.md)
 - fresh execution line: [live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md](./live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md)
 
-## 2026-03-24 Integrated Direction
+## 2026-04-20 Integrated Direction
 
 ### Current Non-Negotiables
 
-- Shared data root remains `\\038INS\boat\data`.
-- Shared DuckDB remains the canonical DB.
+- Canonical data root is now `C:\boat\data`.
+- Canonical DuckDB is now `C:\boat\data\silver\boat_race.duckdb`.
 - The main bet line is now `live_trigger_cli`.
 - Runtime logic source of truth remains under `live_trigger/boxes/` and the shared bet contract.
 - `racer_index` is part of logic research, not a separate operating line.
@@ -35,11 +36,18 @@
 
 ### Current Main Forward Set
 
-- `4wind`
-- `c2`
 - `125_broad_four_stadium`
+- `4wind_base_415`
+- `c2_provisional_v1`
+- `h_a_final_day_cut_v1`
+- `l3_weak_124_box_one_a_ex241_v1`
+- `l1_weak_234_box_v1`
 
-These three should now be treated as the main forward logic set.
+These six should now be treated as the main forward logic set in `live_trigger_cli`.
+
+Current point-in-time forward performance should be read from:
+
+- [README.md](./reports/live_trade/live_trigger_cli_forward_logic_performance_latest/README.md)
 
 ### Current Doc Structure
 
@@ -62,8 +70,8 @@ These three should now be treated as the main forward logic set.
 
 ### Current Operating Model
 
-- Shared data root is now `\\038INS\boat\data`.
-- Treat `\\038INS\boat\data\silver\boat_race.duckdb` as the canonical DB.
+- Canonical data root is now `C:\boat\data`.
+- Treat `C:\boat\data\silver\boat_race.duckdb` as the canonical DB.
 - Use Git primarily for code and notes. Operational data handoff is centered on the shared `raw/`, `bronze/`, and `silver/` folders.
 - `i5` reported this policy in [FROM_I5_TO_ME.md](/d:/boat/FROM_I5_TO_ME.md).
 
@@ -244,10 +252,10 @@ These three should now be treated as the main forward logic set.
 
 ### Immediate Next Step
 
-- Collect and integrate dates after `2026-03-13` into the shared data root.
+- Collect and integrate dates after `2026-03-13` into the canonical `C:\boat\data` root.
 - If continuing in a new thread, start from:
-  - shared canonical root is `\\038INS\boat\data`
-  - shared DuckDB rebuilt and verified on `2026-03-19`
+  - canonical root is `C:\boat\data`
+  - canonical DuckDB is `C:\boat\data\silver\boat_race.duckdb`
   - current canonical status note is this file plus [FROM_I5_TO_ME.md](/d:/boat/FROM_I5_TO_ME.md)
 
 ## 1. このファイルの目的
