@@ -9,10 +9,23 @@ from boat_race_data.mbrace import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
+DEBUG_SAMPLE_ROOT = ROOT / "docs" / "manual_debug_samples" / "20260313_root_cleanup"
+CANONICAL_DATA_ROOT = Path(r"C:\boat\data")
+
+
+def _first_existing_path(*candidates: Path) -> Path:
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError("sample file not found: " + ", ".join(str(path) for path in candidates))
+
+
+def _read_sample_text(*candidates: Path) -> str:
+    return _first_existing_path(*candidates).read_text(encoding="cp932", errors="replace")
 
 
 def test_parse_mbrace_b_schedule_sample_day() -> None:
-    text = (ROOT / "B260306.TXT").read_text(encoding="cp932", errors="replace")
+    text = _read_sample_text(ROOT / "B260306.TXT", DEBUG_SAMPLE_ROOT / "B260306.TXT")
     tables = parse_mbrace_b_schedule(text, "20260306", "test://b", "2026-03-11T00:00:00+00:00")
 
     assert len(tables["races"]) > 100
@@ -36,7 +49,7 @@ def test_parse_mbrace_b_schedule_sample_day() -> None:
 
 
 def test_parse_mbrace_k_results_sample_day() -> None:
-    text = (ROOT / "K260306.TXT").read_text(encoding="cp932", errors="replace")
+    text = _read_sample_text(ROOT / "K260306.TXT", DEBUG_SAMPLE_ROOT / "K260306.TXT")
     tables = parse_mbrace_k_results(text, "20260306", "test://k", "2026-03-11T00:00:00+00:00")
 
     assert len(tables["results"]) > 100
@@ -59,9 +72,9 @@ def test_parse_mbrace_k_results_sample_day() -> None:
 
 
 def test_parse_mbrace_k_results_preserves_placeholder_columns_for_lower_finishers() -> None:
-    text = (ROOT / "data" / "raw" / "mbrace_k" / "202512" / "K251208.TXT").read_text(
-        encoding="cp932",
-        errors="replace",
+    text = _read_sample_text(
+        ROOT / "data" / "raw" / "mbrace_k" / "202512" / "K251208.TXT",
+        CANONICAL_DATA_ROOT / "raw" / "mbrace_k" / "202512" / "K251208.TXT",
     )
     tables = parse_mbrace_k_results(text, "20251208", "test://k", "2026-03-12T00:00:00+00:00")
 
@@ -92,9 +105,9 @@ def test_parse_k_finish_token_ignores_special_result_codes() -> None:
 
 
 def test_parse_mbrace_k_results_keeps_beforeinfo_rows_with_special_finish_codes() -> None:
-    text = (ROOT / "data" / "raw" / "mbrace_k" / "202303" / "K230311.TXT").read_text(
-        encoding="cp932",
-        errors="replace",
+    text = _read_sample_text(
+        ROOT / "data" / "raw" / "mbrace_k" / "202303" / "K230311.TXT",
+        CANONICAL_DATA_ROOT / "raw" / "mbrace_k" / "202303" / "K230311.TXT",
     )
     tables = parse_mbrace_k_results(text, "20230311", "test://k", "2026-03-13T00:00:00+00:00")
 

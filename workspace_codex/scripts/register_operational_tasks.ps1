@@ -24,6 +24,11 @@ function New-TaskActionForScript {
     return New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`""
 }
 
+function New-TaskTriggerForTime {
+    param([datetime]$StartTime)
+    return New-ScheduledTaskTrigger -Daily -At $StartTime
+}
+
 function Ensure-Task {
     param(
         [string]$TaskName,
@@ -32,17 +37,16 @@ function Ensure-Task {
     )
     $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     $action = New-TaskActionForScript -ScriptPath $ScriptPath
+    $trigger = New-TaskTriggerForTime -StartTime $DefaultStartTime
     if ($null -ne $existing) {
-        $existing.Actions = @($action)
-        Set-ScheduledTask -InputObject $existing | Out-Null
-        Write-Host "Updated task action: $TaskName -> $ScriptPath"
+        Set-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger | Out-Null
+        Write-Host "Updated task: $TaskName -> $ScriptPath @ $($DefaultStartTime.ToString('HH:mm'))"
         return
     }
     if (-not $CreateIfMissing.IsPresent) {
         Write-Host "Task not found, skipped (use -CreateIfMissing): $TaskName"
         return
     }
-    $trigger = New-ScheduledTaskTrigger -Daily -At $DefaultStartTime
     Register-ScheduledTask `
         -TaskName $TaskName `
         -Action $action `
@@ -52,4 +56,4 @@ function Ensure-Task {
 }
 
 Ensure-Task -TaskName "BoatSharedRecentCollectDaily" -ScriptPath $sharedCollectScript -DefaultStartTime ([datetime]"2000-01-01 01:00:00")
-Ensure-Task -TaskName "BoatRacerIndexLiveCsvDaily" -ScriptPath $racerIndexScript -DefaultStartTime ([datetime]"2000-01-01 03:00:00")
+Ensure-Task -TaskName "BoatRacerIndexLiveCsvDaily" -ScriptPath $racerIndexScript -DefaultStartTime ([datetime]"2000-01-01 06:00:00")

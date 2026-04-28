@@ -7,10 +7,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FRESH_AUTO_SYSTEM_ROOT = ROOT / "live_trigger_fresh_exec" / "auto_system"
 
-for import_root in (FRESH_AUTO_SYSTEM_ROOT, ROOT):
+for module_name in [name for name in list(sys.modules) if name == "app" or name.startswith("app.")]:
+    sys.modules.pop(module_name, None)
+
+for import_root in (ROOT, FRESH_AUTO_SYSTEM_ROOT):
     import_text = str(import_root)
-    if import_text not in sys.path:
-        sys.path.insert(0, import_text)
+    while import_text in sys.path:
+        sys.path.remove(import_text)
+    sys.path.insert(0, import_text)
 
 from app.core.fresh_executor import FreshTeleboatExecutor
 
@@ -77,4 +81,3 @@ def test_consume_telegram_assist_action_accepts_once_and_clears_markup(monkeypat
             },
         ),
     ]
-

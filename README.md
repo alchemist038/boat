@@ -220,7 +220,7 @@ Current schedule on this machine:
 - start time: `01:00`
 - intent: refresh shared `raw -> bronze -> silver` for the recent overlap window before morning live use
 - task name: `\BoatRacerIndexLiveCsvDaily`
-- start time: `03:00`
+- start time: `06:00`
 - intent: after the recent DB refresh, collect target-day raw pages and generate `racer_rank_live_YYYYMMDD`
 - legacy fallback note:
   - keep the older INS14 boat tasks disabled rather than deleted so they can be re-enabled if the active machine or network path has trouble
