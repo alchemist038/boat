@@ -97,6 +97,7 @@ Open these when the task is about logic evaluation, adopted filters, forward can
 - [racer_index/SCHEMA.md](./racer_index/SCHEMA.md)
 - [PROJECT_STATUS.md](./PROJECT_STATUS.md)
 - [projects/125/README.md](./projects/125/README.md)
+- [projects/rolling_1x/README.md](./projects/rolling_1x/README.md)
 - [projects/discovery/README.md](./projects/discovery/README.md)
 - [projects/c2/status_notebooklm_20260313.txt](./projects/c2/status_notebooklm_20260313.txt)
 - [projects/4wind/README.md](./projects/4wind/README.md)
@@ -123,6 +124,7 @@ Open these when the task is about the shared logic owner or the backup portable 
 
 - [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
 - [live_trigger/README.md](./live_trigger/README.md)
+- [live_trigger/boxes/rolling_1x/README.md](./live_trigger/boxes/rolling_1x/README.md)
 - [live_trigger/PORTABLE_BUNDLE.md](./live_trigger/PORTABLE_BUNDLE.md)
 - [live_trigger/BOX_GO_RUNTIME_CONCEPT.md](./live_trigger/BOX_GO_RUNTIME_CONCEPT.md)
 - [live_trigger/PROJECT_RULES.md](./live_trigger/PROJECT_RULES.md)

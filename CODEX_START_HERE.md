@@ -5,6 +5,21 @@
 - Use [ROOT_DOC_MAP.md](./ROOT_DOC_MAP.md) as the repo-level index.
 - It routes data / DB work, strategy work, portable trigger work, fresh execution work, and machine handoff notes.
 
+## Current Fast Route
+
+For current `i5` bet-line or rolling-logic work, read these after this file:
+
+1. [I5_START.md](./I5_START.md)
+2. [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
+3. [LOGIC_STATUS.md](./LOGIC_STATUS.md)
+4. [projects/rolling_1x/README.md](./projects/rolling_1x/README.md)
+
+As of `2026-05-04`, the active bet line is intentionally narrowed:
+
+- real: `l3_weak_124_box_one_a_ex241_v1`
+- air: `rolling_1x_12_13_train3m_v1`
+- older forward profiles are demoted from the active bet line while the rolling `1-2 / 1-3` method is evaluated.
+
 通常運用では、まずこの 4 手だけで十分です。
 
 1. 自分が `ins14` か `i5` か確認する

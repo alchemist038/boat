@@ -1,0 +1,2 @@
+﻿logic_id,combo,slice_family,slice_value,train_sample_races,train_hits,train_hit_rate_pct,train_roi_pct,train_roi_lift_pct,train_positive_months,target_bets,target_hits,target_hit_rate_pct,target_return_yen,target_profit_yen,target_roi_pct,target_avg_hit_payout_yen
+L01,1-2,lane1_target_start_gap_pair,best-best,369,120,32.52,130.79,51.3,3,81,17,20.99,6160,-1940,76.05,362.35

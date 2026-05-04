@@ -41,6 +41,25 @@
 - `armed_real`
   - 自動で submit まで進みます
 
+## Profile-Specific Execution Mode
+
+`settings.json` supports `profile_execution_modes`.
+
+Example:
+
+```json
+{
+  "execution_mode": "armed_real",
+  "profile_execution_modes": {
+    "rolling_1x_12_13_train3m_v1": "air"
+  }
+}
+```
+
+If a profile is not listed, the global `execution_mode` is used. The rolling
+1x profile also carries `real_allowed_from=2026-05-11`, so it is kept in Air
+through `2026-05-10` even if the profile mode is accidentally promoted early.
+
 ## assist_real の流れ
 
 `assist_real` は次の流れです。

@@ -26,6 +26,15 @@ def _parse_profile_amount(raw: str) -> tuple[str, int]:
     return key, amount
 
 
+def _parse_profile_execution_mode(raw: str) -> tuple[str, str]:
+    key, value = _parse_key_value(raw)
+    mode = value.strip().lower()
+    if mode not in runtime.VALID_EXECUTION_MODES:
+        choices = ", ".join(runtime.VALID_EXECUTION_MODES)
+        raise argparse.ArgumentTypeError(f"Execution mode must be one of {choices}: {raw}")
+    return key, mode
+
+
 def _parse_scalar(value: str) -> Any:
     lowered = value.strip().lower()
     if lowered in {"true", "false"}:
@@ -67,7 +76,22 @@ def _parse_datetime_or_none(value: str | None) -> Any:
 
 
 def _print_payload(payload: dict[str, Any]) -> None:
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    print(json.dumps(_redact_secrets(payload), ensure_ascii=False, indent=2))
+
+
+def _redact_secrets(value: Any) -> Any:
+    if isinstance(value, dict):
+        redacted: dict[str, Any] = {}
+        for key, item in value.items():
+            lowered = str(key).lower()
+            if "token" in lowered or "chat_id" in lowered:
+                redacted[key] = "***" if item else ""
+            else:
+                redacted[key] = _redact_secrets(item)
+        return redacted
+    if isinstance(value, list):
+        return [_redact_secrets(item) for item in value]
+    return value
 
 
 def _command_show_settings(_: argparse.Namespace) -> int:
@@ -80,10 +104,12 @@ def _command_configure(args: argparse.Namespace) -> int:
     for key, value in args.setting or []:
         overrides[key] = _parse_scalar(value)
     profile_amount_updates = {key: amount for key, amount in args.profile_amount or []}
+    profile_execution_mode_updates = {key: mode for key, mode in args.profile_execution_mode or []}
     result = runtime.configure_runtime(
         execution_mode=args.execution_mode,
         setting_overrides=overrides,
         profile_amount_updates=profile_amount_updates,
+        profile_execution_mode_updates=profile_execution_mode_updates,
         enabled_profiles=args.enable_profile or [],
         disabled_profiles=args.disable_profile or [],
     )
@@ -177,6 +203,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         type=_parse_profile_amount,
         help="Profile amount override in PROFILE_ID=AMOUNT form.",
+    )
+    configure_parser.add_argument(
+        "--profile-execution-mode",
+        action="append",
+        type=_parse_profile_execution_mode,
+        help="Profile execution mode override in PROFILE_ID=MODE form.",
     )
     configure_parser.add_argument(
         "--enable-profile",

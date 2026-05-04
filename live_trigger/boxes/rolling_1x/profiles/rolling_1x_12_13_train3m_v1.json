@@ -1,0 +1,28 @@
+{
+  "box_id": "rolling_1x",
+  "profile_id": "rolling_1x_12_13_train3m_v1",
+  "strategy_id": "rolling_exacta_1x",
+  "display_name": "Rolling 1-2/1-3 Train3M",
+  "description": "Composite rolling distortion product: train previous 3 full months, exclude day 1-10 grace period, then run exacta 1-2/1-3 from day 11 to next day 10.",
+  "accent_color": "#f3b23a",
+  "enabled": true,
+  "runtime_evaluator_kind": "rolling_exacta_1x",
+  "watch_minutes_before_deadline": 25,
+  "include_final_day": true,
+  "real_allowed_from": "2026-05-11",
+  "allowed_combos": [
+    "1-2",
+    "1-3"
+  ],
+  "candidate_windows": [
+    {
+      "label": "2026-04-11_to_2026-05-10",
+      "valid_from": "2026-04-11",
+      "valid_to": "2026-05-10",
+      "path": "reports/strategies/rolling_10day_forward_2026_available_train3m_no_grace_12_13_tol98_max10_nolift_20260504/2026-04-11_to_2026-05-10/selected_candidates.csv",
+      "train_start": "2026-01-01",
+      "train_end": "2026-03-31"
+    }
+  ],
+  "deployment_note": "Use the no-grace/no-ROI-lift 1-2/1-3 candidate pack in air/forward through 2026-05-10, then promote only after shadow behavior is confirmed."
+}

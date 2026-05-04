@@ -13,6 +13,8 @@ def test_configure_accepts_profile_updates() -> None:
             "poll_seconds=15",
             "--profile-amount",
             "c2=300",
+            "--profile-execution-mode",
+            "rolling_1x_12_13_train3m_v1=air",
             "--disable-profile",
             "c2_provisional_v1",
         ]
@@ -21,6 +23,7 @@ def test_configure_accepts_profile_updates() -> None:
     assert args.execution_mode == "assist_real"
     assert args.setting == [("poll_seconds", "15")]
     assert args.profile_amount == [("c2", 300)]
+    assert args.profile_execution_mode == [("rolling_1x_12_13_train3m_v1", "air")]
     assert args.disable_profile == ["c2_provisional_v1"]
 
 

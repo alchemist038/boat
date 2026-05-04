@@ -28,6 +28,8 @@ This file is the parent status doc for logic research, adopted forward logic, an
 - [README.md](./live_trigger/boxes/l3_124/README.md)
 - [projects/l1_234/README.md](./projects/l1_234/README.md)
 - [README.md](./live_trigger/boxes/l1_234/README.md)
+- [projects/rolling_1x/README.md](./projects/rolling_1x/README.md)
+- [README.md](./live_trigger/boxes/rolling_1x/README.md)
 - [projects/125/README.md](./projects/125/README.md)
 - [projects/discovery/README.md](./projects/discovery/README.md)
 - [projects/4wind/README.md](./projects/4wind/README.md)
@@ -36,7 +38,7 @@ This file is the parent status doc for logic research, adopted forward logic, an
 - [workspace_codex/analysis/README.md](./workspace_codex/analysis/README.md)
 - [live_trigger/PROJECT_RULES.md](./live_trigger/PROJECT_RULES.md)
 
-- updated_at: 2026-04-27 JST
+- updated_at: 2026-05-04 JST
 
 ## 0. Logic Asset Storage Rule
 
@@ -71,7 +73,53 @@ Practical rule:
 - if a concept is worth remembering, it should at least have a `projects/`
   home and a pointer to its evidence
 
-## 1. Logic Ownership
+## 1. Current Logic Direction: Rolling 1213
+
+The current logic research direction is moving toward a rolling `1-2 / 1-3` exacta product:
+
+- learn from the previous 3 complete months
+- exclude day 1-10 from training
+- use day 1-10 as the next candidate Air observation period
+- run the selected logic from day 11 through day 10 of the next month
+- keep only `1-2` and `1-3`
+- require sample size, train ROI, and monthly stability
+- accept candidate `0` as a valid no-bet month
+
+Primary concept doc:
+
+- [projects/rolling_1x/README.md](./projects/rolling_1x/README.md)
+
+Runtime profile doc:
+
+- [live_trigger/boxes/rolling_1x/README.md](./live_trigger/boxes/rolling_1x/README.md)
+
+Current interpretation:
+
+- this is not a static long-horizon logic
+- it is a monthly market-distortion extraction method
+- the goal is to catch short-lived odds distortions before they are priced in
+- if the 3-month slice does not produce stable candidates, the correct action is to stand down
+
+Important 2026 read:
+
+- `2026-02-01..2026-04-30` produced `0` candidates for the `2026-05-11..2026-06-10` forward window under the current strict no-grace rules
+- this likely means February-April 2026, especially March-April, behaved differently from the prior distortion regime
+- this is a signal to skip, not a reason to force a weaker logic
+
+Current bet-line posture:
+
+- `l3_weak_124_box_one_a_ex241_v1` remains the only real-bet profile
+- `rolling_1x_12_13_train3m_v1` is Air observation through `2026-05-10`
+- older active forward profiles were demoted from the bet line so the rolling method can be tested cleanly
+
+Operational design note:
+
+- real operation needs two rolling lanes:
+  - `rolling_1213_real`: current 11th-to-next-10th candidate pack
+  - `rolling_1213_air`: next candidate pack observed during day 1-10
+- one profile is not enough once the rolling product enters true production
+
+## 2. Logic Ownership
 
 - runtime logic source of truth:
   - `live_trigger/boxes/`
@@ -87,10 +135,20 @@ Current adopted shared boxes:
 - `live_trigger/boxes/h_a/`
 - `live_trigger/boxes/l3_124/`
 - `live_trigger/boxes/l1_234/`
+- `live_trigger/boxes/rolling_1x/`
 
-## 2. Current Active Forward Set
+## 3. Current Active Forward Set
 
-These are the six active forward logic tracks currently enabled in `live_trigger_cli/data/settings.json`.
+As of `2026-05-04`, the actual active bet line is narrower than the older six-profile forward set.
+
+Currently active:
+
+- real:
+  - `l3_weak_124_box_one_a_ex241_v1`
+- air:
+  - `rolling_1x_12_13_train3m_v1`
+
+The older six-profile forward set below is retained as historical/project context, but most of it is currently demoted from the active bet line while the rolling `1-2 / 1-3` method is evaluated.
 
 Current daily forward report:
 
@@ -179,7 +237,7 @@ Historical trio DD / ROI snapshot:
 - current shared runtime profile lives in:
   - `live_trigger/boxes/l1_234/profiles/l1_weak_234_box_v1.json`
 
-## 3. Common Adopted Filters
+## 4. Common Adopted Filters
 
 These should now be treated as adopted shared reads across the current active forward set.
 
@@ -187,7 +245,7 @@ These should now be treated as adopted shared reads across the current active fo
 - keep logic point-in-time
 - do not let execution-specific state redefine logic truth
 
-## 4. Not Main But Still Present
+## 5. Not Main But Still Present
 
 - `125_suminoe_main`
   - valid profile
@@ -196,7 +254,7 @@ These should now be treated as adopted shared reads across the current active fo
   - not adopted yet
   - remains conditional / project-specific
 
-## 5. Pre-Review / 検討前 Inventory
+## 6. Pre-Review / 検討前 Inventory
 
 For dormant logic that should remain reachable but is not part of the current active six-logic forward set, use:
 
@@ -399,7 +457,7 @@ Current `3-of-4` exploratory check:
     - execution realism of the `ex241` 5-ticket slice
     - whether this branch remains operationally clean inside the current set
 
-## 6. Racer Index Position
+## 7. Racer Index Position
 
 `racer_index` is a logic substrate.
 
@@ -422,7 +480,7 @@ Current racer-index status lives in:
 
 - [RACER_INDEX_STATUS.md](./RACER_INDEX_STATUS.md)
 
-## 7. Forward Discipline
+## 8. Forward Discipline
 
 For the current active six-logic forward set:
 
@@ -431,14 +489,14 @@ For the current active six-logic forward set:
 - record adopted filters and scope changes here
 - keep strategy-specific backtest and refinement notes in the relevant project/readme files
 
-## 8. Portfolio Sizing Layer
+## 9. Portfolio Sizing Layer
 
 - `R_CONCEPT.md` defines the shared meaning of `R`
 - `R` belongs to logic-side portfolio sizing
 - execution lines should consume precomputed `R`
 - execution lines should not redefine `R` ad hoc
 
-## 9. 4wind Promotion Decision
+## 10. 4wind Promotion Decision
 
 Current recommendation:
 

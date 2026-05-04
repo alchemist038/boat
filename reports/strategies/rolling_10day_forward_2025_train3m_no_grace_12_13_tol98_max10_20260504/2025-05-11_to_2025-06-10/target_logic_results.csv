@@ -1,0 +1,6 @@
+﻿logic_id,combo,slice_family,slice_value,train_sample_races,train_hits,train_hit_rate_pct,train_roi_pct,train_roi_lift_pct,train_positive_months,target_bets,target_hits,target_hit_rate_pct,target_return_yen,target_profit_yen,target_roi_pct,target_avg_hit_payout_yen
+L01,1-2,lane1_target_start_gap_pair,best-best,399,132,33.08,145.04,62.69,3,103,21,20.39,7820,-2480,75.92,372.38
+L02,1-2,lane1_target_exhibition_st_rank_pair,1-2,1845,574,31.11,125.66,43.31,3,382,72,18.85,24270,-13930,63.53,337.08
+L03,1-2,lane1_target_start_gap_pair x target_outer_pressure_bucket,best-<=0.03 | high_other_pressure,1064,304,28.57,126.32,43.97,3,224,32,14.29,16860,-5540,75.27,526.88
+L04,1-2,lane1_target_start_gap_pair,best-<=0.03,1420,434,30.56,121.8,39.45,3,312,62,19.87,26140,-5060,83.78,421.61
+L05,1-2,lane1_target_start_gap_pair x target_outer_pressure_bucket,<=0.03-<=0.03 | high_other_pressure,651,149,22.89,111.67,29.32,3,147,28,19.05,12160,-2540,82.72,434.29

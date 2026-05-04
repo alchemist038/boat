@@ -33,6 +33,13 @@ from boat_race_data.live_trigger import (
     load_trigger_profiles,
 )
 from boat_race_data.parsers import parse_beforeinfo, parse_odds_2t, parse_racelist
+from boat_race_data.rolling_exacta_runtime import (
+    build_watchlist_row as build_rolling_exacta_watchlist_row,
+    evaluate_row as evaluate_rolling_exacta_row,
+    load_candidates as load_rolling_exacta_candidates,
+    normalize_combo as normalize_rolling_exacta_combo,
+    resolve_candidate_path as resolve_rolling_exacta_candidate_path,
+)
 
 DATA_DIR_NAME = "data"
 SETTINGS_FILENAME = "settings.json"
@@ -60,9 +67,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "check_window_end_minutes": 3,
     "default_bet_amount": 100,
     "profile_amounts": {},
+    "profile_execution_modes": {},
     "active_profiles": {},
     "real_headless": False,
-    "stop_on_insufficient_funds": True,
+    "stop_on_insufficient_funds": False,
     "manual_action_timeout_seconds": 180,
     "login_timeout_seconds": 120,
     "real_session_strategy": "fresh_per_execution",
@@ -110,6 +118,11 @@ EVALUATED_PAYLOAD_KEYS = {
     "quoted_odds_exacta_4_1",
     "quoted_odds_exacta_4_5",
     "min_quoted_odds",
+    "selected_combos",
+    "rolling_selected_combos",
+    "rolling_matched_logic_ids",
+    "rolling_match_count",
+    "rolling_candidate_path",
 }
 
 _BETS_MODULE: ModuleType | None = None
@@ -590,8 +603,11 @@ def _build_runtime_watchlist_row(
     entry_rows: list[dict[str, object]],
     profile: RuntimeProfileSpec,
 ) -> dict[str, object] | None:
-    if int(race_row.get("is_final_day", 0) or 0) == 1:
+    include_final_day = bool(profile.data.get("include_final_day", False))
+    if int(race_row.get("is_final_day", 0) or 0) == 1 and not include_final_day:
         return None
+    if profile.evaluator_kind == "rolling_exacta_1x":
+        return build_rolling_exacta_watchlist_row(race_row, entry_rows, profile.data)
     if profile.evaluator_kind == "4wind":
         return _build_4wind_watchlist_row(race_row, entry_rows, profile)
     if profile.strategy_id == "c2" and profile.source_kind == "shared":
@@ -815,6 +831,41 @@ def _evaluate_runtime_row(
     if profile.evaluator_kind == "shared" and profile.shared_profile is not None:
         return enrich_watchlist_row_with_beforeinfo(row, profile.shared_profile, client, raw_root(runtime_root))
 
+    if profile.evaluator_kind == "rolling_exacta_1x":
+        race_date_compact = str(row["race_date"]).replace("-", "")
+        stadium_code = str(row["stadium_code"])
+        race_no = int(row["race_no"])
+        prefix = f"{stadium_code}_{race_no:02d}"
+        beforeinfo_fetch = _fetch_text_cached(
+            client,
+            client.build_race_url("beforeinfo", race_date_compact, stadium_code, race_no),
+            raw_root(runtime_root) / "beforeinfo" / str(row["race_date"]) / f"{prefix}.html",
+            refresh_after_seconds=20,
+        )
+        beforeinfo_rows = parse_beforeinfo(
+            beforeinfo_fetch.text or "",
+            race_date_compact,
+            stadium_code,
+            race_no,
+            beforeinfo_fetch.url,
+            beforeinfo_fetch.fetched_at,
+        )
+        row["beforeinfo_fetched_at"] = beforeinfo_fetch.fetched_at
+        allowed_combos = {
+            normalize_rolling_exacta_combo(combo)
+            for combo in profile.data.get("allowed_combos", ["1-2", "1-3"])
+            if normalize_rolling_exacta_combo(combo)
+        }
+        candidate_path = resolve_rolling_exacta_candidate_path(profile.data, REPO_ROOT, str(row["race_date"]))
+        candidates = load_rolling_exacta_candidates(candidate_path, allowed_combos) if candidate_path is not None else []
+        return evaluate_rolling_exacta_row(
+            row,
+            beforeinfo_rows,
+            candidates,
+            allowed_combos=allowed_combos,
+            candidate_path=candidate_path,
+        )
+
     if profile.evaluator_kind != "4wind":
         row["status"] = "error"
         row["final_reason"] = f"unsupported evaluator: {profile.evaluator_kind}"
@@ -875,6 +926,8 @@ def _normalize_settings(payload: dict[str, Any] | None) -> dict[str, Any]:
 
     if not isinstance(merged.get("profile_amounts"), dict):
         merged["profile_amounts"] = {}
+    if not isinstance(merged.get("profile_execution_modes"), dict):
+        merged["profile_execution_modes"] = {}
     if not isinstance(merged.get("active_profiles"), dict):
         merged["active_profiles"] = {}
 
@@ -886,6 +939,12 @@ def _normalize_settings(payload: dict[str, Any] | None) -> dict[str, Any]:
     if mode not in VALID_EXECUTION_MODES:
         mode = str(DEFAULT_SETTINGS["execution_mode"])
     merged["execution_mode"] = mode
+    profile_execution_modes: dict[str, str] = {}
+    for profile_id, profile_mode in dict(merged.get("profile_execution_modes", {})).items():
+        normalized_profile_mode = str(profile_mode).strip().lower()
+        if normalized_profile_mode in VALID_EXECUTION_MODES:
+            profile_execution_modes[str(profile_id)] = normalized_profile_mode
+    merged["profile_execution_modes"] = profile_execution_modes
     merged["poll_seconds"] = max(5, int(merged.get("poll_seconds", DEFAULT_SETTINGS["poll_seconds"])))
     merged["sync_interval_seconds"] = max(
         30,
@@ -909,10 +968,8 @@ def _normalize_settings(payload: dict[str, Any] | None) -> dict[str, Any]:
         merged.get("real_headless"),
         default=bool(DEFAULT_SETTINGS["real_headless"]),
     )
-    merged["stop_on_insufficient_funds"] = _normalize_bool(
-        merged.get("stop_on_insufficient_funds"),
-        default=bool(DEFAULT_SETTINGS["stop_on_insufficient_funds"]),
-    )
+    # Legacy compatibility only: insufficient funds no longer stops the loop.
+    merged["stop_on_insufficient_funds"] = False
     merged["manual_action_timeout_seconds"] = max(
         30,
         int(merged.get("manual_action_timeout_seconds", DEFAULT_SETTINGS["manual_action_timeout_seconds"])),
@@ -1108,6 +1165,7 @@ def configure_runtime(
     execution_mode: str | None = None,
     setting_overrides: dict[str, Any] | None = None,
     profile_amount_updates: dict[str, int] | None = None,
+    profile_execution_mode_updates: dict[str, str] | None = None,
     enabled_profiles: list[str] | None = None,
     disabled_profiles: list[str] | None = None,
 ) -> dict[str, Any]:
@@ -1123,6 +1181,15 @@ def configure_runtime(
             profile_amounts[str(profile_id)] = max(0, int(amount))
     settings["profile_amounts"] = profile_amounts
 
+    profile_execution_modes = dict(settings.get("profile_execution_modes", {}))
+    if profile_execution_mode_updates:
+        for profile_id, mode in profile_execution_mode_updates.items():
+            normalized_mode = str(mode).strip().lower()
+            if normalized_mode not in VALID_EXECUTION_MODES:
+                raise ValueError(f"Unsupported execution mode for {profile_id}: {mode}")
+            profile_execution_modes[str(profile_id)] = normalized_mode
+    settings["profile_execution_modes"] = profile_execution_modes
+
     active_profiles = dict(settings.get("active_profiles", {}))
     for profile_id in enabled_profiles or []:
         active_profiles[str(profile_id)] = True
@@ -1136,6 +1203,29 @@ def configure_runtime(
 def execution_mode(settings: dict[str, Any]) -> str:
     mode = str(settings.get("execution_mode", "air")).strip().lower()
     if mode not in VALID_EXECUTION_MODES:
+        return "air"
+    return mode
+
+
+def profile_execution_mode(settings: dict[str, Any], profile_id: str) -> str:
+    profile_modes = settings.get("profile_execution_modes", {})
+    if isinstance(profile_modes, dict) and profile_id in profile_modes:
+        mode = str(profile_modes.get(profile_id, "")).strip().lower()
+        if mode in VALID_EXECUTION_MODES:
+            return mode
+    return execution_mode(settings)
+
+
+def guarded_profile_execution_mode(
+    settings: dict[str, Any],
+    profile_id: str,
+    *,
+    race_date: str,
+    context: dict[str, Any] | None = None,
+) -> str:
+    mode = profile_execution_mode(settings, profile_id)
+    real_allowed_from = str((context or {}).get("real_allowed_from", "") or "").strip()
+    if mode != "air" and real_allowed_from and str(race_date) < real_allowed_from:
         return "air"
     return mode
 
@@ -1701,6 +1791,32 @@ def _format_completion_notification(
     return "\n".join(lines)
 
 
+def _format_insufficient_funds_notification(
+    target: sqlite3.Row,
+    intents: list[sqlite3.Row],
+    *,
+    mode: str,
+    detected_message: str,
+) -> str:
+    header = [
+        "INSUFFICIENT FUNDS",
+        f"{target['race_date']} {target['stadium_name'] or target['stadium_code']} {target['race_no']}R",
+        f"profile: {target['profile_id']}",
+        f"mode: {mode}",
+    ]
+    if target["deadline_at"]:
+        header.append(f"deadline: {target['deadline_at']}")
+    header.append(f"message: {detected_message}")
+
+    lines = ["\n".join(header)]
+    if intents:
+        lines.append("bets:")
+        for intent in intents:
+            lines.append(f"- {intent['bet_type']} {intent['combo']} {intent['amount']}")
+    lines.append("loop: continued")
+    return "\n".join(lines)
+
+
 def _format_approval_test_notification(*, target: SimpleNamespace) -> str:
     return "\n".join(
         [
@@ -1861,6 +1977,63 @@ def _notify_telegram_submitted(
         return False
 
 
+def _notify_telegram_insufficient_funds(
+    connection: sqlite3.Connection,
+    *,
+    target_race_id: int,
+    settings: dict[str, Any],
+    mode: str,
+    detected_message: str,
+) -> bool:
+    if not _telegram_completion_notifications_enabled(settings):
+        return False
+    if _target_has_event(connection, target_race_id=target_race_id, event_type="telegram_insufficient_funds_notified"):
+        return False
+
+    token = _telegram_bot_token(settings)
+    chat_id = _telegram_chat_id(settings)
+    if not token or not chat_id:
+        return False
+
+    target = _target_row(connection, target_race_id=target_race_id)
+    if target is None:
+        return False
+    intents = _target_intents(connection, target_race_id=target_race_id)
+    text = _format_insufficient_funds_notification(
+        target,
+        intents,
+        mode=mode,
+        detected_message=detected_message,
+    )
+
+    try:
+        response = _telegram_send_message(token=token, chat_id=chat_id, text=text)
+        _log_event(
+            connection,
+            target_race_id=target_race_id,
+            event_type="telegram_insufficient_funds_notified",
+            message=f"chat={chat_id}",
+            details={
+                "message": detected_message,
+                "message_id": response.get("result", {}).get("message_id"),
+                "chat_id_masked": _mask_secret(chat_id),
+            },
+        )
+        return True
+    except Exception as exc:  # noqa: BLE001
+        _log_event(
+            connection,
+            target_race_id=target_race_id,
+            event_type="telegram_insufficient_funds_notify_failed",
+            message=str(exc),
+            details={
+                "message": detected_message,
+                "chat_id_masked": _mask_secret(chat_id),
+            },
+        )
+        return False
+
+
 def _count_target_intents(connection: sqlite3.Connection, target_race_id: int) -> int:
     row = connection.execute(
         "SELECT COUNT(*) AS count FROM bet_intents WHERE target_race_id = ?",
@@ -1886,8 +2059,9 @@ def _preserve_evaluated_payload(existing_target: sqlite3.Row, row: dict[str, obj
         existing_payload = {}
 
     for key in EVALUATED_PAYLOAD_KEYS:
-        if key in existing_payload and existing_payload[key] not in {"", None}:
-            merged[key] = existing_payload[key]
+        existing_value = existing_payload.get(key)
+        if existing_value is not None and existing_value != "":
+            merged[key] = existing_value
 
     existing_row_status = str(existing_target["row_status"] or "")
     if existing_row_status and existing_row_status not in {"", "waiting_beforeinfo", "watchlist_removed"}:
@@ -2136,14 +2310,29 @@ def _ensure_intents(
     *,
     target: sqlite3.Row,
     settings: dict[str, Any],
+    payload: dict[str, Any] | None = None,
 ) -> int:
     amount = profile_amount(settings, str(target["profile_id"]))
-    target_mode = execution_mode(settings)
+    context: dict[str, Any] = {}
+    if target["payload_json"]:
+        try:
+            context = json.loads(target["payload_json"] or "{}")
+        except json.JSONDecodeError:
+            context = {}
+    if payload:
+        context.update(payload)
+    context["race_id"] = str(target["race_id"])
+    target_mode = guarded_profile_execution_mode(
+        settings,
+        str(target["profile_id"]),
+        race_date=str(target["race_date"]),
+        context=context,
+    )
     bet_rows = _build_bet_rows(
         strategy_id=str(target["strategy_id"]),
         profile_id=str(target["profile_id"]),
         amount=amount,
-        context={"race_id": str(target["race_id"])},
+        context=context,
     )
     if not bet_rows:
         return 0
@@ -2376,7 +2565,7 @@ def evaluate_targets(
                         "SELECT * FROM target_races WHERE id = ?",
                         (int(target["id"]),),
                     ).fetchone()
-                    created = _ensure_intents(connection, target=target, settings=settings)
+                    created = _ensure_intents(connection, target=target, settings=settings, payload=row)
                     if created > 0 or _count_target_intents(connection, int(target["id"])) > 0:
                         target_status = "intent_created"
                     if previous_status != target_status or previous_row_status != new_row_status:
@@ -2387,7 +2576,12 @@ def evaluate_targets(
                             message=new_reason,
                             details={
                                 "created_intents": created,
-                                "execution_mode": execution_mode(settings),
+                                "execution_mode": guarded_profile_execution_mode(
+                                    settings,
+                                    str(target["profile_id"]),
+                                    race_date=str(target["race_date"]),
+                                    context=row,
+                                ),
                             },
                         )
                     go_count += 1
@@ -2446,7 +2640,12 @@ def evaluate_targets(
                             target=refreshed_target,
                             settings=settings,
                             reason=new_reason,
-                            mode=execution_mode(settings),
+                            mode=guarded_profile_execution_mode(
+                                settings,
+                                str(refreshed_target["profile_id"]),
+                                race_date=str(refreshed_target["race_date"]),
+                                context=row,
+                            ),
                         )
                 checked += 1
 
@@ -2804,17 +3003,6 @@ def _set_target_status(
         ),
     )
 
-
-def _auto_stop_system(runtime_root: Path, settings: dict[str, Any]) -> bool:
-    if not bool(settings.get("stop_on_insufficient_funds", True)):
-        return False
-    if not bool(settings.get("system_running", False)):
-        return False
-    settings["system_running"] = False
-    save_settings(runtime_root, settings)
-    return True
-
-
 def execute_bets(
     runtime_root: Path = RUNTIME_ROOT,
     *,
@@ -3070,7 +3258,6 @@ def execute_bets(
                     )
                     errors += len(intents)
                 except TeleboatInsufficientFundsError as exc:
-                    auto_stopped = _auto_stop_system(runtime_root, settings)
                     _set_target_statuses(
                         connection,
                         target_race_ids=target_ids,
@@ -3104,10 +3291,16 @@ def execute_bets(
                             details={
                                 "screenshot_path": getattr(exc, "screenshot_path", None),
                                 "html_path": getattr(exc, "html_path", None),
-                                "auto_stopped": auto_stopped,
                                 **getattr(exc, "details", {}),
                             },
                         )
+                    telegram_notified = _notify_telegram_insufficient_funds(
+                        connection,
+                        target_race_id=int(target_ids[0]),
+                        settings=settings,
+                        mode=mode,
+                        detected_message=str(exc),
+                    )
                     _log_session_event(
                         connection,
                         event_type="insufficient_funds",
@@ -3115,17 +3308,9 @@ def execute_bets(
                         details={
                             "race_id": target.race_id,
                             "mode": mode,
-                            "auto_stopped": auto_stopped,
+                            "telegram_notified": telegram_notified,
                             **getattr(exc, "details", {}),
                         },
-                        )
-                    if auto_stopped:
-                        halted = True
-                        _log_session_event(
-                            connection,
-                            event_type="system_auto_stopped",
-                            message="live_trigger_cli loop stopped after insufficient funds",
-                            details={"race_id": target.race_id, "mode": mode},
                     )
                     errors += len(intents)
                 except TeleboatError as exc:

@@ -190,6 +190,29 @@ def build_bet_rows(
     if amount <= 0:
         return []
 
+    if normalized_strategy == "rolling_exacta_1x" or normalized_profile.startswith("rolling_1x"):
+        selected_combos = []
+        if context is not None:
+            raw_combos = context.get("selected_combos") or context.get("rolling_selected_combos") or []
+            if isinstance(raw_combos, str):
+                selected_combos = [part.strip() for part in raw_combos.split(",") if part.strip()]
+            else:
+                selected_combos = [str(combo).strip() for combo in raw_combos if str(combo).strip()]
+        allowed = {"1-2", "1-3"}
+        combos = []
+        for combo in selected_combos:
+            normalized_combo = combo.replace(" ", "")
+            if normalized_combo in allowed and normalized_combo not in combos:
+                combos.append(normalized_combo)
+        return [
+            {
+                "bet_type": "exacta",
+                "combo": combo,
+                "amount": amount,
+            }
+            for combo in combos
+        ]
+
     if normalized_strategy == "125" or "125" in normalized_profile:
         return [
             {

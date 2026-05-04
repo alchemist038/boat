@@ -50,6 +50,9 @@ def test_load_runtime_profiles_includes_disabled_shared_l1_234_candidate() -> No
     assert profile.box_id == "l1_234"
     assert profile.strategy_id == "l1_234"
 
+    assert "rolling_1x_12_13_train3m_v1" in profile_map
+    assert profile_map["rolling_1x_12_13_train3m_v1"].evaluator_kind == "rolling_exacta_1x"
+
 
 def test_load_runtime_profiles_prefers_shared_over_local_duplicate(tmp_path: Path) -> None:
     runtime_root = tmp_path / "runtime"
@@ -98,6 +101,63 @@ def test_profile_enabled_respects_profile_default_when_setting_is_absent() -> No
         "l1_weak_234_box_v1",
         default_enabled=False,
     ) is False
+
+
+def test_profile_execution_mode_falls_back_to_global_and_allows_override(tmp_path: Path) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime.initialize_runtime(runtime_root)
+
+    settings = runtime.configure_runtime(
+        runtime_root,
+        execution_mode="armed_real",
+        profile_execution_mode_updates={"rolling_1x_12_13_train3m_v1": "air"},
+    )
+
+    assert runtime.profile_execution_mode(settings, "l1_weak_234_box_v1") == "armed_real"
+    assert runtime.profile_execution_mode(settings, "rolling_1x_12_13_train3m_v1") == "air"
+
+
+def test_guarded_profile_execution_mode_honors_real_allowed_from(tmp_path: Path) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime.initialize_runtime(runtime_root)
+    settings = runtime.configure_runtime(
+        runtime_root,
+        execution_mode="armed_real",
+        profile_execution_mode_updates={"rolling_1x_12_13_train3m_v1": "armed_real"},
+    )
+
+    assert (
+        runtime.guarded_profile_execution_mode(
+            settings,
+            "rolling_1x_12_13_train3m_v1",
+            race_date="2026-05-10",
+            context={"real_allowed_from": "2026-05-11"},
+        )
+        == "air"
+    )
+    assert (
+        runtime.guarded_profile_execution_mode(
+            settings,
+            "rolling_1x_12_13_train3m_v1",
+            race_date="2026-05-11",
+            context={"real_allowed_from": "2026-05-11"},
+        )
+        == "armed_real"
+    )
+
+
+def test_build_bet_rows_supports_rolling_selected_exacta() -> None:
+    rows = runtime._build_bet_rows(
+        strategy_id="rolling_exacta_1x",
+        profile_id="rolling_1x_12_13_train3m_v1",
+        amount=100,
+        context={"selected_combos": ["1-2", "1-3", "1-5"]},
+    )
+
+    assert rows == [
+        {"bet_type": "exacta", "combo": "1-2", "amount": 100},
+        {"bet_type": "exacta", "combo": "1-3", "amount": 100},
+    ]
 
 
 def test_decide_4wind_evaluation_ready() -> None:

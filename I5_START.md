@@ -50,15 +50,24 @@ Keep these fixed unless the project explicitly changes them.
 
 Do not casually move work across this boundary.
 
-## 3. Main Forward Set
+## 3. Current Bet-Line Set
 
-Treat these six as the active forward logic set:
+As of `2026-05-04`, the active bet line has been narrowed.
+
+Current real-bet profile:
+
+- `l3_weak_124_box_one_a_ex241_v1`
+
+Current Air observation profile:
+
+- `rolling_1x_12_13_train3m_v1`
+
+The older broad forward set below is currently demoted from the active bet line while the rolling `1-2 / 1-3` method is evaluated:
 
 - `125_broad_four_stadium`
 - `4wind_base_415`
 - `c2_provisional_v1`
 - `h_a_final_day_cut_v1`
-- `l3_weak_124_box_one_a_ex241_v1`
 - `l1_weak_234_box_v1`
 
 Shared owner locations:
@@ -69,6 +78,11 @@ Shared owner locations:
 - `live_trigger/boxes/h_a/`
 - `live_trigger/boxes/l3_124/`
 - `live_trigger/boxes/l1_234/`
+- `live_trigger/boxes/rolling_1x/`
+
+Rolling concept owner:
+
+- [projects/rolling_1x/README.md](./projects/rolling_1x/README.md)
 
 Daily point-in-time forward report:
 

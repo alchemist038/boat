@@ -13,6 +13,72 @@
 - portable trigger bundle: [live_trigger/PORTABLE_BUNDLE.md](./live_trigger/PORTABLE_BUNDLE.md)
 - fresh execution line: [live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md](./live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md)
 
+## 2026-05-04 Logic And Bet-Line Direction
+
+The active bet line has been intentionally narrowed to support the new rolling `1-2 / 1-3` exploration direction.
+
+Current active posture:
+
+- real:
+  - `l3_weak_124_box_one_a_ex241_v1`
+- air:
+  - `rolling_1x_12_13_train3m_v1`
+- demoted from active bet line for now:
+  - `125_broad_four_stadium`
+  - `125_suminoe_main`
+  - `4wind_base_415`
+  - `c2_provisional_v1`
+  - `h_a_final_day_cut_v1`
+  - `l1_weak_234_box_v1`
+  - `l1_weak_234_box_b1_l2a_v1`
+
+Reason:
+
+- the project is shifting the next logic search direction toward a monthly rolling selection method:
+  - train on the previous 3 complete months
+  - exclude day 1-10 from training
+  - use day 1-10 for next-pack Air observation
+  - run day 11 through next day 10 only when qualifying candidates exist
+- candidate `0` is a valid no-bet month, not a failure state
+
+Detailed docs:
+
+- [projects/rolling_1x/README.md](./projects/rolling_1x/README.md)
+- [BET_PROJECT_STATUS.md](./BET_PROJECT_STATUS.md)
+- [LOGIC_STATUS.md](./LOGIC_STATUS.md)
+
+## 2026-05-03 Operational Schedule Update
+
+Daily DB/racer-index ownership was tightened after a `beforeinfo` field-level
+quality investigation.
+
+Current schedule on `MASAO_N8N`:
+
+- `01:00` `BoatSharedRecentCollectDaily`
+  - canonical recent settled DB refresh
+  - normal two-day run is about `70-80` minutes; budget up to about `2` hours
+- `03:15` `BoatBeforeinfoQualityDaily`
+  - verifies recent settled `beforeinfo_entries` have usable exhibition ST
+    values, not merely row coverage
+- `06:00` `BoatRacerIndexLiveCsvDaily`
+  - runs with `-SkipCollect -SkipBackfill`
+  - generates daily racer-index CSV from settled DB + target-day racelist
+  - does not run target-day `collect-day`
+
+Reason:
+
+- previous DB checks treated `beforeinfo_entries` row existence as coverage
+- early same-day `beforeinfo` pages can produce six lane rows with
+  `exhibition_time` and `start_exhibition_st` still `NULL`
+- the new schedule prevents racer-index from writing those incomplete same-day
+  rows into canonical DuckDB, and adds a field-level quality gate after the DB
+  refresh window
+
+Detailed owner docs:
+
+- [DB_STATUS.md](./DB_STATUS.md)
+- [RACER_INDEX_STATUS.md](./RACER_INDEX_STATUS.md)
+
 ## 2026-04-20 Integrated Direction
 
 ### Current Non-Negotiables

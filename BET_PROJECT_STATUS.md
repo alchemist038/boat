@@ -13,6 +13,136 @@
 - fresh execution flow: [live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md](./live_trigger_fresh_exec/FRESH_EXECUTION_FLOW.md)
 - shared runtime rules: [live_trigger/PROJECT_RULES.md](./live_trigger/PROJECT_RULES.md)
 
+## 2026-05-04 Bet-Line Recovery / Rolling 1213 Repositioning
+
+The bet line was intentionally narrowed so the rolling `1-2 / 1-3` product can be observed without older forward profiles consuming attention, capital, or execution risk.
+
+Current `live_trigger_cli/data/settings.json` posture:
+
+- global execution mode:
+  - `armed_real`
+- real profile still allowed:
+  - `l3_weak_124_box_one_a_ex241_v1`
+- rolling profile active but Air only:
+  - `rolling_1x_12_13_train3m_v1`
+- profiles removed from the active bet line for now:
+  - `125_broad_four_stadium`
+  - `125_suminoe_main`
+  - `4wind_base_415`
+  - `c2_provisional_v1`
+  - `h_a_final_day_cut_v1`
+  - `l1_weak_234_box_v1`
+  - `l1_weak_234_box_b1_l2a_v1`
+
+This is a demotion from the bet line, not a deletion of the logic assets. The reason is operational focus: the next main exploration direction is the rolling 3-month train / 1-month forward method documented in [projects/rolling_1x/README.md](./projects/rolling_1x/README.md).
+
+Post-change sync confirmation on `2026-05-04`:
+
+- `shared_profiles`: `2`
+- `source_rows`: `315`
+- active profiles in source generation:
+  - `l3_weak_124_box_one_a_ex241_v1`
+  - `rolling_1x_12_13_train3m_v1`
+- no pending intents after the change
+
+Current same-day DB status snapshot after sync:
+
+| profile | status | count |
+|---|---:|---:|
+| `l3_weak_124_box_one_a_ex241_v1` | `real_bet_placed` | 3 |
+| `l3_weak_124_box_one_a_ex241_v1` | `checked_skip` | 79 |
+| `l3_weak_124_box_one_a_ex241_v1` | `expired` | 17 |
+| `rolling_1x_12_13_train3m_v1` | `air_bet_logged` | 28 |
+| `rolling_1x_12_13_train3m_v1` | `checked_skip` | 157 |
+| `rolling_1x_12_13_train3m_v1` | `expired` | 31 |
+
+Demoted-profile residue still visible in today's DB:
+
+| profile | status | count |
+|---|---:|---:|
+| `125_broad_four_stadium` | `air_bet_logged` | 2 |
+| `4wind_base_415` | `air_bet_logged` | 1 |
+| `4wind_base_415` | `expired` | 13 |
+| `4wind_base_415` | `withdrawn` | 78 |
+| `h_a_final_day_cut_v1` | `air_bet_logged` | 6 |
+| `h_a_final_day_cut_v1` | `expired` | 31 |
+| `h_a_final_day_cut_v1` | `withdrawn` | 143 |
+| `l1_weak_234_box_b1_l2a_v1` | `expired` | 3 |
+| `l1_weak_234_box_b1_l2a_v1` | `withdrawn` | 34 |
+| `l1_weak_234_box_v1` | `air_bet_logged` | 1 |
+| `l1_weak_234_box_v1` | `expired` | 31 |
+| `l1_weak_234_box_v1` | `withdrawn` | 148 |
+
+These rows are not new active bet-line candidates. They are same-day historical residue from before the demotion plus `withdrawn` rows created by the post-change sync. There are no `pending` intents; current intent statuses are only `error`, `executed`, and `insufficient_funds`.
+
+Important correction:
+
+- the first rolling implementation used one profile, but real operation needs two lanes:
+  - one Real lane for the active 11th-to-next-10th window
+  - one Air lane for the next candidate pack during day 1-10
+- a single profile cannot safely hold both candidate packs and both execution modes during the overlap period.
+- until the two-lane implementation is added, `rolling_1x_12_13_train3m_v1` remains the Air observation lane.
+
+Current candidate interpretation:
+
+- `2026-04-11..2026-05-10` rolling candidate pack is active for Air.
+- active profile path now points to the no-grace/no-ROI-lift output:
+  - `C:\boat\reports\strategies\rolling_10day_forward_2026_available_train3m_no_grace_12_13_tol98_max10_nolift_20260504\2026-04-11_to_2026-05-10\selected_candidates.csv`
+- `2026-05-11..2026-06-10` strict no-grace/no-ROI-lift selection produced `0` candidates from `2026-02-01..2026-04-30`.
+- candidate `0` is acceptable and should be treated as "no bet" rather than forcing a weak substitute.
+
+## 2026-05-04 Rolling 1x Composite Air Deployment - Initial Shape
+
+Implemented the rolling exacta composite product as one live profile.
+
+This initial one-profile shape is now treated as an Air observation lane only. True production requires separate Real and Air lanes as described in the bet-line recovery section above.
+
+- profile:
+  - `rolling_1x_12_13_train3m_v1`
+- box:
+  - `C:\boat\live_trigger\boxes\rolling_1x`
+- strategy id:
+  - `rolling_exacta_1x`
+- bet shape:
+  - exacta `1-2`
+  - exacta `1-3`
+- initial candidate pack used by the first one-profile Air deployment:
+  - `C:\boat\reports\strategies\rolling_10day_train_forward_2026_with_partial_apr_train3m_20260503\2026-04-11_to_2026-05-10\selected_candidates.csv`
+  - superseded for the current operating read by the no-grace/no-ROI-lift pack documented above
+- current live mode:
+  - global line remains `armed_real`
+  - this profile is forced through `profile_execution_modes` as `air`
+  - profile payload also carries `real_allowed_from=2026-05-11`
+
+Runtime changes:
+
+- `live_trigger_cli` now supports profile-specific execution modes via
+  `profile_execution_modes`
+- new rolling evaluator builds the same no-index slice features from racelist
+  plus beforeinfo
+- selected combos are passed through target payload into the shared bet builder
+- duplicate behavior remains intentional:
+  - same race and same combo from separate products can combine amount
+  - different combos in the same race are both kept
+- UI now has a profile execution-mode column and an Air / Real performance tab
+
+Validation:
+
+- `py_compile` passed for modified runtime, UI, bet builder, and rolling helper
+- current 2026-04-11 to 2026-05-10 candidate pack was replayed against settled
+  DB rows for exacta `1-2 / 1-3`
+- live evaluator output matched the backtest `target_dedup_bets.csv` focus set:
+  `594 / 594` expected race-combo rows
+- `pytest` is not installed in the active `.venv`, so the pytest suite was not
+  run in this environment
+
+Operational note:
+
+- the loop was restarted on `2026-05-04 00:10:25 JST`
+- current loop PID after restart:
+  - `11192`
+- UI was restarted on port `8502`
+
 ## 2026-04-27 C:\boat Self-Contained Runtime Cutover
 
 The main bet line is now running from the `C:\boat` tree on this machine.

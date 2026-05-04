@@ -1,0 +1,3 @@
+﻿portfolio_label,bets,unique_races,hits,hit_rate_pct,stake_yen,return_yen,profit_yen,roi_pct
+raw_with_overlap,5181,1870,1162,22.43,518100,511940,-6160,98.81
+dedup_race_combo,2654,1870,573,21.59,265400,247000,-18400,93.07

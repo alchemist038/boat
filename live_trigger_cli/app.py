@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -11,6 +12,7 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
+import duckdb
 
 APP_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = APP_ROOT.parent
@@ -69,10 +71,23 @@ st.markdown(
             radial-gradient(circle at top right, rgba(203, 143, 33, 0.18), transparent 24%),
             linear-gradient(180deg, #04070b 0%, #0a1018 42%, #111822 100%);
     }
+    header[data-testid="stHeader"] {
+        background: rgba(4, 7, 11, 0.96);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(115, 145, 173, 0.12);
+    }
+    div[data-testid="stDecoration"] {
+        display: none;
+    }
     .block-container {
-        padding-top: 1.4rem;
+        padding-top: clamp(5.6rem, 8vh, 6.7rem) !important;
         padding-bottom: 2rem;
         max-width: 1300px;
+    }
+    @media (max-width: 720px) {
+        .block-container {
+            padding-top: 5.2rem !important;
+        }
     }
     .stApp h1,
     .stApp h2,
@@ -399,6 +414,12 @@ def _mode_text(value: Any) -> str:
     return EXECUTION_MODE_LABELS.get(text, text)
 
 
+def _normalize_combo(value: Any) -> str:
+    text = str(value or "").strip()
+    text = re.sub(r"\s*-\s*", "-", text)
+    return re.sub(r"\s+", " ", text)
+
+
 def _parse_datetime_text(text: str) -> datetime | None:
     value = text.strip()
     if not value:
@@ -439,10 +460,136 @@ def _profile_frame(settings: dict[str, Any]) -> pd.DataFrame:
                 "box_id": profile.box_id,
                 "enabled": runtime.profile_enabled(settings, profile.profile_id, default_enabled=profile.enabled),
                 "amount": runtime.profile_amount(settings, profile.profile_id),
+                "execution_mode": runtime.profile_execution_mode(settings, profile.profile_id),
+                "mode_source": (
+                    "profile"
+                    if profile.profile_id in dict(settings.get("profile_execution_modes", {}))
+                    else "global"
+                ),
                 "runtime_profile_enabled": bool(profile.enabled),
             }
         )
     return pd.DataFrame(rows)
+
+
+def _load_result_payouts(race_ids: list[str]) -> dict[str, dict[tuple[str, str], int]]:
+    if not race_ids or not runtime.CANONICAL_DUCKDB_PATH.exists():
+        return {}
+    placeholders = ", ".join("?" for _ in race_ids)
+    connection = duckdb.connect(str(runtime.CANONICAL_DUCKDB_PATH), read_only=True)
+    try:
+        rows = connection.execute(
+            f"""
+            SELECT race_id, exacta_combo, exacta_payout, trifecta_combo, trifecta_payout
+            FROM results
+            WHERE race_id IN ({placeholders})
+            """,
+            race_ids,
+        ).fetchall()
+    finally:
+        connection.close()
+    payouts: dict[str, dict[tuple[str, str], int]] = {}
+    for race_id, exacta_combo, exacta_payout, trifecta_combo, trifecta_payout in rows:
+        race_payouts: dict[tuple[str, str], int] = {}
+        if exacta_combo:
+            race_payouts[("exacta", _normalize_combo(exacta_combo))] = int(exacta_payout or 0)
+        if trifecta_combo:
+            race_payouts[("trifecta", _normalize_combo(trifecta_combo))] = int(trifecta_payout or 0)
+        payouts[str(race_id)] = race_payouts
+    return payouts
+
+
+def _performance_rows(mode_group: str = "all") -> tuple[pd.DataFrame, int]:
+    if mode_group == "air":
+        mode_clause = "be.execution_mode = 'air'"
+        status_clause = "be.execution_status = 'logged'"
+    elif mode_group == "real":
+        mode_clause = "be.execution_mode IN ('assist_real', 'armed_real')"
+        status_clause = "be.execution_status = 'submitted'"
+    else:
+        mode_clause = "be.execution_mode IN ('air', 'assist_real', 'armed_real')"
+        status_clause = "be.execution_status IN ('logged', 'submitted')"
+    frame = _read_query(
+        f"""
+        SELECT
+            tr.race_date,
+            tr.race_id,
+            tr.profile_id,
+            tr.strategy_id,
+            bi.execution_mode,
+            bi.bet_type,
+            bi.combo,
+            bi.amount,
+            be.execution_status,
+            be.executed_at
+        FROM bet_executions AS be
+        JOIN bet_intents AS bi ON bi.id = be.intent_id
+        JOIN target_races AS tr ON tr.id = be.target_race_id
+        WHERE {mode_clause}
+          AND {status_clause}
+        ORDER BY tr.race_date DESC, be.executed_at DESC, be.id DESC
+        """,
+    )
+    if frame.empty:
+        return frame, 0
+
+    payouts = _load_result_payouts(sorted(frame["race_id"].astype(str).unique().tolist()))
+    settled_rows: list[dict[str, Any]] = []
+    unsettled = 0
+    for row in frame.to_dict("records"):
+        race_id = str(row["race_id"])
+        race_payouts = payouts.get(race_id)
+        if race_payouts is None:
+            unsettled += 1
+            continue
+        bet_type = str(row["bet_type"]).lower()
+        combo = _normalize_combo(row["combo"])
+        amount = int(row["amount"] or 0)
+        base_payout = int(race_payouts.get((bet_type, combo), 0))
+        returned = int(round(base_payout * amount / 100.0)) if base_payout > 0 else 0
+        settled_rows.append(
+            {
+                "race_date": row["race_date"],
+                "race_id": race_id,
+                "profile_id": row["profile_id"],
+                "strategy_id": row["strategy_id"],
+                "execution_mode": row["execution_mode"],
+                "bet_type": bet_type,
+                "combo": combo,
+                "amount": amount,
+                "return_yen": returned,
+                "profit_yen": returned - amount,
+                "hit": 1 if returned > 0 else 0,
+                "executed_at": row["executed_at"],
+            }
+        )
+    return pd.DataFrame(settled_rows), unsettled
+
+
+def _performance_summary(frame: pd.DataFrame) -> dict[str, Any]:
+    if frame.empty:
+        return {
+            "bets": 0,
+            "hits": 0,
+            "hit_rate_pct": 0.0,
+            "stake_yen": 0,
+            "return_yen": 0,
+            "profit_yen": 0,
+            "roi_pct": 0.0,
+        }
+    bets = int(len(frame))
+    hits = int(frame["hit"].sum())
+    stake = int(frame["amount"].sum())
+    returned = int(frame["return_yen"].sum())
+    return {
+        "bets": bets,
+        "hits": hits,
+        "hit_rate_pct": round(hits * 100.0 / bets, 2) if bets else 0.0,
+        "stake_yen": stake,
+        "return_yen": returned,
+        "profit_yen": returned - stake,
+        "roi_pct": round(returned * 100.0 / stake, 2) if stake else 0.0,
+    }
 
 
 def _latest_targets_frame(limit: int = 200) -> pd.DataFrame:
@@ -843,6 +990,10 @@ def _save_profile_table(edited: pd.DataFrame, current_settings: dict[str, Any]) 
         str(row["profile_id"]): int(row["amount"])
         for _, row in edited.iterrows()
     }
+    profile_execution_mode_updates = {
+        str(row["profile_id"]): str(row["execution_mode"])
+        for _, row in edited.iterrows()
+    }
     enabled_profiles = [str(row["profile_id"]) for _, row in edited.iterrows() if bool(row["enabled"])]
     disabled_profiles = [str(row["profile_id"]) for _, row in edited.iterrows() if not bool(row["enabled"])]
     return runtime.configure_runtime(
@@ -854,7 +1005,7 @@ def _save_profile_table(edited: pd.DataFrame, current_settings: dict[str, Any]) 
             "check_window_end_minutes": current_settings["check_window_end_minutes"],
             "default_bet_amount": current_settings["default_bet_amount"],
             "real_headless": current_settings["real_headless"],
-            "stop_on_insufficient_funds": current_settings["stop_on_insufficient_funds"],
+            "stop_on_insufficient_funds": False,
             "manual_action_timeout_seconds": current_settings["manual_action_timeout_seconds"],
             "login_timeout_seconds": current_settings["login_timeout_seconds"],
             "real_session_strategy": current_settings["real_session_strategy"],
@@ -865,6 +1016,7 @@ def _save_profile_table(edited: pd.DataFrame, current_settings: dict[str, Any]) 
             "close_browser_after_execution": current_settings["close_browser_after_execution"],
         },
         profile_amount_updates=profile_amount_updates,
+        profile_execution_mode_updates=profile_execution_mode_updates,
         enabled_profiles=enabled_profiles,
         disabled_profiles=disabled_profiles,
     )
@@ -877,6 +1029,67 @@ def _profile_generation_summary() -> dict[str, Any]:
         "local_profiles": [profile.profile_id for profile in profiles if profile.source_kind == "local"],
         "raw_root": str(runtime.raw_root()),
     }
+
+
+def _render_performance_panel(auto_refresh_enabled: bool) -> None:
+    run_every = _auto_refresh_run_every(auto_refresh_enabled, interval_seconds=30)
+
+    @st.fragment(run_every=run_every)
+    def _fragment() -> None:
+        st.subheader("Air / Real Performance")
+        st.caption("Results are settled by joining live_trigger_cli system.db executions with the canonical DuckDB results table.")
+        mode_tabs = st.tabs(["Air", "Real", "All"])
+        for tab, mode_group in zip(mode_tabs, ["air", "real", "all"], strict=False):
+            with tab:
+                frame, unsettled = _performance_rows(mode_group)
+                summary = _performance_summary(frame)
+                cols = st.columns(7)
+                cols[0].metric("bets", f"{summary['bets']:,}")
+                cols[1].metric("hits", f"{summary['hits']:,}")
+                cols[2].metric("HIT", f"{summary['hit_rate_pct']:.2f}%")
+                cols[3].metric("stake", f"{summary['stake_yen']:,}")
+                cols[4].metric("return", f"{summary['return_yen']:,}")
+                cols[5].metric("profit", f"{summary['profit_yen']:,}")
+                cols[6].metric("ROI", f"{summary['roi_pct']:.2f}%")
+                if unsettled:
+                    st.info(f"Unsettled or missing-result bet rows: {unsettled:,}")
+                if frame.empty:
+                    st.caption("No settled rows yet.")
+                    continue
+                by_profile = (
+                    frame.groupby(["execution_mode", "profile_id", "strategy_id"], observed=True)
+                    .agg(
+                        bets=("race_id", "size"),
+                        unique_races=("race_id", "nunique"),
+                        hits=("hit", "sum"),
+                        stake_yen=("amount", "sum"),
+                        return_yen=("return_yen", "sum"),
+                        profit_yen=("profit_yen", "sum"),
+                    )
+                    .reset_index()
+                )
+                by_profile["hit_rate_pct"] = (by_profile["hits"] * 100.0 / by_profile["bets"]).round(2)
+                by_profile["roi_pct"] = (by_profile["return_yen"] * 100.0 / by_profile["stake_yen"]).round(2)
+                by_profile = by_profile[
+                    [
+                        "execution_mode",
+                        "profile_id",
+                        "strategy_id",
+                        "bets",
+                        "unique_races",
+                        "hits",
+                        "hit_rate_pct",
+                        "stake_yen",
+                        "return_yen",
+                        "profit_yen",
+                        "roi_pct",
+                    ]
+                ].sort_values(["execution_mode", "profit_yen", "bets"], ascending=[True, False, False])
+                st.dataframe(by_profile, width="stretch", hide_index=True)
+                st.caption("Latest settled bet rows")
+                st.dataframe(frame.head(300), width="stretch", hide_index=True)
+
+    _fragment()
 
 
 _clear_pid_if_stale()
@@ -911,8 +1124,8 @@ st.markdown(
 
 _render_live_header(bool(auto_refresh_enabled))
 
-tab_overview, tab_settings, tab_actions, tab_manual, tab_data = st.tabs(
-    ["概要", "設定", "実行", "手動テスト", "データ"]
+tab_overview, tab_settings, tab_actions, tab_manual, tab_performance, tab_data = st.tabs(
+    ["概要", "設定", "実行", "手動テスト", "成績", "データ"]
 )
 
 with tab_overview:
@@ -993,10 +1206,8 @@ with tab_settings:
             value=int(settings["top_stable_confirm_seconds"]),
             step=1,
         )
-        stop_on_funds = col14.checkbox(
-            "残高不足で停止",
-            value=bool(settings["stop_on_insufficient_funds"]),
-        )
+        col14.markdown("残高不足時は Telegram 通知のみ")
+        col14.caption("自動ループは停止しません")
         logout_after_execution = col15.checkbox(
             "実行後にログアウト",
             value=bool(settings["logout_after_execution"]),
@@ -1039,7 +1250,7 @@ with tab_settings:
                         "check_window_end_minutes": int(window_end),
                         "default_bet_amount": int(default_bet_amount),
                         "real_headless": real_headless,
-                        "stop_on_insufficient_funds": stop_on_funds,
+                        "stop_on_insufficient_funds": False,
                         "manual_action_timeout_seconds": int(manual_timeout),
                         "login_timeout_seconds": int(login_timeout),
                         "real_session_strategy": session_strategy,
@@ -1071,6 +1282,12 @@ with tab_settings:
             "box_id": st.column_config.TextColumn("box_id", disabled=True),
             "enabled": st.column_config.CheckboxColumn("このラインで有効"),
             "amount": st.column_config.NumberColumn("金額", min_value=0, step=100),
+            "execution_mode": st.column_config.SelectboxColumn(
+                "execution_mode",
+                options=list(runtime.VALID_EXECUTION_MODES),
+                help="profile別の実行モード。未指定時は全体の実行モードを使います。",
+            ),
+            "mode_source": st.column_config.TextColumn("mode_source", disabled=True),
             "runtime_profile_enabled": st.column_config.CheckboxColumn("shared profile有効", disabled=True),
         },
         key="live_trigger_cli_profile_editor",
@@ -1216,6 +1433,9 @@ with tab_manual:
             st.json(result)
         except Exception as exc:  # noqa: BLE001
             _notify_error(exc)
+
+with tab_performance:
+    _render_performance_panel(bool(auto_refresh_enabled))
 
 with tab_data:
     subtab1, subtab2, subtab3, subtab4, subtab5 = st.tabs(
